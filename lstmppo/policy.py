@@ -341,12 +341,15 @@ class LSTMPPOPolicy(nn.Module):
         h_gates = torch.stack(h_list, dim=1).detach()
         c_gates = torch.stack(c_list, dim=1).detach()
 
+        # Use a detached view of the hidden states for AR/TAR
+        out_detached = out.detach()
+
         # --- Activation Regularization (AR) ---
-        ar_loss = (out.pow(2).mean()) * self.ar_coef
+        ar_loss = (out_detached.pow(2).mean()) * self.ar_coef
 
         # --- Temporal Activation Regularization (TAR) ---
-        if out.size(1) > 1:
-            tar_loss = (out[:, 1:, :] - out[:, :-1, :]).pow(2).mean() * self.tar_coef
+        if out_detached.size(1) > 1:
+            tar_loss = (out_detached[:, 1:, :] - out_detached[:, :-1, :]).pow(2).mean() * self.tar_coef
         else:
             tar_loss = torch.tensor(0.0, device=out.device)
 
