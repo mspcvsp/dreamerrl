@@ -22,6 +22,12 @@ class EntropySchdeduler(object):
     def __call__(self, update_idx):
         return self.bias + update_idx * self.slope
 
+    def entropy_coef_at(self, pct: float) -> float:
+        """
+        Monotonic linear decay from start → end.
+        """
+        return self.start_entropy_coef + pct * (self.end_entropy_coef - self.start_entropy_coef)
+
 
 class LearningRateScheduler(object):
     """
@@ -73,10 +79,13 @@ class LearningRateScheduler(object):
     """
 
     def __init__(self, cfg: Config):
+        self.lr_warmup_pct = cfg.sched.lr_warmup_pct
+        self.lr_final_pct = cfg.sched.lr_final_pct
+
         self.debug_mode = cfg.trainer.debug_mode
         self.base_lr = cfg.sched.base_lr
-        self.end_lr = self.base_lr * cfg.sched.lr_final_pct / 100
-        self.perc_warmup_updates = cfg.sched.lr_warmup_pct
+        self.end_lr = self.base_lr * self.lr_final_pct / 100
+        self.perc_warmup_updates = self.lr_warmup_pct
         self.warmup_updates = None
         self.total_updates = None
 
@@ -102,3 +111,22 @@ class LearningRateScheduler(object):
                 lr = self.end_lr + 0.5 * (self.base_lr - self.end_lr) * (1 + math.cos(math.pi * progress))
 
             return lr
+
+    def lr_at(self, pct: float) -> float:
+        """
+        pct ∈ [0,1] representing progress through training.
+        Warmup increases LR linearly, then decays linearly.
+        """
+        warmup_end = self.lr_warmup_pct / 100
+        final_end = self.lr_final_pct / 100
+
+        if pct < warmup_end:
+            # Linear warmup from 0 → base_lr
+            return self.base_lr * (pct / warmup_end)
+
+        if pct > final_end:
+            # Linear decay from base_lr → 0
+            return self.base_lr * (1 - (pct - final_end) / (1 - final_end))
+
+        # Plateau region (if any)
+        return self.base_lr

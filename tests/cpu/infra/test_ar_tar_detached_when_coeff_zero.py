@@ -14,6 +14,7 @@ corrupt PPO training and violate the detachment invariant.
 """
 
 import torch
+
 from lstmppo.policy import LSTMPPOPolicy
 from lstmppo.trainer_state import TrainerState
 from lstmppo.types import PolicyInput
