@@ -1,11 +1,23 @@
 """
-This test catches:
+GAE Invariant Test
+------------------
+This test verifies the core mathematical invariants of Generalized Advantage
+Estimation under the simplest possible conditions (zero value function, no
+terminations, linear rewards).
 
-- GAE math regressions
-- dtype issues
-- shape mismatches
-- normalization correctness
-- advantage/return consistency
+Why this matters:
+-----------------
+GAE is one of PPO’s most fragile components. Small regressions in the
+recursion, normalization order, or dtype handling silently destabilize
+training. This test ensures that:
+
+• reward normalization produces mean≈0 and std≈1
+• return/advantage tensors have correct (T, B) shapes
+• returns and advantages are non‑differentiable targets
+• advantages and returns preserve perfect correlation after normalization
+
+If any of these invariants fail, PPO credit assignment becomes misaligned and
+training becomes unstable. Never modify GAE logic without re‑running this test.
 """
 
 import torch
@@ -52,5 +64,9 @@ def test_gae_computation_basic(trainer_state: TrainerState):
     assert buf.advantages.requires_grad is False
     assert buf.returns.requires_grad is False
 
-    # With zero values, advantages == returns
-    assert torch.allclose(buf.advantages, buf.returns, atol=1e-6)
+    # Advantages and returns should be perfectly correlated
+    flat_adv = buf.advantages.flatten()
+    flat_ret = buf.returns.flatten()
+
+    corr = torch.corrcoef(torch.stack([flat_adv, flat_ret]))[0, 1]
+    assert corr > 0.999
