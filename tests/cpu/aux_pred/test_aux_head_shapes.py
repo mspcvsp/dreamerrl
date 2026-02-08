@@ -15,6 +15,7 @@ and PPO training becomes unstable.
 """
 
 import torch
+
 from lstmppo.policy import LSTMPPOPolicy
 from lstmppo.trainer_state import TrainerState
 from lstmppo.types import PolicyInput

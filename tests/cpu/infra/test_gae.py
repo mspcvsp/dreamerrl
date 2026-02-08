@@ -4,6 +4,8 @@ This test catches:
 - GAE math regressions
 - dtype issues
 - shape mismatches
+- normalization correctness
+- advantage/return consistency
 """
 
 import torch
@@ -22,7 +24,7 @@ def test_gae_computation_basic(trainer_state: TrainerState):
     T = buf_cfg.rollout_steps
     B = buf_cfg.num_envs
 
-    # Use non-constant rewards so normalization is meaningful
+    # Non-constant rewards so normalization is meaningful
     rewards = torch.linspace(0, 1, T).unsqueeze(1).repeat(1, B)
     buf.rewards.copy_(rewards)
 
@@ -34,7 +36,7 @@ def test_gae_computation_basic(trainer_state: TrainerState):
 
     buf.compute_returns_and_advantages(last_value)
 
-    # Reward normalization: mean ~0, std ~1
+    # Reward normalization
     assert abs(buf.rewards.mean().item()) < 1e-6
     assert abs(buf.rewards.std(unbiased=False).item() - 1.0) < 1e-6
 
@@ -42,6 +44,13 @@ def test_gae_computation_basic(trainer_state: TrainerState):
     assert buf.advantages.shape == (T, B)
     assert buf.returns.shape == (T, B)
 
-    # Return normalization: mean ~0, std ~1
+    # Returns normalization
     assert abs(buf.returns.mean().item()) < 1e-6
     assert abs(buf.returns.std(unbiased=False).item() - 1.0) < 1e-6
+
+    # Advantages must not require gradients
+    assert buf.advantages.requires_grad is False
+    assert buf.returns.requires_grad is False
+
+    # With zero values, advantages == returns
+    assert torch.allclose(buf.advantages, buf.returns, atol=1e-6)
