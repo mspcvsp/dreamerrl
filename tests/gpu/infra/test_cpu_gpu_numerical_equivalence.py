@@ -4,57 +4,50 @@ import torch
 pytestmark = pytest.mark.gpu
 
 
-def test_cpu_gpu_eval_equivalence(deterministic_trainer):
-    """
-    Given the same rollout and the same policy weights,
-    CPU and GPU evaluate_actions_sequence must produce
-    numerically equivalent outputs.
-    """
+def _clone_buffer_to_device(buf, device):
+    """Clone rollout buffer tensors to a new device."""
+    for name in [
+        "obs",
+        "actions",
+        "rewards",
+        "values",
+        "logprobs",
+        "terminated",
+        "truncated",
+        "hxs",
+        "cxs",
+        "returns",
+        "advantages",
+    ]:
+        t = getattr(buf, name)
+        setattr(buf, name, t.to(device))
+    buf.device = device
+    return buf
 
+
+def test_cpu_gpu_eval_equivalence(deterministic_trainer):
     trainer = deterministic_trainer
+
+    # Force CPU mode
     trainer.state.cfg.trainer.cuda = False
     trainer.device = torch.device("cpu")
 
     # 1) Rollout on CPU
     trainer.collect_rollout()
-    buf = trainer.buffer
+    cpu_eval = trainer.replay_policy_on_rollout()
 
-    # Extract inputs for replay
-    obs = buf.obs  # (T, B, D)
-    actions = buf.actions  # (T, B, A)
-    hxs = buf.hxs[0]  # initial h (B, H)
-    cxs = buf.cxs[0]  # initial c (B, H)
-
-    policy = trainer.policy
-
-    # 2) CPU eval
-    cpu_eval = policy.evaluate_actions_sequence(
-        obs=obs,
-        actions=actions,
-        hxs=hxs,
-        cxs=cxs,
-    )
-
-    # 3) Move policy + inputs to GPU
+    # 2) Move policy + buffer to GPU
     device = torch.device("cuda")
-    policy_gpu = policy.to(device)
+    trainer.policy = trainer.policy.to(device)
+    trainer.buffer = _clone_buffer_to_device(trainer.buffer, device)
+    trainer.device = device
 
-    obs_gpu = obs.to(device)
-    actions_gpu = actions.to(device)
-    hxs_gpu = hxs.to(device)
-    cxs_gpu = cxs.to(device)
-
-    gpu_eval = policy_gpu.evaluate_actions_sequence(
-        obs=obs_gpu,
-        actions=actions_gpu,
-        hxs=hxs_gpu,
-        cxs=cxs_gpu,
-    )
+    gpu_eval = trainer.replay_policy_on_rollout()
 
     def assert_close(a, b, name, rtol=1e-3, atol=1e-4):
         assert torch.allclose(a.cpu(), b.cpu(), rtol=rtol, atol=atol), f"{name} mismatch"
 
-    # Core outputs
+    # Core PPO outputs
     assert_close(cpu_eval.values, gpu_eval.values, "values")
     assert_close(cpu_eval.logprobs, gpu_eval.logprobs, "logprobs")
     assert_close(cpu_eval.entropy, gpu_eval.entropy, "entropy")
