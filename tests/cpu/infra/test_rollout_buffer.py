@@ -155,7 +155,14 @@ def test_fill_buffer_reaches_full_pointer(trainer_state: TrainerState):
 
 
 def test_pointer_does_not_wrap(trainer_state: TrainerState):
-    """Buffer pointer must clamp at T, never wrap around."""
+    """
+    The rollout buffer pointer must:
+    - advance from 0 to rollout_steps - 1
+    - stop exactly at rollout_steps
+    - raise AssertionError on any further write
+    - never wrap around to 0
+    """
+
     assert trainer_state.env_info is not None
     cfg, _, buf = _make_buffer(trainer_state)
 
@@ -163,9 +170,18 @@ def test_pointer_does_not_wrap(trainer_state: TrainerState):
     D = trainer_state.env_info.flat_obs_dim
     H = cfg.lstm.lstm_hidden_size
 
-    for _ in range(cfg.trainer.rollout_steps + 5):
+    # Fill the buffer exactly to capacity
+    for _ in range(cfg.trainer.rollout_steps):
         buf.add(make_step(B, D, H))
 
+    # Pointer should now be exactly at rollout_steps
+    assert buf.step == cfg.trainer.rollout_steps
+
+    # Any further add must raise overflow
+    with pytest.raises(AssertionError):
+        buf.add(make_step(B, D, H))
+
+    # Pointer must remain clamped, never wrap
     assert buf.step == cfg.trainer.rollout_steps
 
 
