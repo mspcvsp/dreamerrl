@@ -55,12 +55,16 @@ def fake_state():
 # ------------------------------------------------------------
 @pytest.fixture
 def fake_rollout():
-    """
-    Builds a FakeRollout on CUDA using FakeRolloutBuilder.
-    """
-
-    def _factory(T=16, B=8, obs_dim=4, pattern="range", include_hidden=True, hidden_size=4):
-        builder = FakeRolloutBuilder(T=T, B=B, obs_dim=obs_dim, device="cuda")
+    def _factory(
+        T=16,
+        B=8,
+        obs_dim=4,
+        pattern="range",
+        include_hidden=True,
+        hidden_size=4,
+        device="cuda",
+    ):
+        builder = FakeRolloutBuilder(T=T, B=B, obs_dim=obs_dim, device=device)
         builder = builder.with_pattern(pattern)
         if include_hidden:
             builder = builder.with_hidden(hidden_size)

@@ -3,7 +3,7 @@ import torch
 
 def test_diagnostics_mean_aggregation_gpu(deterministic_trainer, fake_batch):
     device = torch.device("cuda")
-    trainer = deterministic_trainer(device=device)
+    trainer = deterministic_trainer.to(device)
 
     batch = fake_batch(device=device, batch_size=16, seq_len=32)
 

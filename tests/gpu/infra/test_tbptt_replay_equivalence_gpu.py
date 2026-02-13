@@ -3,7 +3,7 @@ import torch
 
 def test_tbptt_replay_equivalence_gpu(deterministic_trainer, fake_rollout, fake_buffer_loader):
     device = torch.device("cuda")
-    trainer = deterministic_trainer(device=device)
+    trainer = deterministic_trainer.to(device)
 
     rollout = fake_rollout(device=device, batch_size=4, seq_len=32)
     replay = fake_buffer_loader(rollout, device=device, chunk_size=8)

@@ -3,7 +3,7 @@ import torch
 
 def test_ppo_losses_gpu(deterministic_trainer, fake_batch):
     device = torch.device("cuda")
-    trainer = deterministic_trainer(device=device)
+    trainer = deterministic_trainer.to(device)
 
     batch = fake_batch(device=device, batch_size=32, seq_len=16)
 

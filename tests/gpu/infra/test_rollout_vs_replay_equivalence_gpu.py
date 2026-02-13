@@ -4,7 +4,7 @@ import torch
 def test_rollout_vs_replay_equivalence_gpu(deterministic_trainer, fake_rollout, fake_buffer_loader):
     device = torch.device("cuda")
 
-    trainer = deterministic_trainer(device=device)
+    trainer = deterministic_trainer.to(device)
 
     # Generate a fake rollout on GPU
     rollout = fake_rollout(device=device, batch_size=8, seq_len=16)
