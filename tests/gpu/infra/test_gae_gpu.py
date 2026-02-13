@@ -3,7 +3,8 @@ import torch
 
 def test_gae_gpu(deterministic_trainer, fake_rollout):
     device = torch.device("cuda")
-    trainer = deterministic_trainer.to(device)
+    trainer = deterministic_trainer
+    trainer.policy.to(device)
 
     rollout = fake_rollout(device=device, batch_size=8, seq_len=16)
 

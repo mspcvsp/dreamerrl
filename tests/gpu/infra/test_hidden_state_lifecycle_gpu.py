@@ -3,7 +3,8 @@ import torch
 
 def test_hidden_state_lifecycle_gpu(deterministic_trainer, fake_rollout):
     device = torch.device("cuda")
-    trainer = deterministic_trainer.to(device)
+    trainer = deterministic_trainer
+    trainer.policy.to(device)
 
     # Create rollout with a done in the middle
     rollout = fake_rollout(
