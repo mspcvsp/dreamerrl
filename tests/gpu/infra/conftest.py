@@ -56,14 +56,29 @@ def fake_state():
 @pytest.fixture
 def fake_rollout():
     def _factory(
-        T=16,
-        B=8,
+        T=None,
+        B=None,
         obs_dim=4,
         pattern="range",
         include_hidden=True,
         hidden_size=4,
         device="cuda",
+        # aliases
+        seq_len=None,
+        batch_size=None,
     ):
+        # Resolve aliases
+        if seq_len is not None:
+            T = seq_len
+        if batch_size is not None:
+            B = batch_size
+
+        # Default if neither provided
+        if T is None:
+            T = 16
+        if B is None:
+            B = 8
+
         builder = FakeRolloutBuilder(T=T, B=B, obs_dim=obs_dim, device=device)
         builder = builder.with_pattern(pattern)
         if include_hidden:
@@ -78,14 +93,19 @@ def fake_rollout():
 # ------------------------------------------------------------
 @pytest.fixture
 def fake_buffer_loader(fake_state):
-    """
-    Loads a FakeRollout into a RecurrentRolloutBuffer on CUDA.
-    """
-
-    def _factory(rollout, state=None):
+    def _factory(
+        rollout,
+        device="cuda",
+        state=None,
+    ):
         if state is None:
-            state = fake_state()
-        return load_rollout_into_buffer(state, rollout, device="cuda")
+            state = fake_state(
+                rollout_steps=rollout.obs.shape[0],
+                num_envs=rollout.obs.shape[1],
+                obs_dim=rollout.obs.shape[2],
+                hidden_size=4,
+            )
+        return load_rollout_into_buffer(state, rollout, device=device)
 
     return _factory
 
@@ -95,19 +115,25 @@ def fake_buffer_loader(fake_state):
 # ------------------------------------------------------------
 @pytest.fixture
 def fake_batch(fake_state, fake_rollout):
-    """
-    Creates a PPO minibatch using make_fake_batch on CUDA.
-    """
-
-    def _factory(T=16, B=8, obs_dim=4):
+    def _factory(
+        batch_size=8,
+        seq_len=16,
+        obs_dim=4,
+        device="cuda",
+    ):
         state = fake_state(
-            rollout_steps=T,
-            num_envs=B,
+            rollout_steps=seq_len,
+            num_envs=batch_size,
             obs_dim=obs_dim,
             hidden_size=4,
         )
-        rollout = fake_rollout(T=T, B=B, obs_dim=obs_dim, include_hidden=True)
-        batch = make_fake_batch(state, rollout, device="cuda")
+        rollout = fake_rollout(
+            batch_size=batch_size,
+            seq_len=seq_len,
+            obs_dim=obs_dim,
+            device=device,
+        )
+        batch = make_fake_batch(state, rollout, device=device)
         return batch
 
     return _factory
