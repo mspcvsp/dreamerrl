@@ -1,29 +1,40 @@
 import torch
 
+from lstmppo.buffer import RecurrentRolloutBuffer
+from lstmppo.trainer_state import TrainerState  # type hint only
 
-def test_gae_gpu(deterministic_trainer, fake_rollout):
+
+def test_gae_gpu(trainer_state: TrainerState):
+    cfg = trainer_state.cfg
+    buf_cfg = cfg.buffer_config
     device = torch.device("cuda")
-    trainer = deterministic_trainer
-    trainer.policy.to(device)
 
-    rollout = fake_rollout(device=device, batch_size=8, seq_len=16)
+    buf = RecurrentRolloutBuffer(trainer_state, device)
 
-    advantages, returns = trainer.compute_gae(
-        rollout.value,
-        rollout.reward,
-        rollout.done,
-        rollout.mask,
-        gamma=0.99,
-        lam=0.95,
-    )
+    T = buf_cfg.rollout_steps
+    B = buf_cfg.num_envs
 
-    # Basic invariants
-    assert advantages.shape == rollout.reward.shape
-    assert returns.shape == rollout.reward.shape
+    rewards = torch.linspace(0, 1, T, device=device).unsqueeze(1).repeat(1, B)
+    buf.rewards.copy_(rewards)
 
-    # No NaNs
-    assert not torch.isnan(advantages).any()
-    assert not torch.isnan(returns).any()
+    buf.values.zero_()
+    buf.terminated.zero_()
+    buf.truncated.zero_()
 
-    # Advantage mean should be near zero (GAE property)
-    assert abs(advantages.mean().item()) < 1e-3
+    last_value = torch.zeros(B, device=device)
+
+    buf.compute_returns_and_advantages(last_value)
+
+    assert abs(buf.rewards.mean().item()) < 1e-6
+    assert abs(buf.rewards.std(unbiased=False).item() - 1.0) < 1e-6
+
+    assert buf.advantages.shape == (T, B)
+    assert buf.returns.shape == (T, B)
+
+    assert abs(buf.returns.mean().item()) < 1e-6
+    assert abs(buf.returns.std(unbiased=False).item() - 1.0) < 1e-6
+
+    flat_adv = buf.advantages.flatten()
+    flat_ret = buf.returns.flatten()
+    corr = torch.corrcoef(torch.stack([flat_adv, flat_ret]))[0, 1]
+    assert corr > 0.999

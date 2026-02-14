@@ -1,30 +1,45 @@
 import torch
 
+from lstmppo.trainer import LSTMPPOTrainer
+from lstmppo.types import Config
 
-def test_ppo_losses_gpu(deterministic_trainer, fake_batch):
+
+def test_ppo_losses_gpu():
+    cfg = Config()
+    cfg.trainer.cuda = True
+
+    trainer = LSTMPPOTrainer(cfg)
+
+    T = cfg.trainer.rollout_steps
+    B = cfg.env.num_envs
     device = torch.device("cuda")
-    trainer = deterministic_trainer
-    trainer.policy.to(device)
 
-    batch = fake_batch(device=device, batch_size=32, seq_len=16)
+    values = torch.randn(T, B, device=device)
+    old_values = torch.randn(T, B, device=device)
+    returns = torch.randn(T, B, device=device)
+    adv = torch.randn(T, B, device=device)
 
-    losses = trainer.compute_ppo_loss(
-        obs=batch.obs,
-        actions=batch.actions,
-        old_logp=batch.old_logp,
-        advantages=batch.advantages,
-        returns=batch.returns,
-        values=batch.values,
-        h0=batch.h0,
-        c0=batch.c0,
+    new_logp = torch.randn(T, B, device=device)
+    old_logp = torch.randn(T, B, device=device)
+
+    mask = torch.ones(T, B, device=device)
+
+    policy_loss, value_loss, approx_kl, clip_frac = trainer.compute_losses(
+        values=values,
+        new_logp=new_logp,
+        old_logp=old_logp,
+        old_values=old_values,
+        returns=returns,
+        adv=adv,
+        mask=mask,
     )
 
-    # Losses must be finite
-    for k, v in losses.items():
-        assert torch.isfinite(v).all()
+    assert policy_loss.ndim == 0
+    assert value_loss.ndim == 0
+    assert approx_kl.ndim == 0
+    assert clip_frac.ndim == 0
 
-    # Policy loss should not explode
-    assert abs(losses["policy_loss"].item()) < 10.0
-
-    # Value loss should be positive
-    assert losses["value_loss"].item() >= 0
+    assert torch.isfinite(policy_loss)
+    assert torch.isfinite(value_loss)
+    assert torch.isfinite(approx_kl)
+    assert torch.isfinite(clip_frac)

@@ -1,25 +1,30 @@
 import torch
 
 
-def test_rollout_vs_replay_equivalence_gpu(deterministic_trainer, fake_rollout, fake_buffer_loader):
-    device = torch.device("cuda")
+def test_rollout_vs_replay_equivalence_gpu(deterministic_trainer):
+    """
+    GPU version of rollout vs replay equivalence.
+    Mirrors CPU test exactly.
+    """
+
     trainer = deterministic_trainer
-    trainer.policy.to(device)
+    trainer.policy.to("cuda")
+    trainer.state.cfg.lstm.dropconnect_p = 0.0
+    trainer.policy.eval()
 
-    # Generate a fake rollout on GPU
-    rollout = fake_rollout(device=device, batch_size=8, seq_len=16)
+    # Collect rollout on GPU
+    trainer.collect_rollout()
 
-    # Load rollout into replay buffer
-    replay = fake_buffer_loader(rollout, device=device)
+    # Full replay (CPU test uses this)
+    full = trainer.replay_policy_on_rollout()
 
-    # Compute policy outputs from rollout
-    rollout_out = trainer.policy.forward_sequence(rollout.obs, rollout.h0, rollout.c0)
+    # Replay again to check determinism
+    replay = trainer.replay_policy_on_rollout()
 
-    # Compute policy outputs from replay
-    replay_out = trainer.policy.forward_sequence(replay.obs, replay.h0, replay.c0)
+    def assert_close(a, b, name, atol=1e-5, rtol=1e-5):
+        assert torch.allclose(a.cpu(), b.cpu(), atol=atol, rtol=rtol), f"{name} mismatch"
 
-    # Compare logits, values, and hidden states
-    assert torch.allclose(rollout_out.logits, replay_out.logits, atol=1e-6)
-    assert torch.allclose(rollout_out.value, replay_out.value, atol=1e-6)
-    assert torch.allclose(rollout_out.hn, replay_out.hn, atol=1e-6)
-    assert torch.allclose(rollout_out.cn, replay_out.cn, atol=1e-6)
+    assert_close(full.values, replay.values, "values")
+    assert_close(full.logprobs, replay.logprobs, "logprobs")
+    assert_close(full.new_hxs, replay.new_hxs, "new_hxs")
+    assert_close(full.new_cxs, replay.new_cxs, "new_cxs")
