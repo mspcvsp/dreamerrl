@@ -83,7 +83,6 @@ This suite ensures that every rollout, every update, and every diagnostic is mat
 pytest -q tests/gpu/
 pytest tests/gpu/test_recurrent_core.py -q
 pytest tests/gpu/test_recurrent_core.py::test_rollout_replay_determinism -q
-```      
    
 🧩 GPU Infra Test API Guide
 This section explains why GPU tests use a batch‑major API while the core PPO system uses a time‑major API, and why the
