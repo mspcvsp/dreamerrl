@@ -22,17 +22,13 @@ If any test in this suite fails, the recurrent pipeline is no longer guaranteed 
 Recurrent Core Tests
 Validate the core recurrent PPO invariants:
 
-TBPTT determinism  
-Chunked evaluation must match full‑sequence evaluation.
+TBPTT determinism — chunked evaluation must match full‑sequence evaluation
 
-Rollout replay determinism  
-Given identical inputs, the policy must produce identical outputs.
+Rollout replay determinism — identical inputs must produce identical outputs
 
-Hidden‑state alignment  
-The buffer must store the pre‑step LSTM state (h_t, c_t) used to generate action t.
+Hidden‑state alignment — buffer must store the pre‑step LSTM state (h_t, c_t)
 
-Mask correctness  
-Terminated/truncated environments must not leak hidden state into the next episode.
+Mask correctness — terminated/truncated episodes must not leak hidden state
 
 These tests guarantee that the recurrent core is mathematically sound and reproducible.
 
@@ -53,7 +49,7 @@ mask‑aware drift computation
 
 no NaNs, no shape mismatches
 
-These tests ensure that the diagnostics pipeline is stable, interpretable, and mathematically correct.
+These ensure that the diagnostics pipeline is stable, interpretable, and mathematically correct.
 
 Initialization & Shape Tests
 Micro‑tests that catch subtle regressions:
