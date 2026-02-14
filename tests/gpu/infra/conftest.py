@@ -3,7 +3,10 @@ from types import SimpleNamespace
 import pytest
 import torch
 
+from lstmppo.policy import LSTMPPOPolicy
 from lstmppo.trainer import LSTMPPOTrainer
+from lstmppo.trainer_state import TrainerState
+from lstmppo.types import Config, initialize_config
 from tests.helpers.fake_buffer_loader import load_rollout_into_buffer
 from tests.helpers.fake_policy import make_fake_policy
 from tests.helpers.fake_rollout import FakeRolloutBuilder
@@ -21,9 +24,36 @@ def deterministic_trainer():
 
     trainer.policy.eval()
     trainer.state.cfg.trainer.debug_mode = True
-    trainer.state.env_info.flat_obs_dim = 4
 
     return trainer
+
+
+@pytest.fixture
+def synthetic_trainer():
+    # Build a config without creating a real environment
+    cfg = Config()
+    cfg = initialize_config(cfg)
+
+    # Override LSTM sizes to match fake_rollout
+    cfg.lstm.enc_hidden_size = 4
+    cfg.lstm.lstm_hidden_size = 4
+
+    # Create trainer state manually (no real env)
+    state = TrainerState(cfg, validation_mode=True)
+
+    # Override env_info BEFORE constructing the policy
+    state.env_info.flat_obs_dim = 4
+    state.env_info.action_dim = 2  # or whatever fake_rollout uses
+
+    # Build policy with synthetic env_info + synthetic sizes
+    policy = LSTMPPOPolicy(state).to("cuda")
+    policy.eval()
+
+    return SimpleNamespace(
+        state=state,
+        policy=policy,
+        device=torch.device("cuda"),
+    )
 
 
 @pytest.fixture

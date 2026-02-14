@@ -114,6 +114,7 @@ class LSTMPPOPolicy(nn.Module):
     def __init__(self, state: TrainerState):
         super().__init__()
         assert state.env_info is not None
+        print("flat_obs_dim:", state.env_info.flat_obs_dim)
 
         self.ar_coef = state.cfg.lstm.lstm_ar_coef
         self.tar_coef = state.cfg.lstm.lstm_tar_coef
