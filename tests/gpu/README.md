@@ -71,3 +71,7 @@ pytest -q tests/gpu/
 pytest tests/gpu/test_recurrent_core.py -q
 pytest tests/gpu/test_recurrent_core.py::test_rollout_replay_determinism -q
 
+# 🧩 GPU Infra Test API Guide
+This section explains why GPU tests use a batch‑major API while the core PPO system uses a time‑major API, and why the GPU fixtures (fake_buffer_loader, fake_batch, fake_rollout) act as compatibility shims.
+
+Both APIs are valid — each serves a different layer of the system.
