@@ -75,23 +75,66 @@ pytest tests/gpu/test_recurrent_core.py::test_rollout_replay_determinism -q
 ---
 
 # 🧩 GPU Infra Test API Guide
-This section explains why GPU tests use a batch‑major API while the core PPO system uses a time‑major API, and why the GPU fixtures (fake_buffer_loader, fake_batch, fake_rollout) act as compatibility shims.
+
+This guide explains why GPU tests use a **batch‑major API** while the core PPO system uses a **time‑major API**, and why the GPU fixtures (`fake_buffer_loader`, `fake_batch`, `fake_rollout`) act as compatibility shims.
 
 Both APIs are valid — each serves a different layer of the system.
 
-1. Two Valid API Shapes  
-  A. Time‑major API (T, B, …) — “Training‑time truth”
-  Used by:
-  - RecurrentRolloutBuffer
-  - RecurrentBatch
-  - PPO training
-  - TBPTT chunking
-  - LSTM diagnostics
-  - CPU tests
+---
 
-  Why this layout:
-  - preserves temporal structure
-  - aligns with TBPTT invariants
-  - hxs[t], cxs[t] are pre‑step hidden states
-  - next_obs[t] = obs[t+1]
-  - chunking slices cleanly along time
+## 1. Two Valid API Shapes
+
+### Time‑major API `(T, B, …)` — “Training‑time truth”
+
+**Used by:**
+
+- `RecurrentRolloutBuffer`
+- `RecurrentBatch`
+- PPO training
+- TBPTT chunking
+- LSTM diagnostics
+- CPU tests
+
+**Why this layout:**
+
+- preserves temporal structure  
+- aligns with TBPTT invariants  
+- `hxs[t]`, `cxs[t]` are *pre‑step* hidden states  
+- `next_obs[t] = obs[t+1]`  
+- chunking slices cleanly along time  
+
+This is the canonical layout for recurrent PPO.
+
+---
+
+### Batch‑major API `(B, T, …)` — “Test‑time convenience”
+
+**Used by:**
+
+- GPU tests  
+- policy‑level convenience methods (`forward_sequence`, `forward_tbptt`)  
+- GPU fixtures in `gpu/infra/conftest.py`  
+
+**Why this layout exists:**
+
+Before the refactor, the policy exposed a batch‑major API and the GPU tests were written against that interface.  
+Instead of rewriting the entire GPU suite, the fixtures provide a shim that:
+
+- converts **`(T, B, …)` → `(B, T, …)`**  
+- synthesizes `h0`, `c0` from `hxs[0]`, `cxs[0]`  
+- synthesizes `done` from `terminated | truncated`  
+
+Both layouts are correct in their respective contexts.
+
+---
+
+## 2. Why the GPU Fixtures Act as Shims
+
+GPU tests expect:
+
+```python
+replay.obs   # (B, T, …)
+replay.h0    # (B, H)
+replay.c0    # (B, H)
+rollout.done # (B, T)
+
