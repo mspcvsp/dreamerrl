@@ -534,15 +534,15 @@ class LSTMPPOPolicy(nn.Module):
             cn_list.append(out.cn)
 
         logits = torch.cat(logits_chunks, dim=0)
-        values = torch.cat(value_chunks, dim=0)
+        value = torch.cat(value_chunks, dim=0)
         hn = torch.cat(hn_list, dim=0)
         cn = torch.cat(cn_list, dim=0)
 
         return SimpleNamespace(
-            logits=logits,
-            values=values,
-            hn=hn,
-            cn=cn,
+            logits=logits,  # (T, B, A)
+            value=value,  # (T, B, 1) or (T, B)
+            hn=hn,  # (T, B, H)
+            cn=cn,  # (T, B, H)
         )
 
     def compute_diagnostics(self, obs, h0, c0):
