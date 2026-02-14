@@ -529,7 +529,7 @@ class LSTMPPOPolicy(nn.Module):
             c = out.cn[-1]
 
             logits_chunks.append(out.logits)  # (chunk_len, B, A)
-            value_chunks.append(out.values)
+            value_chunks.append(out.value)
             hn_list.append(out.hn)
             cn_list.append(out.cn)
 
