@@ -510,51 +510,37 @@ class LSTMPPOPolicy(nn.Module):
         )
 
     def forward_tbptt(self, obs, h0, c0, chunk_size: int):
-        """
-        TBPTT forward pass over a full sequence.
-
-        Invariants:
-        - Exact numerical equivalence to forward_sequence(obs, h0, c0)
-        when DropConnect/debug flags are the same.
-        - Chunks are contiguous [start:end] slices over time.
-        - Hidden state is carried across chunk boundaries.
-        """
+        # obs: (T, B, D)
         T, _, _ = obs.shape
         h, c = h0, c0
 
         logits_chunks = []
         value_chunks = []
-        hn_chunks = []
-        cn_chunks = []
+        hn_list = []
+        cn_list = []
 
         for start in range(0, T, chunk_size):
             end = min(start + chunk_size, T)
 
-            # Run a full unroll on this chunk
             out = self.forward_sequence(obs[start:end], h, c)
-
-            # out.logits: (chunk_T, B, A)
-            # out.value:  (chunk_T, B, 1) or (chunk_T, B)
-            logits_chunks.append(out.logits)
-            value_chunks.append(out.value)
-
-            # Carry final hidden state into next chunk
-            # out.hn: (chunk_T, B, H)
-            # out.cn: (chunk_T, B, H)
+            # out.hn: (chunk_len, B, H)
+            # carry final hidden state into next chunk
             h = out.hn[-1]
             c = out.cn[-1]
 
-            hn_chunks.append(out.hn)
-            cn_chunks.append(out.cn)
+            logits_chunks.append(out.logits)  # (chunk_len, B, A)
+            value_chunks.append(out.values)
+            hn_list.append(out.hn)
+            cn_list.append(out.cn)
 
         logits = torch.cat(logits_chunks, dim=0)
-        value = torch.cat(value_chunks, dim=0)
-        hn = torch.cat(hn_chunks, dim=0)
-        cn = torch.cat(cn_chunks, dim=0)
+        values = torch.cat(value_chunks, dim=0)
+        hn = torch.cat(hn_list, dim=0)
+        cn = torch.cat(cn_list, dim=0)
 
         return SimpleNamespace(
             logits=logits,
-            value=value,
+            values=values,
             hn=hn,
             cn=cn,
         )

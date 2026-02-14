@@ -17,7 +17,19 @@ def test_hidden_state_lifecycle_gpu(synthetic_trainer, fake_rollout):
     out = trainer.policy.forward_sequence(rollout.obs, rollout.h0, rollout.c0, done=done_tb)
 
     # out.hn: (T, B, H)
-    # Reset happens at the *first step after* done, i.e. t = 6
-    t_reset = 6
-    assert torch.allclose(out.hn[t_reset], torch.zeros_like(out.hn[t_reset]))
-    assert torch.allclose(out.cn[t_reset], torch.zeros_like(out.cn[t_reset]))
+    t_done = 5
+    t_reset = t_done + 1
+
+    # 1) Hidden state just before done should be non-zero
+    assert not torch.allclose(out.hn[t_done - 1], torch.zeros_like(out.hn[t_done - 1]))
+
+    # 2) After reset, hidden state should match a fresh unroll from zero at that timestep
+    with torch.no_grad():
+        h0 = torch.zeros_like(rollout.h0)
+        c0 = torch.zeros_like(rollout.c0)
+        fresh = trainer.policy.forward_sequence(
+            rollout.obs[t_reset : t_reset + 1],  # single step
+            h0,
+            c0,
+        )
+    assert torch.allclose(out.hn[t_reset], fresh.hn[0], atol=1e-6)
