@@ -68,7 +68,7 @@ TBPTT prevents that leakage.
 
 ---
 
-## 3. What TBPTT Guarantees (Your Invariants)
+## 3. What TBPTT Guarantees (via Invariants)
 
 These are the invariants your test suite enforces.
 
