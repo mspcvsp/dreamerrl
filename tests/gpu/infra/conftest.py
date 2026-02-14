@@ -108,8 +108,7 @@ def fake_rollout():
         if force_done_at is not None:
             rollout.masks[force_done_at:] = 0.0
 
-        # GPU tests expect rollout.done (B,T)
-        rollout.done = rollout.masks == 0.0
+        rollout.done = rollout.masks.transpose(0, 1) == 0.0  # (B, T)
 
         return rollout
 
@@ -176,13 +175,12 @@ def fake_batch(fake_state, fake_rollout):
         # Extract a single (T,B,...) batch
         batch = next(buf.get_recurrent_minibatches())
 
-        # Convert to batch-major
-        obs_bt = batch.obs.transpose(0, 1)
-        h0 = batch.hxs[0].unsqueeze(0)
-        c0 = batch.cxs[0].unsqueeze(0)
+        obs = batch.obs  # (T, B, D)
+        h0 = batch.hxs[0]  # (B, H)
+        c0 = batch.cxs[0]  # (B, H)
 
         return SimpleNamespace(
-            obs=obs_bt,
+            obs=obs,
             h0=h0,
             c0=c0,
         )
