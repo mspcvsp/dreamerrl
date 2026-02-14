@@ -30,8 +30,6 @@ Hidden‑state alignment — buffer must store the pre‑step LSTM state (h_t, c
 
 Mask correctness — terminated/truncated episodes must not leak hidden state
 
-These tests guarantee that the recurrent core is mathematically sound and reproducible.
-
 Diagnostics Tests
 Validate per‑unit LSTM diagnostics:
 
@@ -49,8 +47,6 @@ mask‑aware drift computation
 
 no NaNs, no shape mismatches
 
-These ensure that the diagnostics pipeline is stable, interpretable, and mathematically correct.
-
 Initialization & Shape Tests
 Micro‑tests that catch subtle regressions:
 
@@ -59,8 +55,6 @@ LSTM state shape invariants
 deterministic state initialization
 
 correct device placement
-
-These prevent silent shape bugs and initialization errors.
 
 🧠 Why These Tests Matter
 Recurrent PPO is extremely sensitive to:
@@ -116,8 +110,6 @@ next_obs[t] = obs[t+1]
 
 chunking slices cleanly along time
 
-This is the canonical layout for recurrent PPO.
-
 B. Batch‑major API (B, T, …) — “Test‑time convenience”
 Used by:
 
@@ -133,13 +125,13 @@ Before the refactor, the policy exposed a batch‑major API.
 GPU tests were written against that interface.
 Instead of rewriting the entire GPU suite, the fixtures provide a shim that converts:
 
-**Conversion:** `(T, B, …) → (B, T, …)`
+Conversion: (T, B, …) → (B, T, …)
 
-synthesizes h0, c0 from hxs[0], cxs[0]
+and synthesizes:
 
-synthesizes done from terminated | truncated
+h0, c0 from hxs[0], cxs[0]
 
-Both layouts are correct in their respective contexts.
+done from terminated | truncated
 
 2. Why the GPU Fixtures Act as Shims
 GPU tests expect:
@@ -158,16 +150,6 @@ cxs         # (T, B, H)
 terminated  # (T, B)
 truncated   # (T, B)
 The fixtures bridge the gap by returning a simple namespace with the fields the tests expect.
-
-This keeps:
-
-core invariants correct
-
-CPU tests correct
-
-GPU tests correct
-
-policy API stable
 
 3. Why We Do Not Modify load_rollout_into_buffer
 load_rollout_into_buffer must remain a faithful loader for:
