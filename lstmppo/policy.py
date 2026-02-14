@@ -1,3 +1,5 @@
+from types import SimpleNamespace
+
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -469,6 +471,81 @@ class LSTMPPOPolicy(nn.Module):
         logits = self.actor(h)
         value = self.critic(h)
         return logits, value, h, c, gates
+
+    def forward_sequence(self, obs, h0, c0, done=None):
+        """
+        obs: [B, T, obs_dim]
+        h0, c0: [num_layers, B, hidden_dim]
+        done: [B, T] boolean mask (optional)
+        """
+        B, T, _ = obs.shape
+        h, c = h0, c0
+
+        logits_list = []
+        value_list = []
+        hn_list = []
+        cn_list = []
+
+        for t in range(T):
+            if done is not None and t > 0:
+                # Reset hidden state where episode ended at t-1
+                reset_mask = done[:, t - 1].view(1, B, 1)
+                h = torch.where(reset_mask, torch.zeros_like(h), h)
+                c = torch.where(reset_mask, torch.zeros_like(c), c)
+
+            logits, value, h, c, _ = self.forward_step(obs[:, t], h, c)
+            logits_list.append(logits)
+            value_list.append(value)
+            hn_list.append(h)
+            cn_list.append(c)
+
+        return SimpleNamespace(
+            logits=torch.stack(logits_list, dim=1),
+            value=torch.stack(value_list, dim=1),
+            hn=torch.stack(hn_list, dim=2),  # [L, B, T, H]
+            cn=torch.stack(cn_list, dim=2),
+        )
+
+    def forward_tbptt(self, obs, h0, c0, chunk_size):
+        """
+        obs: [B, T, obs_dim]
+        """
+        B, T, _ = obs.shape
+        h, c = h0, c0
+
+        logits_list = []
+        value_list = []
+
+        for start in range(0, T, chunk_size):
+            end = min(start + chunk_size, T)
+            out = self.forward_sequence(obs[:, start:end], h, c)
+            logits_list.append(out.logits)
+            value_list.append(out.value)
+            h = out.hn[:, :, -1]
+            c = out.cn[:, :, -1]
+
+        return SimpleNamespace(
+            logits=torch.cat(logits_list, dim=1),
+            value=torch.cat(value_list, dim=1),
+        )
+
+    def compute_diagnostics(self, obs, h0, c0):
+        """
+        Returns dict of scalar diagnostics.
+        """
+        with torch.no_grad():
+            out = self.forward_sequence(obs, h0, c0)
+
+            # Example diagnostics — adapt to your actual gate outputs
+            gate_saturation = out.hn.abs().mean()
+            gate_entropy = (-torch.sigmoid(out.hn) * torch.log(torch.sigmoid(out.hn) + 1e-8)).mean()
+            drift = (out.hn[:, :, 1:] - out.hn[:, :, :-1]).pow(2).mean()
+
+            return {
+                "gate_saturation": gate_saturation,
+                "gate_entropy": gate_entropy,
+                "drift": drift,
+            }
 
     def act(self, policy_input: PolicyInput):
         policy_output = self.forward(policy_input)

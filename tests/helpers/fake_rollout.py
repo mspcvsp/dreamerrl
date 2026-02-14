@@ -34,6 +34,9 @@ class FakeRollout:
     h0: Optional[torch.Tensor] = None
     c0: Optional[torch.Tensor] = None
 
+    # GPU tests expect this field (B,T) boolean mask
+    done: Optional[torch.Tensor] = None
+
 
 class FakeRolloutBuilder:
     def __init__(self, T: int, B: int, obs_dim: int, *, device="cpu"):

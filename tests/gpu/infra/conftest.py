@@ -1,8 +1,9 @@
+from types import SimpleNamespace
+
 import pytest
 import torch
 
 from lstmppo.trainer import LSTMPPOTrainer
-from tests.helpers.fake_batch import make_fake_batch
 from tests.helpers.fake_buffer_loader import load_rollout_into_buffer
 from tests.helpers.fake_policy import make_fake_policy
 from tests.helpers.fake_rollout import FakeRolloutBuilder
@@ -74,8 +75,10 @@ def fake_rollout():
         rollout = builder.build()
 
         if force_done_at is not None:
-            # masks: 1.0 alive, 0.0 dead
             rollout.masks[force_done_at:] = 0.0
+
+        # GPU tests expect rollout.done (B,T)
+        rollout.done = rollout.masks == 0.0
 
         return rollout
 
@@ -97,7 +100,20 @@ def fake_buffer_loader(fake_state):
                 obs_dim=rollout.obs.shape[2],
                 hidden_size=4,
             )
-        return load_rollout_into_buffer(state, rollout, device=device)
+
+        buf = load_rollout_into_buffer(state, rollout, device=device)
+
+        batch = next(buf.get_recurrent_minibatches())
+
+        obs_bt = batch.obs.transpose(0, 1)  # (B,T,obs_dim)
+        h0 = batch.hxs[0].unsqueeze(0)  # (1,B,H)
+        c0 = batch.cxs[0].unsqueeze(0)  # (1,B,H)
+
+        return SimpleNamespace(
+            obs=obs_bt,
+            h0=h0,
+            c0=c0,
+        )
 
     return _factory
 
@@ -116,13 +132,30 @@ def fake_batch(fake_state, fake_rollout):
             obs_dim=obs_dim,
             hidden_size=4,
         )
+
         rollout = fake_rollout(
             batch_size=batch_size,
             seq_len=seq_len,
             obs_dim=obs_dim,
             device=device,
         )
-        return make_fake_batch(state, rollout, device=device)
+
+        # Build a real RecurrentRolloutBuffer
+        buf = load_rollout_into_buffer(state, rollout, device=device)
+
+        # Extract a single (T,B,...) batch
+        batch = next(buf.get_recurrent_minibatches())
+
+        # Convert to batch-major
+        obs_bt = batch.obs.transpose(0, 1)
+        h0 = batch.hxs[0].unsqueeze(0)
+        c0 = batch.cxs[0].unsqueeze(0)
+
+        return SimpleNamespace(
+            obs=obs_bt,
+            h0=h0,
+            c0=c0,
+        )
 
     return _factory
 
