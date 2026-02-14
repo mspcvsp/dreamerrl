@@ -78,3 +78,20 @@ pytest tests/gpu/test_recurrent_core.py::test_rollout_replay_determinism -q
 This section explains why GPU tests use a batch‑major API while the core PPO system uses a time‑major API, and why the GPU fixtures (fake_buffer_loader, fake_batch, fake_rollout) act as compatibility shims.
 
 Both APIs are valid — each serves a different layer of the system.
+
+1. Two Valid API Shapes
+A. Time‑major API (T, B, …) — “Training‑time truth”
+Used by:
+- RecurrentRolloutBuffer
+- RecurrentBatch
+- PPO training
+- TBPTT chunking
+- LSTM diagnostics
+- CPU tests
+
+Why this layout:
+- preserves temporal structure
+- aligns with TBPTT invariants
+- hxs[t], cxs[t] are pre‑step hidden states
+- next_obs[t] = obs[t+1]
+- chunking slices cleanly along time
