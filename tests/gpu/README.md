@@ -133,7 +133,7 @@ Before the refactor, the policy exposed a batch‑major API.
 GPU tests were written against that interface.
 Instead of rewriting the entire GPU suite, the fixtures provide a shim that converts:
 
-(T, B, …) → (B, T, …)
+**Conversion:** `(T, B, …) → (B, T, …)`
 
 synthesizes h0, c0 from hxs[0], cxs[0]
 
