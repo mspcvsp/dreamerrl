@@ -509,24 +509,54 @@ class LSTMPPOPolicy(nn.Module):
             cn=torch.stack(cn_list, dim=0),  # (T, B, H)
         )
 
-    def forward_tbptt(self, obs, h0, c0, chunk_size):
+    def forward_tbptt(self, obs, h0, c0, chunk_size: int):
+        """
+        TBPTT forward pass over a full sequence.
+
+        Invariants:
+        - Exact numerical equivalence to forward_sequence(obs, h0, c0)
+        when DropConnect/debug flags are the same.
+        - Chunks are contiguous [start:end] slices over time.
+        - Hidden state is carried across chunk boundaries.
+        """
         T, _, _ = obs.shape
         h, c = h0, c0
 
-        logits_list = []
-        value_list = []
+        logits_chunks = []
+        value_chunks = []
+        hn_chunks = []
+        cn_chunks = []
 
         for start in range(0, T, chunk_size):
             end = min(start + chunk_size, T)
+
+            # Run a full unroll on this chunk
             out = self.forward_sequence(obs[start:end], h, c)
-            logits_list.append(out.logits)
-            value_list.append(out.value)
+
+            # out.logits: (chunk_T, B, A)
+            # out.value:  (chunk_T, B, 1) or (chunk_T, B)
+            logits_chunks.append(out.logits)
+            value_chunks.append(out.value)
+
+            # Carry final hidden state into next chunk
+            # out.hn: (chunk_T, B, H)
+            # out.cn: (chunk_T, B, H)
             h = out.hn[-1]
             c = out.cn[-1]
 
+            hn_chunks.append(out.hn)
+            cn_chunks.append(out.cn)
+
+        logits = torch.cat(logits_chunks, dim=0)
+        value = torch.cat(value_chunks, dim=0)
+        hn = torch.cat(hn_chunks, dim=0)
+        cn = torch.cat(cn_chunks, dim=0)
+
         return SimpleNamespace(
-            logits=torch.cat(logits_list, dim=0),  # (T, B, A)
-            value=torch.cat(value_list, dim=0),  # (T, B)
+            logits=logits,
+            value=value,
+            hn=hn,
+            cn=cn,
         )
 
     def compute_diagnostics(self, obs, h0, c0):
