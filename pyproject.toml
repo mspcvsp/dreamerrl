@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "lstmppo"
-version = "0.1.0"
+version = "0.1.1"
 description = "Research-grade LSTM PPO implementation with diagnostics"
 authors = [{ name = "Sean" }]
 readme = "README.md"

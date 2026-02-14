@@ -21,6 +21,7 @@ def deterministic_trainer():
 
     trainer.policy.eval()
     trainer.state.cfg.trainer.debug_mode = True
+    trainer.state.env_info.flat_obs_dim = 4
 
     return trainer
 
