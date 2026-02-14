@@ -105,12 +105,11 @@ def fake_buffer_loader(fake_state):
 
         batch = next(buf.get_recurrent_minibatches())
 
-        obs_bt = batch.obs.transpose(0, 1)  # (B,T,obs_dim)
-        h0 = batch.hxs[0].unsqueeze(0)  # (1,B,H)
-        c0 = batch.cxs[0].unsqueeze(0)  # (1,B,H)
+        h0 = batch.hxs[0]  # (B,H)
+        c0 = batch.cxs[0]  # (B,H)
 
         return SimpleNamespace(
-            obs=obs_bt,
+            obs=batch.obs,
             h0=h0,
             c0=c0,
         )
