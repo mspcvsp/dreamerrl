@@ -130,6 +130,10 @@ class LSTMPPOTrainer:
         self.reset()
 
     @property
+    def cfg(self):
+        return self.state.cfg
+
+    @property
     def num_envs(self) -> int:
         return self.state.cfg.env.num_envs
 

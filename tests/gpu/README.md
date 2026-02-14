@@ -1,70 +1,202 @@
-📘 Recurrent PPO Test Suite — GPU
-This directory contains the research‑grade validation suite for the recurrent PPO implementation.
+# 📘 Recurrent PPO — GPU Validation Suite
+
+This directory contains the GPU‑side validation suite for the recurrent PPO implementation.
 These tests enforce the mathematical and architectural invariants required for:
-• 	deterministic LSTM state‑flow
-• 	correct TBPTT behavior
-• 	reproducible rollouts
-• 	stable per‑unit diagnostics (drift, saturation, entropy)
-• 	correct hidden‑state alignment
-• 	correct masking semantics
-• 	shape invariants for all recurrent tensors
-The suite is intentionally strict. If any of these tests fail, the recurrent pipeline is no longer guaranteed to be correct.
 
-📁 File Overview
+- deterministic LSTM state‑flow
+- correct TBPTT behavior
+- reproducible rollouts
+- stable per‑unit diagnostics (drift, saturation, entropy)
+- correct hidden‑state alignment
+- correct masking semantics
+- shape invariants for all recurrent tensors
 
-Validates the core recurrent PPO invariants:
-• 	TBPTT determinism
-Ensures that slicing the sequence into TBPTT chunks produces identical results to full‑sequence evaluation.
-• 	Rollout replay determinism
-Ensures that given identical , the policy produces identical .
-• 	Hidden‑state alignment
-Ensures that the buffer stores the pre‑step LSTM state  used to generate the action at time .
-• 	Mask correctness
-Ensures that terminated/truncated environments do not leak hidden state into the next episode.
+If any test in this suite fails, the recurrent pipeline is no longer guaranteed to be correct.
+
+---
+
+## 📁 File Overview
+
+### **Recurrent Core Tests**
+Validate the core recurrent PPO invariants:
+
+- **TBPTT determinism**
+  Chunked evaluation must match full‑sequence evaluation.
+
+- **Rollout replay determinism**
+  Given identical inputs, the policy must produce identical outputs.
+
+- **Hidden‑state alignment**
+  The buffer must store the *pre‑step* LSTM state `(h_t, c_t)` used to generate action `t`.
+
+- **Mask correctness**
+  Terminated/truncated environments must not leak hidden state into the next episode.
+
 These tests guarantee that the recurrent core is mathematically sound and reproducible.
 
+---
 
-Validates the per‑unit LSTM diagnostics:
-• 	Gate means (, , , )
-• 	Per‑unit drift (, , etc.)
-• 	Gate saturation (sigmoid/tanh saturation fractions)
-• 	Gate entropy (per‑unit entropy of gate activations)
-• 	Replay determinism for diagnostics
-• 	Mask‑aware drift computation
-• 	No NaNs / no shape mismatches
+### **Diagnostics Tests**
+Validate per‑unit LSTM diagnostics:
+
+- gate means (i, f, g, o)
+- per‑unit drift
+- gate saturation (sigmoid/tanh)
+- gate entropy
+- replay determinism for diagnostics
+- mask‑aware drift computation
+- no NaNs, no shape mismatches
+
 These tests ensure that the diagnostics pipeline is stable, interpretable, and mathematically correct.
 
+---
 
-(Your new file — protects the most fragile invariants.)
-This file contains micro‑tests that catch common regressions instantly:
-• 	LSTM state shape invariant
-Ensures  and  are always .
-• 	State‑flow initialization invariant
-Ensures  is self‑contained and initializes LSTM states even on a fresh trainer.
-These tests prevent subtle shape bugs and initialization errors from creeping back in.
+### **Initialization & Shape Tests**
+Micro‑tests that catch subtle regressions:
 
-🧠 Why these tests matter
+- LSTM state shape invariants
+- deterministic state initialization
+- correct device placement
+
+These prevent silent shape bugs and initialization errors.
+
+---
+
+## 🧠 Why These Tests Matter
+
 Recurrent PPO is extremely sensitive to:
-• 	hidden‑state alignment
-• 	deterministic transitions
-• 	correct masking
-• 	correct TBPTT slicing
-• 	stable per‑unit metrics
+
+- hidden‑state alignment
+- deterministic transitions
+- correct TBPTT slicing
+- correct masking
+- stable per‑unit metrics
+
 A single shape mismatch or incorrect state carry‑over can silently corrupt training.
 This suite ensures that every rollout, every update, and every diagnostic is mathematically correct.
 
-🧪 Running the suite
-From the project root: `pytest -q tests/gpu/`
-To run a single file:  `pytest tests/gpu/test_recurrent_core.py -q`
-To run a single test: `pytest tests/gpu/test_recurrent_core.py::test_rollout_replay_determinism -q`
+---
 
+## 🧪 Running the Suite
 
-🏁 Contributing Guidelines
-When modifying:
-• 	the LSTM core
-• 	the rollout buffer
-• 	the env wrapper
-• 	TBPTT slicing
-• 	diagnostics computation
-Run this suite before committing.
-If a test fails, it means a core invariant has been broken — fix the invariant, not the test.
+```bash
+pytest -q tests/gpu/
+pytest tests/gpu/test_recurrent_core.py -q
+pytest tests/gpu/test_recurrent_core.py::test_rollout_replay_determinism -q
+
+🧩 GPU Infra Test API Guide
+This section explains why GPU tests use a batch‑major API while the core PPO system uses a time‑major API, and why the
+GPU fixtures (fake_buffer_loader, fake_batch, fake_rollout) act as compatibility shims.
+
+Both APIs are valid — each serves a different layer of the system.
+
+1. Two Valid API Shapes
+A. Time‑major API (T, B, …) — “Training‑time truth”
+Used by:
+
+RecurrentRolloutBuffer
+
+RecurrentBatch
+
+PPO training
+
+TBPTT chunking
+
+LSTM diagnostics
+
+CPU tests
+
+Why:
+
+preserves temporal structure
+
+aligns with TBPTT invariants
+
+hxs[t], cxs[t] are pre‑step hidden states
+
+next_obs[t] = obs[t+1]
+
+chunking slices cleanly along time
+
+This is the canonical layout for recurrent PPO.
+
+B. Batch‑major API (B, T, …) — “Test‑time convenience”
+Used by:
+
+GPU tests
+
+policy‑level convenience methods (forward_sequence, forward_tbptt)
+
+GPU fixtures in gpu/infra/conftest.py
+
+Why:
+
+Before the refactor, the policy exposed a batch‑major API.
+GPU tests were written against that interface.
+
+Instead of rewriting the entire GPU suite, the fixtures provide a shim that converts:
+
+Code
+(T, B, …) → (B, T, …)
+and synthesizes:
+
+h0, c0 from hxs[0], cxs[0]
+
+done from terminated | truncated
+
+Both layouts are correct in their respective contexts.
+
+2. Why the GPU Fixtures Act as Shims
+GPU tests expect:
+
+python
+replay.obs  # (B,T,…)
+replay.h0   # (1,B,H)
+replay.c0   # (1,B,H)
+rollout.done  # (B,T)
+But the real rollout buffer provides:
+
+python
+obs   # (T,B,…)
+hxs   # (T,B,H)
+cxs   # (T,B,H)
+terminated, truncated  # (T,B)
+The fixtures bridge the gap by returning a simple namespace with the fields the tests expect.
+
+This keeps:
+
+core invariants correct
+
+CPU tests correct
+
+GPU tests correct
+
+policy API stable
+
+3. Why We Do Not Modify load_rollout_into_buffer
+load_rollout_into_buffer must remain a faithful loader for:
+
+real RecurrentRolloutBuffer
+
+CPU tests
+
+TBPTT tests
+
+replay equivalence tests
+
+GAE tests
+
+Changing it would break the entire recurrent PPO pipeline.
+
+The GPU fixtures wrap the buffer output into the legacy test API instead.
+
+4. Mental Model to Remember
+Time‑major (T,B,…) → training‑time truth
+
+Batch‑major (B,T,…) → test‑time convenience
+
+The GPU fixtures bridge the two.
+
+Both are valid.
+Each is correct in its own context.
+The shim exists so the GPU tests don’t need to be rewritten.

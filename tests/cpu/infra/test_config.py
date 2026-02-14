@@ -10,6 +10,7 @@ Examples:
 - TBPTT chunk > rollout length
 - mismatched buffer/trainer/env dimensions
 """
+
 from lstmppo.types import Config
 
 
@@ -81,8 +82,9 @@ def test_buffer_config_consistency():
 """
 Check for subtle bugs that break TBPTT or batching.
 """
-def test_cross_section_invariants():
 
+
+def test_cross_section_invariants():
     cfg = Config()
 
     # TBPTT chunk must divide rollout or be smaller
@@ -93,3 +95,35 @@ def test_cross_section_invariants():
 
     # hidden sizes must match
     assert cfg.lstm.lstm_hidden_size == cfg.buffer_config.lstm_hidden_size
+
+
+def test_entropy_schedule_monotonic():
+    cfg = Config().sched
+    assert cfg.end_entropy_coef <= cfg.start_entropy_coef
+
+
+def test_lr_schedule_valid():
+    cfg = Config().sched
+    assert cfg.lr_warmup_pct < 100
+    assert cfg.lr_final_pct <= 100
+
+
+def test_clip_range_reasonable():
+    cfg = Config().ppo
+    assert cfg.initial_clip_range <= 1.0
+
+
+def test_tbptt_divides_rollout_or_is_one():
+    cfg = Config().trainer
+    assert cfg.rollout_steps % cfg.tbptt_chunk_len == 0 or cfg.tbptt_chunk_len == 1
+
+
+def test_minibatch_envs_valid():
+    cfg = Config()
+    assert cfg.env.num_envs % cfg.trainer.mini_batch_envs == 0
+
+
+def test_encoder_lstm_hidden_consistency():
+    cfg = Config()
+    assert cfg.lstm.enc_hidden_size > 0
+    assert cfg.lstm.lstm_hidden_size > 0

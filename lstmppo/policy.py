@@ -1,3 +1,5 @@
+from types import SimpleNamespace
+
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -112,6 +114,7 @@ class LSTMPPOPolicy(nn.Module):
     def __init__(self, state: TrainerState):
         super().__init__()
         assert state.env_info is not None
+        print("flat_obs_dim:", state.env_info.flat_obs_dim)
 
         self.ar_coef = state.cfg.lstm.lstm_ar_coef
         self.tar_coef = state.cfg.lstm.lstm_tar_coef
@@ -267,6 +270,13 @@ class LSTMPPOPolicy(nn.Module):
         # (B,T,H) for both normal and zero encoder
         enc = self.encoder(obs_flat)
 
+        # Debug invariant: encoder output must match LSTM input_size
+        B, T, H_enc = enc.shape
+
+        assert H_enc == self.lstm_cell.input_size, (
+            f"Encoder output dim {H_enc} != LSTM input_size {self.lstm_cell.input_size}"
+        )
+
         # LSTM expects (B, T, F) with batch_first=True
         B, T, F = enc.shape
         h = hxs
@@ -341,12 +351,15 @@ class LSTMPPOPolicy(nn.Module):
         h_gates = torch.stack(h_list, dim=1).detach()
         c_gates = torch.stack(c_list, dim=1).detach()
 
+        # Use a detached view of the hidden states for AR/TAR
+        out_detached = out.detach()
+
         # --- Activation Regularization (AR) ---
-        ar_loss = (out.pow(2).mean()) * self.ar_coef
+        ar_loss = (out_detached.pow(2).mean()) * self.ar_coef
 
         # --- Temporal Activation Regularization (TAR) ---
-        if out.size(1) > 1:
-            tar_loss = (out[:, 1:, :] - out[:, :-1, :]).pow(2).mean() * self.tar_coef
+        if out_detached.size(1) > 1:
+            tar_loss = (out_detached[:, 1:, :] - out_detached[:, :-1, :]).pow(2).mean() * self.tar_coef
         else:
             tar_loss = torch.tensor(0.0, device=out.device)
 
@@ -466,6 +479,82 @@ class LSTMPPOPolicy(nn.Module):
         logits = self.actor(h)
         value = self.critic(h)
         return logits, value, h, c, gates
+
+    def forward_sequence(self, obs, h0, c0, done=None):
+        # obs: (T, B, obs_dim)
+        T, B, _ = obs.shape
+        h, c = h0, c0
+
+        logits_list = []
+        value_list = []
+        hn_list = []
+        cn_list = []
+
+        for t in range(T):
+            if done is not None and t > 0:
+                reset_mask = done[t - 1].view(B, 1)
+                h = torch.where(reset_mask, torch.zeros_like(h), h)
+                c = torch.where(reset_mask, torch.zeros_like(c), c)
+
+            logits, value, h, c, _ = self.forward_step(obs[t], h, c)
+            logits_list.append(logits)
+            value_list.append(value)
+            hn_list.append(h)
+            cn_list.append(c)
+
+        return SimpleNamespace(
+            logits=torch.stack(logits_list, dim=0),  # (T, B, A)
+            value=torch.stack(value_list, dim=0),  # (T, B)
+            hn=torch.stack(hn_list, dim=0),  # (T, B, H)
+            cn=torch.stack(cn_list, dim=0),  # (T, B, H)
+        )
+
+    def forward_tbptt(self, obs, h0, c0, chunk_size: int):
+        # obs: (T, B, D)
+        T, _, _ = obs.shape
+        h, c = h0, c0
+
+        logits_chunks = []
+        value_chunks = []
+        hn_list = []
+        cn_list = []
+
+        for start in range(0, T, chunk_size):
+            end = min(start + chunk_size, T)
+
+            out = self.forward_sequence(obs[start:end], h, c)
+            # out.hn: (chunk_len, B, H)
+            # carry final hidden state into next chunk
+            h = out.hn[-1]
+            c = out.cn[-1]
+
+            logits_chunks.append(out.logits)  # (chunk_len, B, A)
+            value_chunks.append(out.value)
+            hn_list.append(out.hn)
+            cn_list.append(out.cn)
+
+        logits = torch.cat(logits_chunks, dim=0)
+        value = torch.cat(value_chunks, dim=0)
+        hn = torch.cat(hn_list, dim=0)
+        cn = torch.cat(cn_list, dim=0)
+
+        return SimpleNamespace(
+            logits=logits,  # (T, B, A)
+            value=value,  # (T, B, 1) or (T, B)
+            hn=hn,  # (T, B, H)
+            cn=cn,  # (T, B, H)
+        )
+
+    def compute_diagnostics(self, obs, h0, c0):
+        with torch.no_grad():
+            out = self.forward_sequence(obs, h0, c0)
+            h = out.hn  # (T, B, H)
+
+            return {
+                "gate_saturation": h.abs().mean(),
+                "gate_entropy": (-torch.sigmoid(h) * torch.log(torch.sigmoid(h) + 1e-8)).mean(),
+                "drift": (h[1:] - h[:-1]).pow(2).mean(),
+            }
 
     def act(self, policy_input: PolicyInput):
         policy_output = self.forward(policy_input)
