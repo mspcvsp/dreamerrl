@@ -79,19 +79,19 @@ This section explains why GPU tests use a batch‑major API while the core PPO s
 
 Both APIs are valid — each serves a different layer of the system.
 
-1. Two Valid API Shapes
-A. Time‑major API (T, B, …) — “Training‑time truth”
-Used by:
-- RecurrentRolloutBuffer
-- RecurrentBatch
-- PPO training
-- TBPTT chunking
-- LSTM diagnostics
-- CPU tests
+1. Two Valid API Shapes  
+  A. Time‑major API (T, B, …) — “Training‑time truth”
+  Used by:
+  - RecurrentRolloutBuffer
+  - RecurrentBatch
+  - PPO training
+  - TBPTT chunking
+  - LSTM diagnostics
+  - CPU tests
 
-Why this layout:
-- preserves temporal structure
-- aligns with TBPTT invariants
-- hxs[t], cxs[t] are pre‑step hidden states
-- next_obs[t] = obs[t+1]
-- chunking slices cleanly along time
+  Why this layout:
+  - preserves temporal structure
+  - aligns with TBPTT invariants
+  - hxs[t], cxs[t] are pre‑step hidden states
+  - next_obs[t] = obs[t+1]
+  - chunking slices cleanly along time
