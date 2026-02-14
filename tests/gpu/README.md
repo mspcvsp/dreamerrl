@@ -138,3 +138,48 @@ replay.h0    # (B, H)
 replay.c0    # (B, H)
 rollout.done # (B, T)
 
+## But the real rollout buffer provides:
+
+```python
+obs         # (T, B, …)
+hxs         # (T, B, H)
+cxs         # (T, B, H)
+terminated  # (T, B)
+truncated   # (T, B)
+```
+
+The fixtures bridge the gap by returning a simple namespace with the fields the tests expect.
+
+This keeps:
+
+- core invariants correct  
+- CPU tests correct  
+- GPU tests correct  
+- policy API stable  
+
+---
+
+## 3. Why We Do Not Modify `load_rollout_into_buffer`
+
+`load_rollout_into_buffer` must remain a faithful loader for:
+
+- real `RecurrentRolloutBuffer`  
+- CPU tests  
+- TBPTT tests  
+- replay equivalence tests  
+- GAE tests  
+
+Changing it would break the entire recurrent PPO pipeline.  
+The GPU fixtures wrap the buffer output into the legacy test API instead.
+
+---
+
+## 4. Mental Model to Remember
+
+- **Time‑major `(T, B, …)` → training‑time truth**  
+- **Batch‑major `(B, T, …)` → test‑time convenience**  
+
+The GPU fixtures bridge the two.  
+Both are valid.  
+Each is correct in its own context.  
+The shim exists so the GPU tests don’t need to be rewritten.
