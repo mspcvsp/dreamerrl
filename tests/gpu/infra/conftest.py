@@ -148,6 +148,25 @@ def fake_buffer_loader(fake_state):
 
 
 @pytest.fixture
+def tbptt_replay_loader():
+    def _factory(
+        rollout,
+        device="cuda",
+        state=None,
+        chunk_size=None,
+    ):
+        # For TBPTT equivalence, we want the exact same (T,B,...) as rollout
+        # and the same initial hidden state.
+        return SimpleNamespace(
+            obs=rollout.obs.to(device),
+            h0=rollout.h0.to(device),
+            c0=rollout.c0.to(device),
+        )
+
+    return _factory
+
+
+@pytest.fixture
 def fake_batch(fake_state, fake_rollout):
     def _factory(
         batch_size=8,

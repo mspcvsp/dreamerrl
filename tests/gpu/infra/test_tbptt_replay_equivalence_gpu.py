@@ -1,13 +1,13 @@
 import torch
 
 
-def test_tbptt_replay_equivalence_gpu(synthetic_trainer, fake_rollout, fake_buffer_loader):
+def test_tbptt_replay_equivalence_gpu(synthetic_trainer, fake_rollout, tbptt_replay_loader):
     device = torch.device("cuda")
     trainer = synthetic_trainer
     trainer.policy.to(device)
 
     rollout = fake_rollout(device=device, batch_size=4, seq_len=32)
-    replay = fake_buffer_loader(rollout, device=device, chunk_size=8)
+    replay = tbptt_replay_loader(rollout, device=device, chunk_size=8)
 
     # TBPTT forward pass
     tbptt_out = trainer.policy.forward_tbptt(replay.obs, replay.h0, replay.c0, chunk_size=8)
