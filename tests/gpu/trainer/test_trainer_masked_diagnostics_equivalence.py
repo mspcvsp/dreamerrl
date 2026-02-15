@@ -46,9 +46,9 @@ def test_trainer_masked_diagnostics_equivalence():
     policy = trainer.policy
     device = trainer.device
 
-    T, B, D, H = 6, 2, 4, trainer.state.cfg.lstm.lstm_hidden_size
+    T, B, _, H = 6, 2, 4, trainer.state.cfg.lstm.lstm_hidden_size
 
-    obs = torch.randn(T, B, D, device=device)
+    obs = torch.randn(T, B, trainer.state.env_info.flat_obs_dim, device=trainer.device)
     h0 = torch.randn(B, H, device=device)
     c0 = torch.randn(B, H, device=device)
 
@@ -62,7 +62,7 @@ def test_trainer_masked_diagnostics_equivalence():
             obs=obs,
             hxs=h0,
             cxs=c0,
-            actions=torch.zeros(T, B, dtype=torch.long),
+            actions=torch.zeros(T, B, dtype=torch.long, device=device),
         )
     )
 
