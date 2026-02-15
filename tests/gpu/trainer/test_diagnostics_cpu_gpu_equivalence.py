@@ -19,9 +19,39 @@ def reference_masked_diagnostics(h, masks):
 
 def test_trainer_masked_diagnostics_cpu_gpu_stability():
     """
-    CPU and GPU diagnostics should be numerically stable and within a reasonable
-    range of each other. Hidden states differ significantly across devices due
-    to kernel differences, so exact equality is not expected.
+    CPU↔GPU Diagnostics Stability Test
+    ----------------------------------
+
+    This test ensures that masked LSTM diagnostics (saturation, entropy, drift)
+    remain numerically stable across CPU and GPU execution. Because PyTorch uses
+    different LSTM kernels on CPU (MKL/OpenBLAS) and GPU (cuDNN fused kernels),
+    hidden states will not be bit‑identical across devices. Drift, which depends on
+    differences of hidden states, is especially sensitive to these kernel-level
+    differences.
+
+    Invariant:
+        Diagnostics must be finite, non‑negative, and within a reasonable
+        multiplicative factor across devices. Exact equality is not expected.
+
+    Why this matters:
+    -----------------
+    Diagnostics are used during PPO training to monitor LSTM health and detect
+    instability. If CPU/GPU differences caused diagnostics to diverge wildly,
+    training would become nondeterministic and debugging would be impossible.
+
+    What this test checks:
+    ----------------------
+    1. All diagnostics are finite (no NaNs or infs).
+    2. All diagnostics are non‑negative.
+    3. Saturation and entropy match within a tight tolerance (~20%).
+    4. Drift matches within a looser tolerance (~40%) due to its sensitivity to
+    kernel-level differences.
+
+    If this invariant breaks:
+    -------------------------
+    It indicates numerical instability in the LSTM implementation, device-specific
+    bugs, or incorrect masking logic — all of which would compromise PPO training
+    and diagnostics.
     """
 
     gpu_trainer = LSTMPPOTrainer.for_validation()

@@ -1,3 +1,40 @@
+"""
+Hidden‑State Reset Invariant (Rollout Path)
+------------------------------------------
+
+This test validates the rollout‑time reset semantics implemented in
+policy.forward_sequence(). In this codepath, the policy receives `done[t]`
+flags from the environment and must zero the LSTM hidden state at the *next*
+timestep (t+1). This matches Gym/PopGym semantics where done[t] indicates that
+the transition t → t+1 ends an episode.
+
+Invariant:
+    If done[t] == 1, then the PRE‑STEP hidden state for timestep t+1 must be
+    zeroed:  h_{t+1} = 0, c_{t+1} = 0.
+
+Why this matters:
+-----------------
+Correct reset semantics are essential for:
+    • preventing memory leakage across episodes
+    • ensuring correct PPO bootstrapping and GAE
+    • ensuring TBPTT chunk boundaries do not propagate stale memory
+    • ensuring masked diagnostics (drift, saturation, entropy) remain valid
+    • ensuring rollout‑time and training‑time state‑flow remain aligned
+
+What this test checks:
+----------------------
+1. A done flag at timestep t causes hidden states to be zeroed at t+1.
+2. Hidden states before and after the reset are non‑zero (no accidental wiping).
+3. The hidden state at t+1 matches the result of running the LSTM from a
+   zero state on the same observation — proving independence from pre‑reset
+   history.
+
+If this invariant breaks:
+-------------------------
+The agent will leak memory across episodes, PPO advantages will misalign,
+TBPTT will propagate incorrect state, and diagnostics will become meaningless.
+"""
+
 import torch
 
 from lstmppo.trainer import LSTMPPOTrainer
