@@ -450,6 +450,41 @@ class LSTMCoreOutput:
     gates: LSTMGates
 
 
+"""
+🧠 Why PolicyEvalInput should NOT include masks. LSTM-PPO architecture has three layers:
+
+1. Rollout-time (forward_sequence)
+   -------------------------------
+    - This is where resets happen
+    - This is where hidden states are zeroed
+    - This is where done flags matter
+    - This is where PRE‑STEP hidden states are produced
+    - This is where the environment interacts with the LSTM
+
+2. Rollout buffer (RecurrentRolloutBuffer)
+   ---------------------------------------
+    - Stores PRE‑STEP hidden states
+    - Stores terminated/truncated flags
+    - Computes masks
+    - Does NOT apply resets
+    - Does NOT run the LSTM
+
+3. Training-time evaluation (evaluate_actions_sequence)
+   ----------------------------------------------------
+    - Reproduces rollout-time state flow
+    - Does NOT apply resets
+    - Does NOT use masks
+    - Uses PRE‑STEP hidden states from the buffer
+
+So:
+---
+    - Resets belong to rollout-time
+    - Masks belong to the buffer
+    - Training-time eval must not apply resets or masks
+
+This is why PolicyEvalInput does not include masks — and should not."""
+
+
 @dataclass
 class PolicyEvalInput:
     obs: torch.Tensor  # (N, *obs_shape)
