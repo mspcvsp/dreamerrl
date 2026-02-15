@@ -63,9 +63,9 @@ def test_hidden_state_reset_on_env_reset():
 
     obs = torch.randn(T, B, obs_dim, device=device)
 
-    # done[t] = 1 means "episode ended after step t (transition t→t+1)"
-    done = torch.zeros(T, B, device=device)
-    done[2] = 1  # episode ends after t=2 → reset applied at t=3
+    # done[t] = True means "episode ended after step t (transition t→t+1)"
+    done = torch.zeros(T, B, dtype=torch.bool, device=device)
+    done[2] = True  # episode ends after t=2 → reset applied at t=3
 
     # Use non-zero initial state so zeroing is obvious
     h0 = torch.randn(B, H, device=device)
