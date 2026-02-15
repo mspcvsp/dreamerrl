@@ -465,6 +465,7 @@ class PolicyEvalOutput:
     All tensors are (T, B, ...) except new_hxs/new_cxs which are (T, B, H).
     """
 
+    logits: torch.Tensor  # (T, B, A)
     values: torch.Tensor  # (T, B)
     logprobs: torch.Tensor  # (T, B)
     entropy: torch.Tensor  # (T, B)
@@ -482,6 +483,7 @@ class PolicyEvalOutput:
 
     def to(self, device):
         return PolicyEvalOutput(
+            logits=self.logits.to(device),
             values=self.values.to(device),
             logprobs=self.logprobs.to(device),
             entropy=self.entropy.to(device),
@@ -497,6 +499,7 @@ class PolicyEvalOutput:
     @property
     def detached(self):
         return PolicyEvalOutput(
+            logits=self.logits.detach(),
             values=self.values.detach(),
             logprobs=self.logprobs.detach(),
             entropy=self.entropy.detach(),

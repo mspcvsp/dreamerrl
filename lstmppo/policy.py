@@ -726,6 +726,7 @@ class LSTMPPOPolicy(nn.Module):
         - tar_loss - LSTM temporal activation regularization
         """
         return PolicyEvalOutput(
+            logits=logits,  # (T, B, A)
             values=values,  # (T, B)
             logprobs=logprobs,  # (T, B)
             entropy=entropy,  # (T, B)
@@ -760,6 +761,7 @@ class LSTMPPOPolicy(nn.Module):
         entropy = dist.entropy()  # (B,)
 
         return PolicyEvalOutput(
+            logits=out.logits,  # (B, A)
             values=out.values,  # (B,)
             logprobs=logprobs,  # (B,)
             entropy=entropy,  # (B,)
