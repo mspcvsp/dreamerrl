@@ -546,6 +546,10 @@ class LSTMPPOPolicy(nn.Module):
         )
 
     def compute_diagnostics(self, obs, h0, c0):
+        """
+        Deprecated: rollout-only, mask-agnostic diagnostics.
+        Trainer now computes mask-aware diagnostics during optimization.
+        """
         with torch.no_grad():
             out = self.forward_sequence(obs, h0, c0)
             h = out.hn  # (T, B, H)

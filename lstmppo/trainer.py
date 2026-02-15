@@ -474,6 +474,9 @@ class LSTMPPOTrainer:
 
         lstm_unit_diag = self.compute_lstm_unit_diagnostics(eval_output, mask_tb)
 
+        scalar_diag = self.compute_scalar_masked_diagnostics(eval_output, mask_tb)
+        self.state.update_scalar_diagnostics(scalar_diag)
+
         loss = policy_loss + self.state.cfg.ppo.vf_coef * value_loss - self.state.entropy_coef * entropy
 
         if self.state.cfg.trainer.debug_mode is False:
@@ -579,6 +582,33 @@ class LSTMPPOTrainer:
             },
             step=self.state.global_step,
         )
+
+    def compute_scalar_masked_diagnostics(self, eval_output, mask_tb):
+        """
+        Computes scalar diagnostics (saturation, entropy, drift) using the same
+        mask-aware logic as per-unit diagnostics.
+        """
+        h = eval_output.new_hxs  # (T, B, H)
+
+        # Broadcast mask to (T, B, H)
+        m = mask_tb.unsqueeze(-1)  # (T, B, 1)
+
+        # --- Saturation ---
+        sat = (h.abs() * m).sum() / m.sum().clamp(min=1)
+
+        # --- Entropy ---
+        sig = torch.sigmoid(h)
+        ent = (-(sig * torch.log(sig + 1e-8)) * m).sum() / m.sum().clamp(min=1)
+
+        # --- Drift ---
+        valid_pairs = (mask_tb[1:] * mask_tb[:-1]).unsqueeze(-1)  # (T-1, B, 1)
+        drift = ((h[1:] - h[:-1]).pow(2) * valid_pairs).sum() / valid_pairs.sum().clamp(min=1)
+
+        return {
+            "gate_saturation": sat.detach(),
+            "gate_entropy": ent.detach(),
+            "drift": drift.detach(),
+        }
 
     def compute_lstm_unit_diagnostics(
         self, eval_output: PolicyEvalOutput, mask: Optional[torch.Tensor]

@@ -155,6 +155,10 @@ class TrainerState:
 
         self.history.push("explained_var", self.metrics.explained_var)
 
+    def update_scalar_diagnostics(self, scalar_diag: dict):
+        for key, value in scalar_diag.items():
+            setattr(self.metrics, key, to_float(value))
+
     @property
     def global_step(self) -> int:
         return self.update_idx * self.cfg.trainer.rollout_steps * self.cfg.env.num_envs
