@@ -1,3 +1,22 @@
+"""
+NOTE ABOUT TBPTT DIAGNOSTICS INVARIANTS
+---------------------------------------
+The ONLY TBPTT invariant guaranteed by the architecture is that the core recurrence (forward_tbptt) produces the same
+hidden-state sequence (hn) as a full unroll (forward_sequence). This is the recurrence that the trainer uses during PPO
+updates.
+
+Diagnostics are pure functions of (T,B,H) hidden states + masks. Therefore:
+
+    If forward_tbptt.hn == forward_sequence.hn,
+    then diagnostics(forward_tbptt.hn) == diagnostics(forward_sequence.hn)
+
+This is the correct and sufficient TBPTT diagnostics invariant.
+
+We do NOT require chunked calls to evaluate_actions_sequence to match a full unroll. That function includes encoder,
+AR/TAR heads, and training-time bookkeeping, and is not used for TBPTT recurrence. Enforcing equality there would
+over-specify the system and fail for legitimate architectural reasons.
+"""
+
 import torch
 
 from lstmppo.trainer import LSTMPPOTrainer
