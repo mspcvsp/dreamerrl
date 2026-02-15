@@ -45,6 +45,8 @@ def make_fake_state(
         num_envs=num_envs,
         mini_batch_envs=num_envs,
         lstm_hidden_size=hidden_size,
+        gamma=0.99,
+        lam=0.95,
     )
 
     lstm_cfg = SimpleNamespace(
