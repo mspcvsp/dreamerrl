@@ -76,9 +76,16 @@ def test_hidden_state_reset_on_env_reset():
     h = out.hn  # (T, B, H)
     c = out.cn  # (T, B, H)
 
-    # 1. Hidden states must be zeroed at the reset timestep (t=3)
-    assert torch.allclose(h[3], torch.zeros_like(h[3]))
-    assert torch.allclose(c[3], torch.zeros_like(c[3]))
+    # 1. Hidden state at t=3 must match a fresh unroll from zero
+    manual = policy.forward_sequence(
+        obs[3:4],  # only timestep 3
+        torch.zeros(B, H, device=device),
+        torch.zeros(B, H, device=device),
+    )
+
+    # POST‑STEP equivalence: h[3] and c[3] must match the LSTM run from zero
+    assert torch.allclose(h[3], manual.hn[0], atol=1e-5)
+    assert torch.allclose(c[3], manual.cn[0], atol=1e-5)
 
     # 2. Hidden states before reset must not be zero
     assert not torch.allclose(h[2], torch.zeros_like(h[2]))
