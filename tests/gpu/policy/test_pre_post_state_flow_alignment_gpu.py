@@ -1,3 +1,57 @@
+"""
+PRE‑STEP / POST‑STEP State‑Flow Equivalence Test
+------------------------------------------------
+
+Rationale
+---------
+This test verifies the most fundamental invariant of the recurrent PPO
+architecture: **the policy must produce identical LSTM state‑flow whether it is
+run in full‑sequence mode or step‑by‑step mode**.
+
+Every timestep t has two distinct LSTM states:
+
+    PRE‑STEP:   (h_t,   c_t)   — state *before* consuming obs[t]
+    POST‑STEP:  (h_{t+1}, c_{t+1}) — state *after* consuming obs[t]
+
+During rollout:
+    PRE‑STEP states are stored in the rollout buffer.
+    POST‑STEP states become the next timestep’s PRE‑STEP.
+
+During training:
+    evaluate_actions_sequence() must reproduce the exact same PRE/POST
+    transitions as rollout‑time step‑mode execution.
+
+Why this matters
+----------------
+If PRE/POST alignment is broken:
+
+    • TBPTT chunking begins from the wrong hidden state
+    • PPO logprobs/values become misaligned with rollout behavior
+    • recurrent diagnostics (drift, saturation, entropy) become meaningless
+    • replay and rollout diverge
+    • CPU/GPU equivalence breaks
+    • training becomes nondeterministic
+
+What this test enforces
+-----------------------
+1. Full‑sequence unroll produces:
+       full.pre_hxs[t]  ==  h_t
+       full.new_hxs[t]  ==  h_{t+1}
+
+2. Step‑mode unroll reconstructs:
+       pre_h_list[t]    ==  h_t
+       post_h_list[t]   ==  h_{t+1}
+
+3. PRE‑STEP and POST‑STEP sequences match exactly:
+       full.pre_hxs  ==  pre_h_list
+       full.new_hxs  ==  post_h_list
+
+This guarantees that:
+    • rollout → buffer → trainer → policy is perfectly aligned
+    • TBPTT chunk boundaries are correct
+    • recurrent PPO behaves deterministically across devices
+"""
+
 import pytest
 import torch
 
