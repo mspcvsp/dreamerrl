@@ -19,22 +19,16 @@ def test_evaluate_actions_sequence_equivalence():
     h0 = torch.randn(B, H, device=device)
     c0 = torch.randn(B, H, device=device)
 
-    # Fake actions (required by PolicyEvalInput)
-    actions = torch.randint(
-        low=0,
-        high=act_dim,
-        size=(T, B),
-        device=device,
-    )
+    actions = torch.randint(0, act_dim, (T, B), device=device)
 
-    # --- Rollout path (authoritative) ---
+    # --- Rollout path ---
     full = policy.forward_sequence(obs, h0, c0)
     logits_full = full.logits
     values_full = full.value
     h_full = full.hn
     c_full = full.cn
 
-    # --- Training path (must match rollout) ---
+    # --- Training path ---
     eval_in = PolicyEvalInput(
         obs=obs,
         hxs=h0.expand(T, B, H),
@@ -49,7 +43,6 @@ def test_evaluate_actions_sequence_equivalence():
     h_eval = eval_out.new_hxs
     c_eval = eval_out.new_cxs
 
-    # --- Invariants ---
     assert torch.allclose(logits_full, logits_eval, atol=1e-6)
     assert torch.allclose(values_full, values_eval, atol=1e-6)
     assert torch.allclose(h_full, h_eval, atol=1e-6)

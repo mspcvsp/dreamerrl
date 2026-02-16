@@ -487,10 +487,10 @@ This is why PolicyEvalInput does not include masks — and should not."""
 
 @dataclass
 class PolicyEvalInput:
-    obs: torch.Tensor  # (N, *obs_shape)
-    hxs: torch.Tensor  # (N,H)
-    cxs: torch.Tensor  # (N,H)
-    actions: torch.Tensor  # (N,) or (N,1)
+    obs: torch.Tensor  # (T, B, obs_dim)
+    hxs: torch.Tensor  # (T, B, H)
+    cxs: torch.Tensor  # (T, B, H)
+    actions: torch.Tensor  # (T, B)
 
 
 @dataclass
