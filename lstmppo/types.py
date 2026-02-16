@@ -715,6 +715,14 @@ class LSTMUnitDiagnostics:
             hidden_size=self.hidden_size,
         )
 
+    def require_saturation(self) -> LSTMGateSaturation:
+        assert self.saturation is not None
+        return self.saturation
+
+    def require_entropy(self) -> LSTMGateEntropy:
+        assert self.entropy is not None
+        return self.entropy
+
 
 @dataclass
 class PolicyUpdateInfo:

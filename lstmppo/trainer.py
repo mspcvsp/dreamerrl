@@ -39,12 +39,13 @@ from typing import Optional
 
 import numpy as np
 import torch
+import wandb
 from rich.console import Console
 from rich.live import Live
 from torch import nn
 from torch.distributions.categorical import Categorical
 
-import wandb
+from tests.helpers.diagnostics_helpers import EvalOutputLike
 
 from .buffer import RecurrentRolloutBuffer, RolloutStep
 from .env import RecurrentVecEnvWrapper
@@ -73,7 +74,6 @@ from .types import (
     LSTMUnitDiagnostics,
     LSTMUnitPrev,
     PolicyEvalInput,
-    PolicyEvalOutput,
     PolicyInput,
     PolicyUpdateInfo,
     RecurrentMiniBatch,
@@ -611,7 +611,7 @@ class LSTMPPOTrainer:
         }
 
     def compute_lstm_unit_diagnostics(
-        self, eval_output: PolicyEvalOutput, mask: Optional[torch.Tensor]
+        self, eval_output: EvalOutputLike, mask: Optional[torch.Tensor]
     ) -> LSTMUnitDiagnostics:
         """
         Computes per-unit LSTM diagnostics (shape [H]) instead of scalars.
@@ -755,7 +755,7 @@ class LSTMPPOTrainer:
         return diag
 
     def compute_gate_saturation_vectorized(
-        self, eval_output: PolicyEvalOutput, mask: Optional[torch.Tensor]
+        self, eval_output: EvalOutputLike, mask: Optional[torch.Tensor]
     ) -> LSTMGateSaturation:
         """
         Computes per-unit saturation metrics for all LSTM gates.
