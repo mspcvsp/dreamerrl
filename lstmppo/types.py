@@ -443,8 +443,10 @@ class LSTMCoreOutput:
     out: torch.Tensor
     pred_obs: torch.Tensor
     pred_raw: torch.Tensor
-    h: torch.Tensor
-    c: torch.Tensor
+    pre_h: torch.Tensor
+    pre_c: torch.Tensor
+    post_h: torch.Tensor
+    post_c: torch.Tensor
     ar_loss: torch.Tensor
     tar_loss: torch.Tensor
     gates: LSTMGates
@@ -508,6 +510,9 @@ class PolicyEvalOutput:
     new_hxs: torch.Tensor  # (T, B, H)
     new_cxs: torch.Tensor  # (T, B, H)
 
+    pre_hxs: torch.Tensor  # (T, B, H)
+    pre_cxs: torch.Tensor  # (T, B, H)
+
     gates: LSTMGates  # i,f,g,o,c,h gates (T, B, H)
 
     ar_loss: Optional[torch.Tensor] = None
@@ -524,6 +529,8 @@ class PolicyEvalOutput:
             entropy=self.entropy.to(device),
             new_hxs=self.new_hxs.to(device),
             new_cxs=self.new_cxs.to(device),
+            pre_hxs=self.pre_hxs.to(device),
+            pre_cxs=self.pre_cxs.to(device),
             gates=self.gates.to(device),
             ar_loss=(None if self.ar_loss is None else self.ar_loss.to(device)),
             tar_loss=(None if self.tar_loss is None else self.tar_loss.to(device)),
@@ -540,6 +547,8 @@ class PolicyEvalOutput:
             entropy=self.entropy.detach(),
             new_hxs=self.new_hxs.detach(),
             new_cxs=self.new_cxs.detach(),
+            pre_hxs=self.pre_hxs.detach(),
+            pre_cxs=self.pre_cxs.detach(),
             gates=self.gates.detached,
             ar_loss=(None if self.ar_loss is None else self.ar_loss.detach()),
             tar_loss=(None if self.tar_loss is None else self.tar_loss.detach()),

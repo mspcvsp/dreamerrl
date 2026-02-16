@@ -98,6 +98,8 @@ def test_per_unit_diagnostics_tbptt_alignment_gpu():
         new_hxs=h_tbptt,
         new_cxs=c_tbptt,
     )
+    assert torch.allclose(full_out.new_hxs, h_tbptt, atol=1e-6), "Hidden states mismatch"
+    assert torch.allclose(full_out.new_cxs, c_tbptt, atol=1e-6), "Cell states mismatch"
 
     tbptt_diag = trainer.compute_lstm_unit_diagnostics(proxy, mask_full).require()
 

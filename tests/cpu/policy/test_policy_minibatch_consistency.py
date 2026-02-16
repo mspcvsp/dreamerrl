@@ -42,10 +42,21 @@ def test_policy_minibatch_consistency(trainer_state: TrainerState):
 
     for t in range(T):
         out = policy.forward(PolicyInput(obs=obs[:, t], hxs=h_step, cxs=c_step))
-        logps_step.append(policy.evaluate_actions(out, actions[:, t]).logprobs)
-        values_step.append(out.values)
+
+        eval_step = policy.evaluate_actions(
+            out,
+            actions[:, t],
+            pre_h=h_step,
+            pre_c=c_step,
+        )
+
+        logps_step.append(eval_step.logprobs.squeeze(0))  # (B,)
+        values_step.append(out.values)  # (B,)
+
+        # POST-STEP becomes next PRE-STEP
         h_step, c_step = out.new_hxs, out.new_cxs
 
+    # FIX: stack AFTER the loop
     logps_step = torch.stack(logps_step, dim=1)  # (B, T)
     values_step = torch.stack(values_step, dim=1)  # (B, T)
 
