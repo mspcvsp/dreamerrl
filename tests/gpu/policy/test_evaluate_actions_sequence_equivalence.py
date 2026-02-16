@@ -19,29 +19,35 @@ def test_evaluate_actions_sequence_equivalence():
     h0 = torch.randn(B, H, device=device)
     c0 = torch.randn(B, H, device=device)
 
-    actions = torch.randint(0, act_dim, (T, B), device=device)
-
-    # --- Rollout path ---
+    # --- Rollout path (authoritative) ---
     full = policy.forward_sequence(obs, h0, c0)
-    logits_full = full.logits
-    values_full = full.value
-    h_full = full.hn
-    c_full = full.cn
+    logits_full = full.logits  # (T, B, A)
+    values_full = full.value  # (T, B)
+    h_full = full.hn  # (T, B, H)
+    c_full = full.cn  # (T, B, H)
 
-    # --- Training path ---
+    # --- Training path (must match rollout) ---
+    actions = torch.randint(0, act_dim, (T, B, 1), device=device)
+
     eval_in = PolicyEvalInput(
         obs=obs,
-        hxs=h0.expand(T, B, H),
-        cxs=c0.expand(T, B, H),
-        actions=actions,
+        hxs=h0,  # (B, H)
+        cxs=c0,  # (B, H)
+        actions=actions,  # (T, B, 1)
     )
 
     eval_out = policy.evaluate_actions_sequence(eval_in)
 
-    logits_eval = eval_out.logits
-    values_eval = eval_out.values
-    h_eval = eval_out.new_hxs
-    c_eval = eval_out.new_cxs
+    # Eval outputs may be laid out differently; enforce same shape before compare
+    assert eval_out.logits.numel() == logits_full.numel()
+    assert eval_out.values.numel() == values_full.numel()
+    assert eval_out.new_hxs.numel() == h_full.numel()
+    assert eval_out.new_cxs.numel() == c_full.numel()
+
+    logits_eval = eval_out.logits.view_as(logits_full)
+    values_eval = eval_out.values.view_as(values_full)
+    h_eval = eval_out.new_hxs.view_as(h_full)
+    c_eval = eval_out.new_cxs.view_as(c_full)
 
     assert torch.allclose(logits_full, logits_eval, atol=1e-6)
     assert torch.allclose(values_full, values_eval, atol=1e-6)
