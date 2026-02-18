@@ -1,6 +1,7 @@
 import torch
 
 from lstmppo.trainer import LSTMPPOTrainer
+from lstmppo.types import PolicyEvalInput
 
 
 def test_trainer_tbptt_chunk_stitching():
@@ -16,33 +17,40 @@ def test_trainer_tbptt_chunk_stitching():
     chunk_size = state.cfg.trainer.tbptt_chunk_len
 
     obs = torch.randn(T, B, obs_dim, device=device)
+    actions = torch.randint(0, state.env_info.action_dim, (T, B), device=device)
     h0 = torch.zeros(B, H, device=device)
     c0 = torch.zeros(B, H, device=device)
 
-    # Reference: full unroll
-    full = policy.forward_sequence(obs, h0, c0)
-    ref_h = full.hxs  # (T, B, H)
-    ref_c = full.cxs  # (T, B, H)
+    # Reference: full unroll using evaluate_actions_sequence
+    full = policy.evaluate_actions_sequence(PolicyEvalInput(obs=obs, hxs=h0, cxs=c0, actions=actions))
+    ref_pre = full.pre_hxs  # (T, B, H)
+    ref_post = full.new_hxs  # (T, B, H)
 
-    # TBPTT-style manual chunking at trainer level
+    # TBPTT-style manual chunking
     h = h0
     c = c0
-    stitched_h = []
-    stitched_c = []
+    stitched_pre = []
+    stitched_post = []
 
     for start in range(0, T, chunk_size):
         end = min(start + chunk_size, T)
-        out_chunk = policy.forward_sequence(obs[start:end], h, c)
-        stitched_h.append(out_chunk.hxs)
-        stitched_c.append(out_chunk.cxs)
-        # carry last POST-STEP state into next chunk
+
+        out_chunk = policy.evaluate_actions_sequence(
+            PolicyEvalInput(obs=obs[start:end], hxs=h, cxs=c, actions=actions[start:end])
+        )
+
+        stitched_pre.append(out_chunk.pre_hxs)
+        stitched_post.append(out_chunk.new_hxs)
+
+        # carry POST-STEP state into next chunk
         h = out_chunk.new_hxs[-1]
         c = out_chunk.new_cxs[-1]
 
-    h_tb = torch.cat(stitched_h, dim=0)
-    c_tb = torch.cat(stitched_c, dim=0)
+    pre_tb = torch.cat(stitched_pre, dim=0)
+    post_tb = torch.cat(stitched_post, dim=0)
 
-    assert h_tb.shape == ref_h.shape
-    assert c_tb.shape == ref_c.shape
-    assert torch.allclose(h_tb, ref_h, atol=1e-5)
-    assert torch.allclose(c_tb, ref_c, atol=1e-5)
+    assert pre_tb.shape == ref_pre.shape
+    assert post_tb.shape == ref_post.shape
+
+    assert torch.allclose(pre_tb, ref_pre, atol=1e-5)
+    assert torch.allclose(post_tb, ref_post, atol=1e-5)
