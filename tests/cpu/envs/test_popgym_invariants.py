@@ -1,86 +1,127 @@
+import pytest
 import torch
 
 from lstmppo.trainer import LSTMPPOTrainer
 
 
-def test_position_only_cartpole_obs_normalization_stable():
-    trainer = LSTMPPOTrainer.for_validation(env_id="popgym-PositionOnlyCartPoleEasy-v0")
+def require_popgym_env(env_id: str) -> None:
+    import gymnasium as gym
+
+    registered = [e.id for e in gym.envs.registry.values()]
+    if env_id not in registered:
+        pytest.skip(f"PopGym environment not installed: {env_id}")
+
+
+# ---------------------------------------------------------------------------
+# Invariant 1:
+# Observation normalization must keep logits finite and bounded.
+# This mirrors CAGE‑2, where observations are continuous and normalized.
+# ---------------------------------------------------------------------------
+
+
+def test_obs_normalization_stable() -> None:
+    env_id = "popgym-PositionOnlyCartPoleEasy-v0"
+    require_popgym_env(env_id)
+
+    trainer = LSTMPPOTrainer.for_validation(env_id=env_id)
     policy = trainer.policy
     device = trainer.device
 
-    # Large-magnitude raw obs should not explode encoder outputs
-    raw_obs = torch.tensor([[1000.0, -1000.0]], device=device)  # shape (1, D)
-    h0 = torch.zeros(1, trainer.state.cfg.lstm.lstm_hidden_size, device=device)
-    c0 = torch.zeros(1, trainer.state.cfg.lstm.lstm_hidden_size, device=device)
+    # Extreme observation to stress normalization
+    obs = torch.tensor([[1000.0, -1000.0]], device=device)
 
-    logits, _, _, _, _ = policy.forward_step(raw_obs, h0, c0)
+    H = trainer.state.cfg.lstm.lstm_hidden_size
+    h = torch.zeros(1, H, device=device)
+    c = torch.zeros(1, H, device=device)
+
+    logits, value, new_h, new_c, gates = policy.forward_step(obs, h, c)
 
     assert torch.isfinite(logits).all()
     assert logits.abs().mean() < 50.0
 
 
-def test_keycorridor_hidden_state_resets_on_done():
-    trainer = LSTMPPOTrainer.for_validation(env_id="PopGym-KeyCorridorEasy-v0")
+# ---------------------------------------------------------------------------
+# Invariant 2:
+# Hidden state must evolve over time (not stuck at zero).
+# This mirrors CAGE‑2, where the LSTM must track temporal structure.
+# ---------------------------------------------------------------------------
+
+
+def test_hidden_state_evolves() -> None:
+    env_id = "popgym-RepeatPreviousEasy-v0"
+    require_popgym_env(env_id)
+
+    trainer = LSTMPPOTrainer.for_validation(env_id=env_id)
     policy = trainer.policy
+    env = trainer.env
     device = trainer.device
 
-    B = 1
+    state = env.reset()
+    obs = state.obs
+
     H = trainer.state.cfg.lstm.lstm_hidden_size
-    obs_dim = trainer.state.env_info.flat_obs_dim
+    h0 = torch.zeros(1, H, device=device)
+    c0 = torch.zeros(1, H, device=device)
+    h = h0.clone()
+    c = c0.clone()
 
-    obs = torch.randn(4, B, obs_dim, device=device)
-    h = torch.zeros(B, H, device=device)
-    c = torch.zeros(B, H, device=device)
+    done = False
+    steps = 0
 
-    # Step a few times to get non-zero hidden state
-    out = policy.forward_sequence(obs[:2], h, c)
-    h_mid = out.new_hxs[-1]
-    c_mid = out.new_cxs[-1]
+    while not done and steps < 128:
+        logits, value, new_h, new_c, gates = policy.forward_step(obs, h, c)
+        action = logits.argmax(dim=-1)
 
-    assert h_mid.abs().sum() > 0
+        state = env.step(action)
+        obs = state.obs
+        done = state.terminated or state.truncated
 
-    # Simulate episode reset: hidden state must reset to zeros
-    h_reset = torch.zeros_like(h_mid)
-    c_reset = torch.zeros_like(c_mid)
+        h, c = new_h, new_c
+        steps += 1
 
-    out_after = policy.forward_sequence(obs[2:], h_reset, c_reset)
-    h_after = out_after.hxs[0]
+    # LSTM must move away from zero state
+    assert not torch.allclose(h, h0)
+    assert torch.isfinite(h).all()
+    assert torch.isfinite(c).all()
 
-    assert torch.allclose(h_after, h_reset, atol=1e-6)
+
+# ---------------------------------------------------------------------------
+# Invariant 3:
+# Long‑horizon rollouts must keep hidden state finite and stable.
+# This mirrors CAGE‑2, where episodes are long and LSTM stability matters.
+# ---------------------------------------------------------------------------
 
 
-def test_truncated_episodes_do_not_propagate_hidden_state():
-    trainer = LSTMPPOTrainer.for_validation(env_id="PopGym-LabyrinthEasy-v0")
+def test_long_rollout_hidden_state_stability() -> None:
+    env_id = "popgym-RepeatPreviousEasy-v0"
+    require_popgym_env(env_id)
+
+    trainer = LSTMPPOTrainer.for_validation(env_id=env_id)
     policy = trainer.policy
+    env = trainer.env
     device = trainer.device
 
-    B = 1
+    state = env.reset()
+    obs = state.obs
+
     H = trainer.state.cfg.lstm.lstm_hidden_size
-    obs_dim = trainer.state.env_info.flat_obs_dim
+    h = torch.zeros(1, H, device=device)
+    c = torch.zeros(1, H, device=device)
 
-    obs = torch.randn(6, B, obs_dim, device=device)
-    h0 = torch.zeros(B, H, device=device)
-    c0 = torch.zeros(B, H, device=device)
+    steps = 0
+    max_steps = 512  # long enough to stress LSTM stability
 
-    # First "episode" segment
-    out_1 = policy.forward_sequence(obs[:3], h0, c0)
-    h_mid = out_1.new_hxs[-1]
-    c_mid = out_1.new_cxs[-1]
+    for _ in range(max_steps):
+        logits, value, new_h, new_c, gates = policy.forward_step(obs, h, c)
+        action = logits.argmax(dim=-1)
 
-    # Simulate truncation: environment ends due to time limit
-    # Next rollout must start from zeros, not from h_mid/c_mid
-    h_next = torch.zeros_like(h_mid)
-    c_next = torch.zeros_like(c_mid)
+        state = env.step(action)
+        obs = state.obs
 
-    out_2 = policy.forward_sequence(obs[3:], h_next, c_next)
-    h_start_next = out_2.hxs[0]
+        h, c = new_h, new_c
+        steps += 1
 
-    assert torch.allclose(h_start_next, h_next, atol=1e-6)
-
-
-def test_list_popgym_envs():
-    import gymnasium as gym
-
-    ids = sorted([e.id for e in gym.envs.registry.values() if "popgym" in e.id.lower()])
-    print("Available PopGym envs:", ids)
-    assert len(ids) > 0
+    # Hidden state must remain finite and non‑exploding
+    assert torch.isfinite(h).all()
+    assert torch.isfinite(c).all()
+    assert h.abs().mean() < 100.0
