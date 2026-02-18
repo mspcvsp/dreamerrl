@@ -142,12 +142,19 @@ class LSTMPPOTrainer:
         return self.state.cfg.trainer.rollout_steps
 
     @classmethod
-    def for_validation(cls):
+    def for_validation(cls, env_id: str | None = None):
         """
         Construct a trainer in validation mode.
         Ensures deterministic behavior and single-env operation.
+        Allows overriding env_id for PopGym smoke tests.
         """
         cfg = Config()
+
+        # Allow PopGym smoke tests to override the environment
+        if env_id is not None:
+            cfg.env.env_id = env_id
+
+        # Initialize config AFTER overriding env_id
         cfg = initialize_config(cfg)
 
         return cls(cfg, validation_mode=True)

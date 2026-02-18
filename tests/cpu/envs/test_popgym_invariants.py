@@ -4,17 +4,16 @@ from lstmppo.trainer import LSTMPPOTrainer
 
 
 def test_position_only_cartpole_obs_normalization_stable():
-    trainer = LSTMPPOTrainer.for_validation(env_id="PopGym-PositionOnlyCartPole-v0")
+    trainer = LSTMPPOTrainer.for_validation(env_id="popgym-PositionOnlyCartPoleEasy-v0")
     policy = trainer.policy
     device = trainer.device
 
     # Large-magnitude raw obs should not explode encoder outputs
     raw_obs = torch.tensor([[1000.0, -1000.0]], device=device)  # shape (1, D)
-    h0 = policy.initial_hxs(1, device=device)
-    c0 = policy.initial_cxs(1, device=device)
+    h0 = torch.zeros(1, trainer.state.cfg.lstm.lstm_hidden_size, device=device)
+    c0 = torch.zeros(1, trainer.state.cfg.lstm.lstm_hidden_size, device=device)
 
-    out = policy.forward_step(raw_obs, h0, c0)
-    logits = out.logits
+    logits, _, _, _, _ = policy.forward_step(raw_obs, h0, c0)
 
     assert torch.isfinite(logits).all()
     assert logits.abs().mean() < 50.0
@@ -77,3 +76,11 @@ def test_truncated_episodes_do_not_propagate_hidden_state():
     h_start_next = out_2.hxs[0]
 
     assert torch.allclose(h_start_next, h_next, atol=1e-6)
+
+
+def test_list_popgym_envs():
+    import gymnasium as gym
+
+    ids = sorted([e.id for e in gym.envs.registry.values() if "popgym" in e.id.lower()])
+    print("Available PopGym envs:", ids)
+    assert len(ids) > 0
