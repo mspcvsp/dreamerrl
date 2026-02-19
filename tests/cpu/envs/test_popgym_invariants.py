@@ -1,16 +1,11 @@
-import pytest
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from .conftest import require_popgym_env
+
 import torch
 
 from lstmppo.trainer import LSTMPPOTrainer
-
-
-def require_popgym_env(env_id: str) -> None:
-    import gymnasium as gym
-
-    registered = [e.id for e in gym.envs.registry.values()]
-    if env_id not in registered:
-        pytest.skip(f"PopGym environment not installed: {env_id}")
-
 
 # ---------------------------------------------------------------------------
 # Invariant 1:
