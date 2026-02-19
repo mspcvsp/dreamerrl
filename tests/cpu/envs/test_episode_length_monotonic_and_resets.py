@@ -1,14 +1,9 @@
-from typing import TYPE_CHECKING
-
-if TYPE_CHECKING:
-    from .conftest import require_popgym_env
-
 import torch
 
 from lstmppo.trainer import LSTMPPOTrainer
 
 
-def test_episode_length_monotonic_and_resets() -> None:
+def test_episode_length_monotonic_and_resets(require_popgym_env) -> None:
     """Episode length must increase by exactly 1 per step and reset on termination."""
     env_id = "popgym-RepeatPreviousEasy-v0"
     require_popgym_env(env_id)

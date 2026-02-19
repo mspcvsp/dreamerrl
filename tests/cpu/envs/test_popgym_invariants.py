@@ -1,8 +1,3 @@
-from typing import TYPE_CHECKING
-
-if TYPE_CHECKING:
-    from .conftest import require_popgym_env
-
 import torch
 
 from lstmppo.trainer import LSTMPPOTrainer
@@ -14,7 +9,7 @@ from lstmppo.trainer import LSTMPPOTrainer
 # ---------------------------------------------------------------------------
 
 
-def test_obs_normalization_stable() -> None:
+def test_obs_normalization_stable(require_popgym_env) -> None:
     env_id = "popgym-PositionOnlyCartPoleEasy-v0"
     require_popgym_env(env_id)
 
@@ -42,7 +37,7 @@ def test_obs_normalization_stable() -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_hidden_state_evolves() -> None:
+def test_hidden_state_evolves(require_popgym_env) -> None:
     env_id = "popgym-RepeatPreviousEasy-v0"
     require_popgym_env(env_id)
 
@@ -87,7 +82,7 @@ def test_hidden_state_evolves() -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_long_rollout_hidden_state_stability() -> None:
+def test_long_rollout_hidden_state_stability(require_popgym_env) -> None:
     env_id = "popgym-RepeatPreviousEasy-v0"
     require_popgym_env(env_id)
 
