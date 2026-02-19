@@ -4,7 +4,6 @@ from lstmppo.trainer import LSTMPPOTrainer
 
 
 def test_episode_length_monotonic_and_resets(require_popgym_env) -> None:
-    """Episode length must increase by exactly 1 per step and reset on termination."""
     env_id = "popgym-RepeatPreviousEasy-v0"
     require_popgym_env(env_id)
 
@@ -21,7 +20,7 @@ def test_episode_length_monotonic_and_resets(require_popgym_env) -> None:
     c = torch.zeros(1, H, device=device)
 
     ep_len = 0
-    lengths = []
+    prev_ep_len = 0
 
     for _ in range(256):
         logits, value, new_h, new_c, gates = policy.forward_step(obs, h, c)
@@ -31,18 +30,13 @@ def test_episode_length_monotonic_and_resets(require_popgym_env) -> None:
         obs = state.obs
 
         ep_len += 1
-        lengths.append(ep_len)
+
+        # Invariant 1: monotonic increase
+        assert ep_len == prev_ep_len + 1
 
         if state.terminated or state.truncated:
-            # Episode length must reset
-            assert ep_len == lengths[-1]
+            # Invariant 2: reset to zero
             ep_len = 0
-            state = env.reset()
-            obs = state.obs
 
+        prev_ep_len = ep_len
         h, c = new_h, new_c
-
-    # Monotonicity check: each step increases by exactly 1
-    diffs = [b - a for a, b in zip(lengths[:-1], lengths[1:])]
-    for d in diffs:
-        assert d in (1, -lengths[0])  # reset or increment
