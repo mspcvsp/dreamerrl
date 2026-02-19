@@ -443,19 +443,56 @@ class LSTMCoreOutput:
     out: torch.Tensor
     pred_obs: torch.Tensor
     pred_raw: torch.Tensor
-    h: torch.Tensor
-    c: torch.Tensor
+    pre_h: torch.Tensor
+    pre_c: torch.Tensor
+    post_h: torch.Tensor
+    post_c: torch.Tensor
     ar_loss: torch.Tensor
     tar_loss: torch.Tensor
     gates: LSTMGates
 
 
+"""
+🧠 Why PolicyEvalInput should NOT include masks. LSTM-PPO architecture has three layers:
+
+1. Rollout-time (forward_sequence)
+   -------------------------------
+    - This is where resets happen
+    - This is where hidden states are zeroed
+    - This is where done flags matter
+    - This is where PRE‑STEP hidden states are produced
+    - This is where the environment interacts with the LSTM
+
+2. Rollout buffer (RecurrentRolloutBuffer)
+   ---------------------------------------
+    - Stores PRE‑STEP hidden states
+    - Stores terminated/truncated flags
+    - Computes masks
+    - Does NOT apply resets
+    - Does NOT run the LSTM
+
+3. Training-time evaluation (evaluate_actions_sequence)
+   ----------------------------------------------------
+    - Reproduces rollout-time state flow
+    - Does NOT apply resets
+    - Does NOT use masks
+    - Uses PRE‑STEP hidden states from the buffer
+
+So:
+---
+    - Resets belong to rollout-time
+    - Masks belong to the buffer
+    - Training-time eval must not apply resets or masks
+
+This is why PolicyEvalInput does not include masks — and should not."""
+
+
 @dataclass
 class PolicyEvalInput:
-    obs: torch.Tensor  # (N, *obs_shape)
-    hxs: torch.Tensor  # (N,H)
-    cxs: torch.Tensor  # (N,H)
-    actions: torch.Tensor  # (N,) or (N,1)
+    obs: torch.Tensor  # (T, B, obs_dim)
+    hxs: torch.Tensor  # (B, H)
+    cxs: torch.Tensor  # (B, H)
+    actions: torch.Tensor  # (T, B) or (T, B, 1)
 
 
 @dataclass
@@ -465,12 +502,16 @@ class PolicyEvalOutput:
     All tensors are (T, B, ...) except new_hxs/new_cxs which are (T, B, H).
     """
 
+    logits: torch.Tensor  # (T, B, A)
     values: torch.Tensor  # (T, B)
     logprobs: torch.Tensor  # (T, B)
     entropy: torch.Tensor  # (T, B)
 
     new_hxs: torch.Tensor  # (T, B, H)
     new_cxs: torch.Tensor  # (T, B, H)
+
+    pre_hxs: torch.Tensor  # (T, B, H)
+    pre_cxs: torch.Tensor  # (T, B, H)
 
     gates: LSTMGates  # i,f,g,o,c,h gates (T, B, H)
 
@@ -482,11 +523,14 @@ class PolicyEvalOutput:
 
     def to(self, device):
         return PolicyEvalOutput(
+            logits=self.logits.to(device),
             values=self.values.to(device),
             logprobs=self.logprobs.to(device),
             entropy=self.entropy.to(device),
             new_hxs=self.new_hxs.to(device),
             new_cxs=self.new_cxs.to(device),
+            pre_hxs=self.pre_hxs.to(device),
+            pre_cxs=self.pre_cxs.to(device),
             gates=self.gates.to(device),
             ar_loss=(None if self.ar_loss is None else self.ar_loss.to(device)),
             tar_loss=(None if self.tar_loss is None else self.tar_loss.to(device)),
@@ -497,11 +541,14 @@ class PolicyEvalOutput:
     @property
     def detached(self):
         return PolicyEvalOutput(
+            logits=self.logits.detach(),
             values=self.values.detach(),
             logprobs=self.logprobs.detach(),
             entropy=self.entropy.detach(),
             new_hxs=self.new_hxs.detach(),
             new_cxs=self.new_cxs.detach(),
+            pre_hxs=self.pre_hxs.detach(),
+            pre_cxs=self.pre_cxs.detach(),
             gates=self.gates.detached,
             ar_loss=(None if self.ar_loss is None else self.ar_loss.detach()),
             tar_loss=(None if self.tar_loss is None else self.tar_loss.detach()),
@@ -559,6 +606,30 @@ class LSTMGateEntropy:
 
 
 @dataclass
+class LSTMUnitDiagnosticsFull:
+    i_mean: torch.Tensor
+    f_mean: torch.Tensor
+    g_mean: torch.Tensor
+    o_mean: torch.Tensor
+
+    i_drift: torch.Tensor
+    f_drift: torch.Tensor
+    g_drift: torch.Tensor
+    o_drift: torch.Tensor
+
+    saturation: LSTMGateSaturation
+    entropy: LSTMGateEntropy
+
+    h_norm: torch.Tensor
+    c_norm: torch.Tensor
+
+    h_drift: torch.Tensor
+    c_drift: torch.Tensor
+
+    hidden_size: int
+
+
+@dataclass
 class LSTMUnitDiagnostics:
     """
     Per-unit LSTM diagnostics for research-grade interpretability.
@@ -607,6 +678,59 @@ class LSTMUnitDiagnostics:
             if isinstance(v, torch.Tensor):
                 setattr(self, k, v.detach())
         return self
+
+    def require(self) -> "LSTMUnitDiagnosticsFull":
+        """
+        Assert that all fields are populated and return a fully-typed
+        LSTMUnitDiagnosticsFull object so Pylance knows everything is non-None.
+        """
+
+        assert self.i_mean is not None
+        assert self.f_mean is not None
+        assert self.g_mean is not None
+        assert self.o_mean is not None
+
+        assert self.i_drift is not None
+        assert self.f_drift is not None
+        assert self.g_drift is not None
+        assert self.o_drift is not None
+
+        assert self.saturation is not None
+        assert self.entropy is not None
+
+        assert self.h_norm is not None
+        assert self.c_norm is not None
+
+        assert self.h_drift is not None
+        assert self.c_drift is not None
+
+        assert self.hidden_size is not None
+
+        return LSTMUnitDiagnosticsFull(
+            i_mean=self.i_mean,
+            f_mean=self.f_mean,
+            g_mean=self.g_mean,
+            o_mean=self.o_mean,
+            i_drift=self.i_drift,
+            f_drift=self.f_drift,
+            g_drift=self.g_drift,
+            o_drift=self.o_drift,
+            saturation=self.saturation,
+            entropy=self.entropy,
+            h_norm=self.h_norm,
+            c_norm=self.c_norm,
+            h_drift=self.h_drift,
+            c_drift=self.c_drift,
+            hidden_size=self.hidden_size,
+        )
+
+    def require_saturation(self) -> LSTMGateSaturation:
+        assert self.saturation is not None
+        return self.saturation
+
+    def require_entropy(self) -> LSTMGateEntropy:
+        assert self.entropy is not None
+        return self.entropy
 
 
 @dataclass

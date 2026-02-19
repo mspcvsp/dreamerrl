@@ -114,7 +114,6 @@ class LSTMPPOPolicy(nn.Module):
     def __init__(self, state: TrainerState):
         super().__init__()
         assert state.env_info is not None
-        print("flat_obs_dim:", state.env_info.flat_obs_dim)
 
         self.ar_coef = state.cfg.lstm.lstm_ar_coef
         self.tar_coef = state.cfg.lstm.lstm_tar_coef
@@ -277,29 +276,35 @@ class LSTMPPOPolicy(nn.Module):
             f"Encoder output dim {H_enc} != LSTM input_size {self.lstm_cell.input_size}"
         )
 
-        # LSTM expects (B, T, F) with batch_first=True
-        B, T, F = enc.shape
-        h = hxs
-        c = cxs
-
-        outputs = []
-        gate_list = []
-
         """
         The full [T,B,H] sequences need to be recorded in order to compute
         saturation metrics over the entire sequence
         """
-        c_list = []
-        h_list = []
+        outputs = []
+        gate_list = []
+        pre_h_list: list[torch.Tensor] = []
+        pre_c_list: list[torch.Tensor] = []
+        post_h_list: list[torch.Tensor] = []
+        post_c_list: list[torch.Tensor] = []
+
+        # LSTM expects (B, T, F) with batch_first=True
+        _, T, _ = enc.shape
+        h, c = hxs, cxs  # PRE-STEP for t=0
 
         for t in range(T):
+            # PRE-STEP state for timestep t
+            pre_h_list.append(h)
+            pre_c_list.append(c)
+
+            # LSTM transition → POST-STEP
             h, c, gates = self.lstm(enc[:, t, :], (h, c))
+
             outputs.append(h.unsqueeze(1))
             gate_list.append(gates)
 
-            # store per‑timestep hidden and cell states [B, H]
-            h_list.append(h)
-            c_list.append(c)
+            # POST-STEP state for timestep t
+            post_h_list.append(h)
+            post_c_list.append(c)
 
         out = torch.cat(outputs, dim=1)  # (B, T, H)
 
@@ -348,8 +353,13 @@ class LSTMPPOPolicy(nn.Module):
         f_gates = torch.stack(f_gates, dim=1).detach()
         g_gates = torch.stack(g_gates, dim=1).detach()
         o_gates = torch.stack(o_gates, dim=1).detach()
-        h_gates = torch.stack(h_list, dim=1).detach()
-        c_gates = torch.stack(c_list, dim=1).detach()
+        h_gates = torch.stack(post_h_list, dim=1).detach()
+        c_gates = torch.stack(post_c_list, dim=1).detach()
+
+        pre_h = torch.stack(pre_h_list, dim=1).detach()  # (B, T, H)
+        pre_c = torch.stack(pre_c_list, dim=1).detach()  # (B, T, H)
+        post_h = torch.stack(post_h_list, dim=1).detach()  # (B, T, H)
+        post_c = torch.stack(post_c_list, dim=1).detach()  # (B, T, H)
 
         # Use a detached view of the hidden states for AR/TAR
         out_detached = out.detach()
@@ -367,8 +377,10 @@ class LSTMPPOPolicy(nn.Module):
             out=out,
             pred_obs=pred_obs,
             pred_raw=pred_rew,
-            h=h,
-            c=c,
+            pre_h=pre_h,
+            pre_c=pre_c,
+            post_h=post_h,
+            post_c=post_c,
             ar_loss=ar_loss,
             tar_loss=tar_loss,
             gates=LSTMGates(
@@ -414,8 +426,8 @@ class LSTMPPOPolicy(nn.Module):
             values=values,
             pred_obs=core_out.pred_obs,
             pred_raw=core_out.pred_raw,
-            new_hxs=core_out.h,
-            new_cxs=core_out.c,
+            new_hxs=core_out.post_h[:, -1, :],  # final POST-STEP state
+            new_cxs=core_out.post_c[:, -1, :],
             ar_loss=core_out.ar_loss,
             tar_loss=core_out.tar_loss,
             gates=core_out.gates,
@@ -546,6 +558,10 @@ class LSTMPPOPolicy(nn.Module):
         )
 
     def compute_diagnostics(self, obs, h0, c0):
+        """
+        Deprecated: rollout-only, mask-agnostic diagnostics.
+        Trainer now computes mask-aware diagnostics during optimization.
+        """
         with torch.no_grad():
             out = self.forward_sequence(obs, h0, c0)
             h = out.hn  # (T, B, H)
@@ -628,7 +644,8 @@ class LSTMPPOPolicy(nn.Module):
         )
 
         # Forward through encoder + LSTM + heads
-        policy_output = self.forward(policy_input)
+        core_out = self._forward_core(policy_input.obs, policy_input.hxs, policy_input.cxs)
+
         # policy_output.logits: (B, T, A)
         # policy_output.values: (B, T)
 
@@ -651,12 +668,12 @@ class LSTMPPOPolicy(nn.Module):
 
         This separation keeps the rollout path fast and the training path fully supervised without mixing concerns.
         """
-        pred_obs = policy_output.pred_obs.transpose(0, 1)  # (T, B, obs_dim)
-        pred_raw = policy_output.pred_raw.transpose(0, 1)  # (T, B, 1)
+        B_core, T_core, H = core_out.out.shape
+        assert B_core == B and T_core == T
+        flat = core_out.out.reshape(B_core * T_core, H)
 
-        # Back to (T, B, ...)
-        logits = policy_output.logits.transpose(0, 1)  # (T, B, A)
-        values = policy_output.values.transpose(0, 1)  # (T, B)
+        logits = self.actor(flat).view(B, T, -1).transpose(0, 1)  # (T, B, A)
+        values = self.critic(flat).view(B, T).transpose(0, 1)  # (T, B)
 
         # Actions: ensure shape (T, B)
         if inp.actions.dim() == 3 and inp.actions.size(-1) == 1:
@@ -667,7 +684,6 @@ class LSTMPPOPolicy(nn.Module):
         dist = self._dist_from_logits(logits)
 
         assert logits.dim() == 3, f"logits must be (T,B,A), got {logits.shape}"
-
         assert actions.shape == (T, B), f"actions must be (T,B), got {actions.shape}"
 
         # Correct shape: (T, B)
@@ -692,30 +708,13 @@ class LSTMPPOPolicy(nn.Module):
         To keep all diagnostics and losses aligned with rollout storage and
         minibatch slicing, gate tensors must be transposed to (T, B, H).
         """
-        gates = policy_output.gates.detached.transposed()
 
         """
         hxs and cxs are recurrent state outputs from the LSTM that are fed
         into the next rollout step. Detach to prevent gradients flowing
         across rollout boundaries. PPO treats each rollout as a truncated
         BPTT segment
-        """
-        # --- Make new_hxs/new_cxs time-major (T, B, H) robustly ---
-        new_hxs = policy_output.new_hxs.detach()
-        new_cxs = policy_output.new_cxs.detach()
 
-        if new_hxs.dim() == 2:
-            # (B, H) → (T=1, B, H) – shouldn’t happen here, but guard anyway
-            new_hxs = new_hxs.unsqueeze(0).expand(T, B, -1)
-            new_cxs = new_cxs.unsqueeze(0).expand(T, B, -1)
-        elif new_hxs.dim() == 3:
-            # Either (B, T, H) or (T, B, H)
-            if new_hxs.shape == (B, T, new_hxs.size(-1)):
-                new_hxs = new_hxs.transpose(0, 1)  # (T, B, H)
-                new_cxs = new_cxs.transpose(0, 1)  # (T, B, H)
-            # else assume already (T, B, H)
-
-        """
         logprobs, values, and entropy must not be detached because PPO uses
         them in the loss:
 
@@ -726,46 +725,55 @@ class LSTMPPOPolicy(nn.Module):
         - tar_loss - LSTM temporal activation regularization
         """
         return PolicyEvalOutput(
-            values=values,  # (T, B)
-            logprobs=logprobs,  # (T, B)
-            entropy=entropy,  # (T, B)
-            new_hxs=new_hxs,  # (T, B, H)
-            new_cxs=new_cxs,  # (T, B, H)
-            gates=gates,
-            ar_loss=policy_output.ar_loss,
-            tar_loss=policy_output.tar_loss,
-            pred_obs=pred_obs,
-            pred_raw=pred_raw,
+            logits=logits,
+            values=values,
+            logprobs=logprobs,
+            entropy=entropy,
+            new_hxs=core_out.post_h.detach().transpose(0, 1),  # (T, B, H)
+            new_cxs=core_out.post_c.detach().transpose(0, 1),  # (T, B, H)
+            pre_hxs=core_out.pre_h.detach().transpose(0, 1),  # (T, B, H)
+            pre_cxs=core_out.pre_c.detach().transpose(0, 1),
+            gates=core_out.gates.transposed(),
+            ar_loss=core_out.ar_loss,
+            tar_loss=core_out.tar_loss,
+            pred_obs=core_out.pred_obs.transpose(0, 1),
+            pred_raw=core_out.pred_raw.transpose(0, 1),
         )
 
-    def evaluate_actions(self, out, actions):
-        """
-        Evaluate log-prob and entropy for a single timestep.
-
-        out: PolicyOutput from forward()
-            - logits: (B, A)
-            - values: (B,)
-        actions: (B,) or (B,1)
-
-        evaluate_actions() → rollout‑time, single‑step, no auxiliary predictions
-        """
-
+    def evaluate_actions(
+        self,
+        out: PolicyOutput,
+        actions: torch.Tensor,
+        pre_h: torch.Tensor,
+        pre_c: torch.Tensor,
+    ) -> PolicyEvalOutput:
         # Ensure shape (B,)
         if actions.dim() == 2 and actions.size(-1) == 1:
             actions = actions.squeeze(-1)
 
-        dist = self._dist_from_logits(out.logits)  # (B, A)
+        dist = self._dist_from_logits(out.logits)
 
         logprobs = dist.log_prob(actions)  # (B,)
         entropy = dist.entropy()  # (B,)
 
+        # PRE-STEP state (input to forward_step)
+        pre_hxs = pre_h.unsqueeze(0)  # (1, B, H)
+        pre_cxs = pre_c.unsqueeze(0)
+
+        # POST-STEP state (output of forward_step)
+        new_hxs = out.new_hxs.unsqueeze(0)  # (1, B, H)
+        new_cxs = out.new_cxs.unsqueeze(0)
+
         return PolicyEvalOutput(
-            values=out.values,  # (B,)
-            logprobs=logprobs,  # (B,)
-            entropy=entropy,  # (B,)
-            new_hxs=out.new_hxs,  # (B, H)
-            new_cxs=out.new_cxs,  # (B, H)
-            gates=out.gates,  # (B, H) or (B, 1, H)
+            logits=out.logits.unsqueeze(0),  # (1, B, A)
+            values=out.values.unsqueeze(0),  # (1, B)
+            logprobs=logprobs.unsqueeze(0),  # (1, B)
+            entropy=entropy.unsqueeze(0),  # (1, B)
+            new_hxs=new_hxs,
+            new_cxs=new_cxs,
+            pre_hxs=pre_hxs,
+            pre_cxs=pre_cxs,
+            gates=out.gates,  # already (B, H) or (1, B, H)
             ar_loss=out.ar_loss,
             tar_loss=out.tar_loss,
         )

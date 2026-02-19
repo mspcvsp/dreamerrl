@@ -1,80 +1,187 @@
-# Test Suite Overview
+# Testing Architecture Overview
 
-This directory contains all automated tests for the LSTM‑PPO project.
-The suite is organized by subsystem to ensure clarity, maintainability, and regression‑proof behavior.
+This document explains the structure, purpose, and invariants of the entire test suite.
+It exists so that future contributors (and future Sean) can understand:
 
-## Structure
+- what each test layer protects
+- why the architecture uses two execution paths
+- how rollout, training, and TBPTT interact
+- where to add new tests safely
 
-- `cpu/` — deterministic CPU‑safe tests validating architecture, drift, PPO logic, and infrastructure.
-- `gpu/` — optional GPU‑accelerated tests (if present).
-- `integration/` — end‑to‑end training tests (if present).
+This README lives at the **top level of the `tests/` directory**.
 
-Each subdirectory contains its own README describing the invariants it enforces.
+---
 
-## Philosophy
+# 1. Philosophy of the Test Suite
 
-This test suite is built around three principles:
+Recurrent PPO is fragile.
+Small mistakes in:
 
-1. **Invariants over exact values**
-   Tests enforce relationships (monotonicity, boundedness, consistency), not brittle numeric equality.
-
-2. **Expectation‑based reasoning**
-   Where drift or saturation is stochastic, tests use averages and tolerances.
-
-3. **Interpretability as a first‑class goal**
-   Gate dynamics, drift, and saturation are validated to ensure the LSTM remains transparent and debuggable.
-
-# Test Architecture Overview
-
-This test suite uses a set of reusable helpers to ensure that all tests
-share the same invariants as the real PPO/LSTM training pipeline.
-
-## Helpers
-
-### FakeState
-Located in `tests/helpers/fake_state.py`.
-
-Provides a minimal, structurally correct TrainerState implementation
-used by:
-- LSTMPPOPolicy
-- RecurrentRolloutBuffer
+- hidden‑state flow
+- mask propagation
 - TBPTT chunking
-- Aux prediction heads
+- advantage normalization
+- GAE
+- rollout vs training path semantics
 
-### FakePolicy
-Located in `tests/helpers/fake_policy.py`.
+…can silently corrupt training.
 
-Constructs a valid LSTMPPOPolicy using FakeState.
+The test suite is designed to enforce **architectural invariants**, not just correctness of individual functions.
 
-### FakeRolloutBuilder
-Located in `tests/helpers/fake_rollout.py`.
+The goal is:
 
-Builds aligned rollouts with:
-- obs
-- next_obs
-- actions
-- rewards
-- masks
-- optional LSTM hidden states
+> **If a change breaks a core invariant, a test must fail immediately.**
 
-### FakeBufferLoader
-Loads a FakeRollout into a RecurrentRolloutBuffer.
+---
 
-### FakeBatchBuilder
-Creates minibatches directly from a FakeRollout.
+# 2. Directory Structure
 
-## Why this architecture?
+```
+tests/
+│
+├── cpu/                     # CPU-only tests (fast, deterministic)
+│   ├── policy/              # Policy-level invariants
+│   ├── trainer/             # Trainer-level logic (CPU)
+│   └── infra/               # Shape, layout, PRE-STEP semantics
+│
+├── gpu/                     # GPU tests (device correctness, TBPTT)
+│   ├── policy/
+│   ├── trainer/
+│   └── infra/
+│
+└── README.md                # This file
+```
 
-- Guarantees alignment invariants
-- Eliminates boilerplate
-- Makes tests easier to read and write
-- Ensures future changes to rollout/buffer semantics only require updating helpers
+CPU tests run quickly and catch most logic bugs.
+GPU tests ensure device placement, TBPTT, and mask propagation behave identically.
 
-Run all tests:
-   pytest -q
+---
 
-Run only CPU tests:
-   pytest tests/cpu -q
+# 3. Policy Test Layer
 
-Run only GPU tests:
-   pytest tests/gpu -q
+Policy tests validate the **training-time path**, not the rollout path.
+
+The policy has two execution paths:
+
+- **Rollout path** → `forward_step` (fast, single-step)
+- **Training path** → `_forward_core` → `forward` → `evaluate_actions_sequence` (full-sequence)
+
+These paths are intentionally different.
+
+Policy tests enforce:
+
+### ✔ Rollout‑Consistency Contract
+- Shapes are correct `(T, B, …)`
+- Gradients flow only through logits/values/logprobs/entropy
+- Hidden states and diagnostics are detached
+- Time-major layout is preserved
+
+### ✔ TBPTT Equivalence
+Full-sequence evaluation must match chunked evaluation:
+
+```
+evaluate_actions_sequence(full_seq)
+==
+concat(evaluate_actions_sequence(chunks))
+```
+
+This ensures TBPTT does not change the computation.
+
+### ✔ Mask Alignment
+The policy is mask‑agnostic, but its outputs must be compatible with trainer masks.
+
+---
+
+# 4. Trainer Test Layer
+
+Trainer tests validate:
+
+- GAE
+- advantage normalization
+- mask propagation
+- hidden-state resets
+- TBPTT boundary behavior
+- rollout PRE‑STEP semantics
+- minibatch slicing invariants
+
+These tests ensure the trainer produces correct PPO inputs.
+
+### ✔ GAE Correctness
+Matches the mathematical recurrence exactly.
+
+### ✔ Advantage Normalization
+Only valid timesteps contribute to mean/std.
+
+### ✔ Mask Monotonicity
+Masks must be non-increasing along time.
+
+### ✔ Hidden-State Reset
+If `done[t] == True`, then the PRE‑STEP state at `t+1` must be zero.
+
+### ✔ TBPTT Mask Propagation
+Chunked evaluation must match full-sequence evaluation under masks.
+
+---
+
+# 5. Infra Test Layer
+
+Infra tests enforce **shape, layout, and PRE‑STEP invariants**:
+
+- `(T, B, …)` vs `(B, T, …)` correctness
+- PRE‑STEP state stored in rollout buffer
+- POST‑STEP state fed into next env step
+- deterministic state flow
+- correct transposes in `evaluate_actions_sequence`
+
+These tests catch the most subtle bugs.
+
+---
+
+# 6. What Tests Do *Not* Enforce
+
+The suite intentionally does **not** enforce:
+
+- bit‑equality between rollout and training paths
+- equality of logits/values between `forward_step` and `_forward_core`
+- equality of hidden states between rollout and training
+
+These are **not valid invariants** for this architecture.
+
+---
+
+# 7. Adding New Tests
+
+When adding a new test, ask:
+
+1. **What invariant does this protect?**
+2. **Is this a policy invariant or a trainer invariant?**
+3. **Does this belong in CPU, GPU, or both?**
+4. **Does this test PRE‑STEP or POST‑STEP semantics?**
+5. **Does this test shape/layout correctness?**
+
+If the test protects a core invariant, it belongs here.
+
+---
+
+# 8. Summary Table
+
+| Layer | Purpose | Examples |
+|-------|---------|----------|
+| **Policy** | Training-path correctness | TBPTT, contract tests, mask alignment |
+| **Trainer** | PPO math correctness | GAE, advantage norm, mask monotonicity |
+| **Infra** | Shape & state-flow invariants | PRE‑STEP, time-major, device placement |
+
+---
+
+# 9. Final Notes
+
+This test suite is designed to make the entire RL pipeline:
+
+- deterministic
+- debuggable
+- TBPTT‑safe
+- mask‑correct
+- rollout‑consistent
+- PPO‑stable
+
+If any of these invariants break, a test should fail immediately.

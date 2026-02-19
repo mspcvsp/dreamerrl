@@ -57,9 +57,17 @@ def synthetic_trainer():
 
 
 @pytest.fixture
-def trainer_state(deterministic_trainer):
-    """GPU GAE test wants a TrainerState, mirror CPU test_gae_computation_basic."""
-    return deterministic_trainer.state
+def trainer_state():
+    cfg = Config()
+    cfg = initialize_config(cfg)
+
+    state = TrainerState(cfg, validation_mode=True)
+
+    # GPU tests need env_info set before constructing a policy
+    state.env_info.flat_obs_dim = 4
+    state.env_info.action_dim = 3
+
+    return state
 
 
 @pytest.fixture

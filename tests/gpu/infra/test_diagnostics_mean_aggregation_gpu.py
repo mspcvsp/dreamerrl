@@ -1,3 +1,36 @@
+"""
+NOTE ABOUT DIAGNOSTICS:
+-----------------------
+There are *two* diagnostics paths in the system, and this test exists to
+ensure we never accidentally collapse them into one.
+
+1. policy.compute_diagnostics(...)
+   - Rollout‑time only
+   - Mask‑agnostic
+   - Lightweight, deterministic
+   - Used by GPU/CPU equivalence tests and debugging
+   - MUST remain simple and device‑stable
+
+2. Trainer‑level masked diagnostics
+   - Training‑time only
+   - Fully mask‑aware (respects terminated/truncated timesteps)
+   - Used for PPO metrics, drift/saturation/entropy, TensorBoard
+   - Operates on minibatch masks, not raw rollout data
+
+Why this test matters:
+----------------------
+This test validates the rollout‑time diagnostics path *in isolation*.
+Even though the trainer computes mask‑aware diagnostics during PPO
+updates, GPU/infra tests rely on the simpler policy‑level version to
+verify numerical equivalence and device consistency.
+
+DO NOT remove or merge these two diagnostic paths without re‑evaluating:
+  • rollout determinism
+  • GPU/CPU equivalence tests
+  • mask‑aware training‑time metrics
+  • TBPTT and state‑flow invariants
+"""
+
 import torch
 
 
