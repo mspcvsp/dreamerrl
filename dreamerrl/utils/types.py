@@ -7,7 +7,7 @@
 
 from dataclasses import dataclass, field, fields
 from datetime import datetime
-from typing import Any, Optional
+from typing import Any, Dict, Optional
 
 import torch
 from rich.text import Text
@@ -1200,3 +1200,44 @@ def sparkline(data, width=20):
 
 def safe_mean(x: torch.Tensor | None) -> float:
     return x.mean().item() if x is not None else 0.0
+
+
+@dataclass
+class DreamerEnvStep:
+    """
+    Single environment step coming from the env wrapper (batched across envs).
+    Shapes are batch-major (B, ...).
+    """
+
+    state: torch.Tensor  # (B, obs_dim)  [Dreamer-lite: flat vector]
+    action: torch.Tensor  # (B,) or (B,1)
+    reward: torch.Tensor  # (B,)
+    is_first: torch.Tensor  # (B,)
+    is_last: torch.Tensor  # (B,)
+    is_terminal: torch.Tensor  # (B,)
+    info: Optional[Dict[str, Any]] = None
+
+
+@dataclass
+class DreamerBatch:
+    """
+    Sampled training batch from replay.
+    Shapes are batch-major (B, L, ...).
+    """
+
+    state: torch.Tensor  # (B, L, obs_dim)
+    action: torch.Tensor  # (B, L) or (B, L, act_dim later)
+    reward: torch.Tensor  # (B, L)
+    is_first: torch.Tensor  # (B, L)
+    is_last: torch.Tensor  # (B, L)
+    is_terminal: torch.Tensor  # (B, L)
+
+    def to(self, device: torch.device) -> "DreamerBatch":
+        return DreamerBatch(
+            state=self.state.to(device),
+            action=self.action.to(device),
+            reward=self.reward.to(device),
+            is_first=self.is_first.to(device),
+            is_last=self.is_last.to(device),
+            is_terminal=self.is_terminal.to(device),
+        )

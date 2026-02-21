@@ -47,7 +47,7 @@ from torch.distributions.categorical import Categorical
 
 from tests.helpers.diagnostics_helpers import EvalOutputLike
 
-from .buffer import RecurrentRolloutBuffer, RolloutStep
+from .replay_buffer import RecurrentRolloutBuffer, RolloutStep
 from .env import RecurrentVecEnvWrapper
 from .logging.jsonl_logger import JSONLLogger
 from .logging.tensorboard_logger import TensorboardLogger

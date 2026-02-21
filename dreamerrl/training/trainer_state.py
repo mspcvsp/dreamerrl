@@ -12,7 +12,7 @@ import torch
 from rich.layout import Layout
 from rich.panel import Panel
 
-from .buffer import RecurrentRolloutBuffer
+from .replay_buffer import RecurrentRolloutBuffer
 from .learning_sch import EntropySchdeduler, LearningRateScheduler
 from .runtime_env_info import RuntimeEnvInfo
 from .types import Config, EpisodeStats, LSTMUnitDiagnostics, LSTMUnitPrev, Metrics, MetricsHistory, PolicyUpdateInfo
