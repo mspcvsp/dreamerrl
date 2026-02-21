@@ -399,7 +399,7 @@ class LSTMPPOTrainer:
         """
         if self.state.update_idx % self.state.cfg.trainer.rollouts_per_heatmap_upd == 0:
             full_eval = self.replay_policy_on_rollout()
-            batch = next(self.buffer.get_recurrent_minibatches())
+            batch = self.buffer.get_full_batch()
 
             self.tb_logger.log_lstm_heatmaps(
                 step=self.state.global_step,
@@ -409,10 +409,10 @@ class LSTMPPOTrainer:
             if full_eval.pred_obs is not None and full_eval.pred_raw is not None:
                 self.tb_logger.log_aux_heatmaps(
                     step=self.state.global_step,
-                    pred_obs=full_eval.pred_obs,
-                    target_obs=batch.next_obs,
-                    pred_rew=full_eval.pred_raw.squeeze(-1),
-                    target_rew=batch.next_rewards,
+                    pred_obs=full_eval.pred_obs,  # (T, 64, obs_dim)
+                    target_obs=batch.next_obs,  # (T, 64, obs_dim)
+                    pred_rew=full_eval.pred_raw.squeeze(-1),  # (T, 64)
+                    target_rew=batch.next_rewards,  # (T, 64)
                 )
 
         return last_value

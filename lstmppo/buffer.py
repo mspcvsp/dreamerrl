@@ -272,6 +272,34 @@ class RecurrentRolloutBuffer:
         ret = self.returns
         self.returns = (ret - ret.mean()) / (ret.std(unbiased=False) + 1e-8)
 
+    def get_full_batch(self) -> RecurrentBatch:
+        """
+        Returns the full rollout as a single RecurrentBatch (T, B, ...).
+        This is required for diagnostics such as LSTM and auxiliary heatmaps,
+        which must operate on the entire rollout, not minibatches.
+        """
+        # Construct next_obs exactly as in get_recurrent_minibatches
+        next_obs = self.obs[1:]
+        pad = torch.zeros_like(next_obs[0:1])
+        next_obs = torch.cat([next_obs, pad], dim=0)
+
+        next_rewards = self.rewards  # already aligned
+
+        return RecurrentBatch(
+            obs=self.obs,
+            next_obs=next_obs,
+            next_rewards=next_rewards,
+            actions=self.actions,
+            values=self.values,
+            logprobs=self.logprobs,
+            returns=self.returns,
+            advantages=self.advantages,
+            hxs=self.hxs,
+            cxs=self.cxs,
+            terminated=self.terminated,
+            truncated=self.truncated,
+        )
+
     # ---------------------------------------------------------
     # Yield minibatches of full sequences (T, B, ...)
     # ---------------------------------------------------------

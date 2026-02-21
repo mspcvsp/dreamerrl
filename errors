@@ -1,0 +1,14 @@
+wandb: Currently logged in as: mspcvsp (mspcvsp94) to https://api.wandb.ai. Use `wandb login --relogin` to force relogin
+wandb: setting up run 85y7lbkt
+wandb: Tracking run with wandb version 0.23.1
+wandb: Run data is saved locally in /home/mspcvsp/Documents/lstm_ppo/wandb/run-20260220_210837-85y7lbkt
+wandb: Run `wandb offline` to turn off syncing.
+wandb: Syncing run popgym-RepeatPreviousEasy-v0__RLWarmup_20260220_210837
+wandb: ⭐️ View project at https://wandb.ai/mspcvsp94/lstmppo
+wandb: 🚀 View run at https://wandb.ai/mspcvsp94/lstmppo/runs/85y7lbkt
+/home/mspcvsp/miniconda/envs/cage2_env/lib/python3.10/site-packages/torch/cuda/__init__.py:283: UserWarning: 
+    Found GPU0 NVIDIA GB10 which is of cuda capability 12.1.
+    Minimum and Maximum cuda capability supported by this version of PyTorch is
+    (8.0) - (12.0)
+    
+  warnings.warn(

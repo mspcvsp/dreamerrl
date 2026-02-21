@@ -303,6 +303,7 @@ class TrainerState:
 
     def render_dashboard(self):
         ppo_text = self.metrics.render_ppo_metrics(self.lr, self.entropy_coef, self.clip_range)
+        ppo_text.append(f" Update:     {self.update_idx}\n", style="bold magenta")
 
         self.history.render_ppo_history(ppo_text)
 

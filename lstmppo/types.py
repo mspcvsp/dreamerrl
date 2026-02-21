@@ -27,7 +27,7 @@ class PPOHyperparams:
     """coefficient of the value function"""
     max_grad_norm: float = 0.5
     """the maximum norm for gradient clipping"""
-    target_kl: float = 0.005
+    target_kl: float = 0.02
     """ Target KL divergence """
     early_stopping_kl_factor: float = 1.5
     """ Stop early if approx_kl exceeds this factor times target_kl """
@@ -53,7 +53,7 @@ class LSTMConfig:
 
 @dataclass
 class ScheduleConfig:
-    base_lr: float = 1e-4
+    base_lr: float = 5e-4
     """ Base learning rate """
     lr_warmup_pct: float = 10.0
     """ Learning rate warmup percentage """
@@ -61,9 +61,9 @@ class ScheduleConfig:
     """ Final learning rate percentage of base learning rate """
     anneal_entropy_flag: bool = True
     """ Toggle entropy coefficient annealing """
-    start_entropy_coef: float = 0.1
+    start_entropy_coef: float = 0.2
     """ Starting value of entropy coefficient for annealing """
-    end_entropy_coef: float = 0.02
+    end_entropy_coef: float = 0.05
 
 
 @dataclass
