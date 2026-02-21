@@ -1,4 +1,4 @@
-from lstmppo.types import PolicyEvalInput
+from dreamerrl.types import PolicyEvalInput
 from tests.helpers.fake_batch import make_fake_batch
 from tests.helpers.fake_policy import make_fake_policy
 from tests.helpers.fake_rollout import FakeRolloutBuilder

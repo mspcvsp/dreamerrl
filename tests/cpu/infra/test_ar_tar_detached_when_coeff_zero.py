@@ -15,9 +15,9 @@ corrupt PPO training and violate the detachment invariant.
 
 import torch
 
-from lstmppo.policy import LSTMPPOPolicy
-from lstmppo.trainer_state import TrainerState
-from lstmppo.types import PolicyInput
+from dreamerrl.policy import LSTMPPOPolicy
+from dreamerrl.trainer_state import TrainerState
+from dreamerrl.types import PolicyInput
 
 
 def test_ar_tar_detached_when_coeff_zero(trainer_state: TrainerState):

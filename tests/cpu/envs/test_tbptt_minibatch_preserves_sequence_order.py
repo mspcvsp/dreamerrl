@@ -1,6 +1,6 @@
 import torch
 
-from lstmppo.trainer import LSTMPPOTrainer
+from dreamerrl.trainer import LSTMPPOTrainer
 
 
 def test_tbptt_minibatch_preserves_sequence_order(require_popgym_env):

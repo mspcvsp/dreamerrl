@@ -23,7 +23,7 @@ This test is the sentinel for long‑term LSTM memory correctness. Do not replac
 import pytest
 import torch
 
-from lstmppo.types import PolicyInput
+from dreamerrl.types import PolicyInput
 from tests.helpers.fake_policy import make_fake_policy
 from tests.helpers.fake_state import TrainerStateProtocol
 

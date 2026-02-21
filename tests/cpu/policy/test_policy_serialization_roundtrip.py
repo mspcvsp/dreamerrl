@@ -1,7 +1,7 @@
 import torch
 
-from lstmppo.policy import LSTMPPOPolicy
-from lstmppo.types import PolicyEvalInput
+from dreamerrl.policy import LSTMPPOPolicy
+from dreamerrl.types import PolicyEvalInput
 from tests.helpers.fake_batch import make_fake_batch
 from tests.helpers.fake_rollout import FakeRolloutBuilder
 from tests.helpers.fake_state import make_fake_state

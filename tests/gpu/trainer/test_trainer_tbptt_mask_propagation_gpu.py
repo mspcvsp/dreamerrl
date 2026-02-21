@@ -1,7 +1,7 @@
 import torch
 
-from lstmppo.trainer import LSTMPPOTrainer
-from lstmppo.types import PolicyEvalInput
+from dreamerrl.trainer import LSTMPPOTrainer
+from dreamerrl.types import PolicyEvalInput
 
 
 def test_trainer_tbptt_mask_propagation_gpu():

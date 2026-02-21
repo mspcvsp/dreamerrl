@@ -8,9 +8,9 @@ This test catches:
 
 import torch
 
-from lstmppo.policy import LSTMPPOPolicy
-from lstmppo.trainer_state import TrainerState
-from lstmppo.types import PolicyInput
+from dreamerrl.policy import LSTMPPOPolicy
+from dreamerrl.trainer_state import TrainerState
+from dreamerrl.types import PolicyInput
 
 
 def test_policy_forward_shapes(trainer_state: TrainerState):

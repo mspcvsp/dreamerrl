@@ -11,7 +11,7 @@ Examples:
 - mismatched buffer/trainer/env dimensions
 """
 
-from lstmppo.types import Config
+from dreamerrl.types import Config
 
 
 def test_ppo_hyperparams_valid():

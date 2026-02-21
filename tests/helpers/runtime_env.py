@@ -1,7 +1,7 @@
 import numpy as np
 from gymnasium.spaces import Box
 
-from lstmppo.runtime_env_info import RuntimeEnvInfo
+from dreamerrl.runtime_env_info import RuntimeEnvInfo
 
 
 def make_runtime_env_info(

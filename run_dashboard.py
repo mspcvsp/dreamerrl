@@ -1,5 +1,5 @@
-from lstmppo.rl_dashboard import RLDashboard
-from lstmppo.trainer import LSTMPPOTrainer
+from dreamerrl.rl_dashboard import RLDashboard
+from dreamerrl.trainer import LSTMPPOTrainer
 
 
 def main():

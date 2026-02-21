@@ -21,9 +21,9 @@ This is a sentinel test for LSTM interpretability and gate correctness. Do not r
 
 import torch
 
-from lstmppo.policy import LSTMPPOPolicy
-from lstmppo.trainer_state import TrainerState
-from lstmppo.types import PolicyInput
+from dreamerrl.policy import LSTMPPOPolicy
+from dreamerrl.trainer_state import TrainerState
+from dreamerrl.types import PolicyInput
 
 
 def test_drift_saturation_correlation(trainer_state: TrainerState):

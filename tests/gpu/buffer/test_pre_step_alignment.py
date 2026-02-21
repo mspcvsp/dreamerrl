@@ -51,8 +51,8 @@ state‑flow bugs.
 
 import torch
 
-from lstmppo.trainer import LSTMPPOTrainer
-from lstmppo.types import LSTMGates, RolloutStep
+from dreamerrl.trainer import LSTMPPOTrainer
+from dreamerrl.types import LSTMGates, RolloutStep
 
 
 def test_rollout_buffer_pre_step_alignment():

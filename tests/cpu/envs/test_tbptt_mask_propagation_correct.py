@@ -1,6 +1,6 @@
 import torch
 
-from lstmppo.trainer import LSTMPPOTrainer
+from dreamerrl.trainer import LSTMPPOTrainer
 
 
 def test_tbptt_mask_propagation_correct(require_popgym_env) -> None:

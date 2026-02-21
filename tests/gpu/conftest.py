@@ -3,10 +3,10 @@ from types import SimpleNamespace
 import pytest
 import torch
 
-from lstmppo.policy import LSTMPPOPolicy
-from lstmppo.trainer import LSTMPPOTrainer
-from lstmppo.trainer_state import TrainerState
-from lstmppo.types import Config, initialize_config
+from dreamerrl.policy import LSTMPPOPolicy
+from dreamerrl.trainer import LSTMPPOTrainer
+from dreamerrl.trainer_state import TrainerState
+from dreamerrl.types import Config, initialize_config
 from tests.helpers.fake_buffer_loader import load_rollout_into_buffer
 from tests.helpers.fake_policy import make_fake_policy
 from tests.helpers.fake_rollout import FakeRolloutBuilder

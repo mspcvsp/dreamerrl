@@ -71,7 +71,7 @@ behavior of TBPTT and remains stable across CPU/GPU execution paths.
 
 import torch
 
-from lstmppo.trainer import LSTMPPOTrainer
+from dreamerrl.trainer import LSTMPPOTrainer
 
 
 def test_tbptt_gradient_flow_correctness():

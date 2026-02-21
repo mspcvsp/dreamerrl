@@ -1,6 +1,6 @@
 import torch
 
-from lstmppo.trainer import LSTMPPOTrainer
+from dreamerrl.trainer import LSTMPPOTrainer
 
 # ---------------------------------------------------------------------------
 # Invariant 1:

@@ -21,9 +21,9 @@ replace the real model here.
 
 import torch
 
-from lstmppo.policy import LSTMPPOPolicy
-from lstmppo.trainer_state import TrainerState
-from lstmppo.types import Config, PolicyInput
+from dreamerrl.policy import LSTMPPOPolicy
+from dreamerrl.trainer_state import TrainerState
+from dreamerrl.types import Config, PolicyInput
 
 
 def test_drift_growth_rate():

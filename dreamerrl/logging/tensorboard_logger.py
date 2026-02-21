@@ -5,7 +5,7 @@ from __future__ import annotations
 import torch
 from torch.utils.tensorboard import SummaryWriter
 
-from lstmppo.types import (
+from dreamerrl.types import (
     LSTMGates,
     LSTMUnitDiagnostics,
     Metrics,

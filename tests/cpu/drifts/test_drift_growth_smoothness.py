@@ -22,10 +22,10 @@ here.
 import pytest
 import torch
 
-from lstmppo.diagnostics.recurrent import compute_drift_sequence
-from lstmppo.policy import LSTMPPOPolicy
-from lstmppo.trainer_state import TrainerState
-from lstmppo.types import Config
+from dreamerrl.diagnostics.recurrent import compute_drift_sequence
+from dreamerrl.policy import LSTMPPOPolicy
+from dreamerrl.trainer_state import TrainerState
+from dreamerrl.types import Config
 
 
 @pytest.mark.drift

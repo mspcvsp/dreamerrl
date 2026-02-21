@@ -2,7 +2,7 @@ from typing import Protocol
 
 import torch
 
-from lstmppo.types import LSTMGates
+from dreamerrl.types import LSTMGates
 
 
 class EvalOutputLike(Protocol):

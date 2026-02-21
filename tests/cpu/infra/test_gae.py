@@ -22,8 +22,8 @@ training becomes unstable. Never modify GAE logic without re‑running this test
 
 import torch
 
-from lstmppo.buffer import RecurrentRolloutBuffer
-from lstmppo.trainer_state import TrainerState
+from dreamerrl.buffer import RecurrentRolloutBuffer
+from dreamerrl.trainer_state import TrainerState
 
 
 def test_gae_computation_basic(trainer_state: TrainerState):

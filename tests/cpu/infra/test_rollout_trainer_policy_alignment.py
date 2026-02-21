@@ -12,9 +12,9 @@ If any of these drift, TBPTT breaks and PPO gradients become misaligned.
 
 import torch
 
-from lstmppo.policy import LSTMPPOPolicy
-from lstmppo.trainer_state import TrainerState
-from lstmppo.types import PolicyInput
+from dreamerrl.policy import LSTMPPOPolicy
+from dreamerrl.trainer_state import TrainerState
+from dreamerrl.types import PolicyInput
 from tests.helpers.fake_rollout import FakeRolloutBuilder
 
 

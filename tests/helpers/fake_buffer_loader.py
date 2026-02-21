@@ -1,4 +1,4 @@
-from lstmppo.buffer import RecurrentRolloutBuffer
+from dreamerrl.buffer import RecurrentRolloutBuffer
 from tests.helpers.fake_rollout import FakeRollout
 from tests.helpers.fake_state import TrainerStateProtocol
 

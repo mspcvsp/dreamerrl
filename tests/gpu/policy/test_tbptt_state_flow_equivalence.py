@@ -48,7 +48,7 @@ semantics.
 
 import torch
 
-from lstmppo.trainer import LSTMPPOTrainer
+from dreamerrl.trainer import LSTMPPOTrainer
 
 
 def test_tbptt_chunk_boundary_state_flow_equivalence():

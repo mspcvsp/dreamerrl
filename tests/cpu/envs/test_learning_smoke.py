@@ -1,4 +1,4 @@
-from lstmppo.trainer import LSTMPPOTrainer
+from dreamerrl.trainer import LSTMPPOTrainer
 
 
 def test_learning_smoke(require_popgym_env) -> None:

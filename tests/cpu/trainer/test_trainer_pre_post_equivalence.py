@@ -1,10 +1,10 @@
 import pytest
 import torch
 
-from lstmppo.buffer import RecurrentRolloutBuffer
-from lstmppo.policy import LSTMPPOPolicy
-from lstmppo.trainer_state import TrainerState
-from lstmppo.types import PolicyEvalInput, PolicyInput, RolloutStep
+from dreamerrl.buffer import RecurrentRolloutBuffer
+from dreamerrl.policy import LSTMPPOPolicy
+from dreamerrl.trainer_state import TrainerState
+from dreamerrl.types import PolicyEvalInput, PolicyInput, RolloutStep
 
 pytestmark = pytest.mark.cpu
 

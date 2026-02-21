@@ -1,6 +1,6 @@
 import torch
 
-from lstmppo.trainer import LSTMPPOTrainer
+from dreamerrl.trainer import LSTMPPOTrainer
 
 
 def test_trainer_advantage_normalization_gpu():

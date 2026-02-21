@@ -1,9 +1,9 @@
 import pytest
 import torch
 
-from lstmppo.trainer import LSTMPPOTrainer
-from lstmppo.trainer_state import TrainerState
-from lstmppo.types import Config
+from dreamerrl.trainer import LSTMPPOTrainer
+from dreamerrl.trainer_state import TrainerState
+from dreamerrl.types import Config
 from tests.helpers.fake_state import TrainerStateProtocol, make_fake_state
 from tests.helpers.runtime_env import make_runtime_env_info
 

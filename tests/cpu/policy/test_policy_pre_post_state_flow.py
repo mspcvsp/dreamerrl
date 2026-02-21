@@ -1,8 +1,8 @@
 import torch
 
-from lstmppo.policy import LSTMPPOPolicy
-from lstmppo.trainer_state import TrainerState
-from lstmppo.types import PolicyEvalInput, PolicyInput
+from dreamerrl.policy import LSTMPPOPolicy
+from dreamerrl.trainer_state import TrainerState
+from dreamerrl.types import PolicyEvalInput, PolicyInput
 
 
 def test_pre_post_state_flow_alignment(trainer_state: TrainerState):

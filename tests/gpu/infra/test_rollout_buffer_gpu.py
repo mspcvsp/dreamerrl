@@ -55,7 +55,7 @@ def test_gpu_buffer_add_and_copy_semantics(deterministic_trainer):
     hxs = torch.randn(B, H, device=device)
     cxs = torch.randn(B, H, device=device)
 
-    from lstmppo.types import LSTMGates, RolloutStep
+    from dreamerrl.types import LSTMGates, RolloutStep
 
     gates = LSTMGates(
         i_gates=hxs,

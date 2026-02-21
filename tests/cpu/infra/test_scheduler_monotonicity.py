@@ -1,7 +1,7 @@
 import torch
 
-from lstmppo.learning_sch import EntropySchdeduler, LearningRateScheduler
-from lstmppo.types import Config
+from dreamerrl.learning_sch import EntropySchdeduler, LearningRateScheduler
+from dreamerrl.types import Config
 
 
 def test_lr_scheduler_monotonicity():

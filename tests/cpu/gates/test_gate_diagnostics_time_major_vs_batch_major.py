@@ -25,9 +25,9 @@ the real model here.
 import pytest
 import torch
 
-from lstmppo.policy import LSTMPPOPolicy
-from lstmppo.trainer_state import TrainerState
-from lstmppo.types import PolicyEvalInput, PolicyInput
+from dreamerrl.policy import LSTMPPOPolicy
+from dreamerrl.trainer_state import TrainerState
+from dreamerrl.types import PolicyEvalInput, PolicyInput
 
 pytestmark = pytest.mark.gates
 

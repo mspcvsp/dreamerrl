@@ -1,7 +1,7 @@
 import torch
 from torch.distributions import Categorical
 
-from lstmppo.types import PolicyEvalInput
+from dreamerrl.types import PolicyEvalInput
 from tests.helpers.fake_policy import make_fake_policy
 
 

@@ -4,7 +4,7 @@ from typing import Sequence
 import numpy as np
 import streamlit as st
 
-from lstmppo.trainer import Config, LSTMPPOTrainer, initialize_config
+from dreamerrl.trainer import Config, LSTMPPOTrainer, initialize_config
 
 
 @st.cache_resource

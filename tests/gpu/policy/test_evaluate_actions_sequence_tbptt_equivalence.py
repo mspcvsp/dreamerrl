@@ -1,7 +1,7 @@
 import torch
 
-from lstmppo.policy import PolicyEvalInput
-from lstmppo.trainer import LSTMPPOTrainer
+from dreamerrl.policy import PolicyEvalInput
+from dreamerrl.trainer import LSTMPPOTrainer
 
 
 def test_evaluate_actions_sequence_tbptt_equivalence():

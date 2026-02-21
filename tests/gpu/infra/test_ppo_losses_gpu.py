@@ -1,7 +1,7 @@
 import torch
 
-from lstmppo.trainer import LSTMPPOTrainer
-from lstmppo.types import Config
+from dreamerrl.trainer import LSTMPPOTrainer
+from dreamerrl.types import Config
 
 
 def test_ppo_losses_gpu():

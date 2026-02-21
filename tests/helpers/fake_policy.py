@@ -6,7 +6,7 @@ This keeps test setup clean and ensures the policy is always created
 with a structurally correct TrainerStateProtocol.
 """
 
-from lstmppo.policy import LSTMPPOPolicy
+from dreamerrl.policy import LSTMPPOPolicy
 from tests.helpers.fake_state import TrainerStateProtocol, make_fake_state
 
 

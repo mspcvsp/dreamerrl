@@ -1,8 +1,8 @@
 import torch
 
-from lstmppo.policy import LSTMPPOPolicy, ZeroFeatureEncoder
-from lstmppo.trainer_state import TrainerState
-from lstmppo.types import PolicyInput
+from dreamerrl.policy import LSTMPPOPolicy, ZeroFeatureEncoder
+from dreamerrl.trainer_state import TrainerState
+from dreamerrl.types import PolicyInput
 
 
 def test_policy_encoder_identity_path(trainer_state: TrainerState):

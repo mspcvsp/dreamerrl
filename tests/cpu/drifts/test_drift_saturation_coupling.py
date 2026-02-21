@@ -22,9 +22,9 @@ Do not replace the real model here.
 
 import torch
 
-from lstmppo.policy import LSTMPPOPolicy
-from lstmppo.trainer_state import TrainerState
-from lstmppo.types import PolicyInput
+from dreamerrl.policy import LSTMPPOPolicy
+from dreamerrl.trainer_state import TrainerState
+from dreamerrl.types import PolicyInput
 
 
 def test_drift_saturation_coupling(trainer_state: TrainerState):

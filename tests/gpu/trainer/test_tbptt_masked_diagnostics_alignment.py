@@ -19,7 +19,7 @@ over-specify the system and fail for legitimate architectural reasons.
 
 import torch
 
-from lstmppo.trainer import LSTMPPOTrainer
+from dreamerrl.trainer import LSTMPPOTrainer
 
 
 def reference_masked_diagnostics(h, masks):

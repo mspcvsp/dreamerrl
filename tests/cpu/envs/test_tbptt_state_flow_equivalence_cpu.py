@@ -1,7 +1,7 @@
 import torch
 
-from lstmppo.trainer import LSTMPPOTrainer
-from lstmppo.types import PolicyEvalInput
+from dreamerrl.trainer import LSTMPPOTrainer
+from dreamerrl.types import PolicyEvalInput
 
 
 def test_tbptt_state_flow_equivalence(require_popgym_env) -> None:

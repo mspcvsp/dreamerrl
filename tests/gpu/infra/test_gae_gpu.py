@@ -1,7 +1,7 @@
 import torch
 
-from lstmppo.buffer import RecurrentRolloutBuffer
-from lstmppo.trainer_state import TrainerState  # type hint only
+from dreamerrl.buffer import RecurrentRolloutBuffer
+from dreamerrl.trainer_state import TrainerState  # type hint only
 
 
 def test_gae_gpu(trainer_state: TrainerState):

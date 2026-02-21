@@ -1,7 +1,7 @@
 import torch
 
-from lstmppo.trainer import LSTMPPOTrainer
-from lstmppo.types import LSTMStates, PolicyEvalInput
+from dreamerrl.trainer import LSTMPPOTrainer
+from dreamerrl.types import LSTMStates, PolicyEvalInput
 
 
 def test_rollout_boundary_lstm_state_handoff():

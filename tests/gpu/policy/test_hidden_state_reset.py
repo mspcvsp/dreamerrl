@@ -37,7 +37,7 @@ TBPTT will propagate incorrect state, and diagnostics will become meaningless.
 
 import torch
 
-from lstmppo.trainer import LSTMPPOTrainer
+from dreamerrl.trainer import LSTMPPOTrainer
 
 
 def test_hidden_state_reset_on_env_reset():

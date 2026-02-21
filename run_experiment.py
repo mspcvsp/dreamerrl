@@ -24,9 +24,9 @@ from typing import List
 import tyro
 import wandb
 
-from lstmppo.seed import set_global_seeds
-from lstmppo.trainer import LSTMPPOTrainer
-from lstmppo.types import Config
+from dreamerrl.seed import set_global_seeds
+from dreamerrl.trainer import LSTMPPOTrainer
+from dreamerrl.types import Config
 
 
 def run_single_seed(

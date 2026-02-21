@@ -19,9 +19,9 @@ TBPTT, or auxiliary prediction alignment.
 import pytest
 import torch
 
-from lstmppo.buffer import RecurrentRolloutBuffer
-from lstmppo.trainer_state import TrainerState
-from lstmppo.types import LSTMGates, RolloutStep
+from dreamerrl.buffer import RecurrentRolloutBuffer
+from dreamerrl.trainer_state import TrainerState
+from dreamerrl.types import LSTMGates, RolloutStep
 
 pytestmark = pytest.mark.infra
 

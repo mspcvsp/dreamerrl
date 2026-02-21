@@ -53,7 +53,7 @@ Everything runs on `trainer.device`, so this test catches:
 
 import torch
 
-from lstmppo.trainer import LSTMPPOTrainer
+from dreamerrl.trainer import LSTMPPOTrainer
 
 
 def test_trainer_mask_monotonicity_and_hidden_reset_gpu():
