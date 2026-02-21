@@ -44,6 +44,27 @@ class TensorboardLogger:
         w.add_scalar("ppo/drift/policy_drift", metrics.policy_drift, step)
         w.add_scalar("ppo/drift/value_drift", metrics.value_drift, step)
 
+    def log_aux_heatmaps(
+        self,
+        step: int,
+        pred_obs: torch.Tensor,  # (T, B, obs_dim)
+        target_obs: torch.Tensor,  # (T, B, obs_dim)
+        pred_rew: torch.Tensor,  # (T, B)
+        target_rew: torch.Tensor,  # (T, B)
+    ):
+        # Observation prediction error heatmap (T, B)
+        obs_err = (pred_obs - target_obs).abs().mean(dim=2)
+
+        # Reward prediction error heatmap (T, B)
+        rew_err = (pred_rew - target_rew).abs()
+
+        # Convert to image-friendly format (HWC)
+        obs_img = obs_err.unsqueeze(0)  # (1, T, B)
+        rew_img = rew_err.unsqueeze(0)
+
+        self.writer.add_image("aux/obs_error_heatmap", obs_img, step)
+        self.writer.add_image("aux/reward_error_heatmap", rew_img, step)
+
     # ------------------------------------------------------------------
     # LSTM scalar summaries (per update)
     # ------------------------------------------------------------------

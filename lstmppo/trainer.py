@@ -399,11 +399,21 @@ class LSTMPPOTrainer:
         """
         if self.state.update_idx % self.state.cfg.trainer.rollouts_per_heatmap_upd == 0:
             full_eval = self.replay_policy_on_rollout()
+            batch = next(self.buffer.get_recurrent_minibatches())
 
             self.tb_logger.log_lstm_heatmaps(
                 step=self.state.global_step,
                 gates=full_eval.gates,
             )
+
+            if full_eval.pred_obs is not None and full_eval.pred_raw is not None:
+                self.tb_logger.log_aux_heatmaps(
+                    step=self.state.global_step,
+                    pred_obs=full_eval.pred_obs,
+                    target_obs=batch.next_obs,
+                    pred_rew=full_eval.pred_raw.squeeze(-1),
+                    target_rew=batch.next_rewards,
+                )
 
         return last_value
 
@@ -498,13 +508,14 @@ class LSTMPPOTrainer:
         m = mb.mask.unsqueeze(-1)  # (K, B, 1)
 
         obs_err = ((pred_next_obs - target_next_obs) ** 2) * m
+        aux_obs_err_mean = obs_err.mean().detach()
         aux_obs_loss = obs_err.sum() / (m.sum() * obs_err.size(-1)).clamp(min=1)
 
         rew_err = ((pred_next_rew - target_next_rew) ** 2) * mb.mask
+        aux_rew_err_mean = rew_err.mean().detach()
         aux_rew_loss = rew_err.sum() / mb.mask.sum().clamp(min=1)
 
         aux_loss = self.state.cfg.lstm.aux_obs_coef * aux_obs_loss + self.state.cfg.lstm.aux_rew_coef * aux_rew_loss
-
         loss = loss + aux_loss
 
         grad_norm = self.backward_and_clip(loss)
@@ -520,6 +531,10 @@ class LSTMPPOTrainer:
                 policy_drift=policy_drift,
                 value_drift=value_drift,
                 lstm_unit_diag=lstm_unit_diag,
+                aux_obs_loss=aux_obs_loss,
+                aux_rew_loss=aux_rew_loss,
+                aux_obs_err_mean=aux_obs_err_mean,
+                aux_rew_err_mean=aux_rew_err_mean,
             )
         )
 
@@ -577,6 +592,16 @@ class LSTMPPOTrainer:
                 }
             )
 
+        self.tb_logger.writer.add_scalar("aux/obs_loss", self.state.metrics.aux_obs_loss, self.state.global_step)
+        self.tb_logger.writer.add_scalar("aux/rew_loss", self.state.metrics.aux_rew_loss, self.state.global_step)
+
+        self.tb_logger.writer.add_scalar(
+            "aux/obs_err_mean", self.state.metrics.aux_obs_err_mean, self.state.global_step
+        )
+        self.tb_logger.writer.add_scalar(
+            "aux/rew_err_mean", self.state.metrics.aux_rew_err_mean, self.state.global_step
+        )
+
         self.tb_logger.writer.add_scalar("runtime/rollout_time", self.state.rollout_time, self.state.global_step)
         self.tb_logger.writer.add_scalar("runtime/optimize_time", self.state.optimize_time, self.state.global_step)
         self.tb_logger.writer.add_scalar("runtime/update_walltime", self.state.update_walltime, self.state.global_step)
@@ -586,6 +611,10 @@ class LSTMPPOTrainer:
                 "runtime/rollout_time": self.state.rollout_time,
                 "runtime/optimize_time": self.state.optimize_time,
                 "runtime/update_walltime": self.state.update_walltime,
+                "aux/obs_loss": self.state.metrics.aux_obs_loss,
+                "aux/rew_loss": self.state.metrics.aux_rew_loss,
+                "aux/obs_err_mean": self.state.metrics.aux_obs_err_mean,
+                "aux/rew_err_mean": self.state.metrics.aux_rew_err_mean,
             },
             step=self.state.global_step,
         )

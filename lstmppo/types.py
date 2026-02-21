@@ -744,6 +744,10 @@ class PolicyUpdateInfo:
     policy_drift: torch.Tensor
     value_drift: torch.Tensor
     lstm_unit_diag: LSTMUnitDiagnostics
+    aux_obs_loss: torch.Tensor
+    aux_rew_loss: torch.Tensor
+    aux_obs_err_mean: torch.Tensor
+    aux_rew_err_mean: torch.Tensor
 
 
 @dataclass
@@ -764,6 +768,11 @@ class Metrics:
 
     policy_drift: float = 0.0
     value_drift: float = 0.0
+
+    aux_obs_loss: float = 0.0
+    aux_rew_loss: float = 0.0
+    aux_obs_err_mean: float = 0.0
+    aux_rew_err_mean: float = 0.0
 
     h_norm: float = 0.0
     c_norm: float = 0.0
@@ -819,6 +828,11 @@ class Metrics:
 
         self.policy_drift += upd.policy_drift.item()
         self.value_drift += upd.value_drift.item()
+
+        self.aux_obs_loss += upd.aux_obs_loss.item()
+        self.aux_rew_loss += upd.aux_rew_loss.item()
+        self.aux_obs_err_mean += upd.aux_obs_err_mean.item()
+        self.aux_rew_err_mean += upd.aux_rew_err_mean.item()
 
         diag = upd.lstm_unit_diag
         sat = diag.saturation
