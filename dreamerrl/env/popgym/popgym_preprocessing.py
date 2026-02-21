@@ -1,6 +1,6 @@
+import gymnasium as gym
 import numpy as np
 import torch
-import gymnasium as gym
 
 
 def get_flat_obs_dim(space: gym.Space) -> int:
