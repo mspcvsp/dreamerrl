@@ -74,7 +74,7 @@ def main(
     total_updates: int = 2000,
     seeds: List[int] = [0],  # Multi-seed support
     wandb_project: str = "lstmppo",
-    wandb_group: str = "position-only-cartpole",
+    wandb_group: str = "repeat_previous_easy",
 ):
     """
     - supports multi‑seed via Tyro (List[int])
