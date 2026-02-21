@@ -1,37 +1,52 @@
-import gymnasium as gym
-from gymnasium.vector import SyncVectorEnv
-import torch
-from typing import Optional, Dict
+from typing import Any, Dict, Optional, cast
 
+import gymnasium as gym
+import torch
 from env.env import EnvInterface
+from gymnasium.spaces import Discrete
+from gymnasium.vector import SyncVectorEnv
+
 from .popgym_preprocessing import flatten_obs
 
 
 def make_env(env_id):
     def thunk():
         return gym.make(env_id)
+
     return thunk
 
 
 class PopGymVecEnv(EnvInterface):
-    """
-    Vectorized PopGym environment wrapper for Dreamer.
-    """
-
     def __init__(self, env_id: str, batch_size: int, device: torch.device):
+        self._batch_size = batch_size
         self.device = device
-        self.batch_size = batch_size
 
         self.venv = SyncVectorEnv([make_env(env_id) for _ in range(batch_size)])
 
+        # Observation dimension
         self._obs_dim = int(torch.tensor(self.venv.single_observation_space.shape).prod())
-        self._action_dim = self.venv.single_action_space.n
+
+        # Action dimension (narrow type for Pylance)
+        assert isinstance(self.venv.single_action_space, Discrete)
+        self._action_dim: int = int(self.venv.single_action_space.n)
+
+    @property
+    def batch_size(self) -> int:
+        return self._batch_size
+
+    @property
+    def obs_dim(self) -> int:
+        return self._obs_dim
+
+    @property
+    def action_dim(self) -> int:
+        return self._action_dim
 
     def reset(self, seed: Optional[int] = None) -> Dict[str, torch.Tensor]:
         if seed is None:
             seeds = None
         else:
-            seeds = [seed + i for i in range(self.batch_size)]
+            seeds = cast(list[int | None], [seed + i for i in range(self._batch_size)])
 
         obs, info = self.venv.reset(seed=seeds)
         obs = flatten_obs(obs, self.venv.single_observation_space)
@@ -39,7 +54,7 @@ class PopGymVecEnv(EnvInterface):
 
         return {"obs": obs}
 
-    def step(self, actions: torch.Tensor) -> Dict[str, torch.Tensor]:
+    def step(self, actions: torch.Tensor) -> Dict[str, Any]:
         if actions.dim() == 2 and actions.size(-1) == 1:
             actions_np = actions.squeeze(-1).cpu().numpy()
         else:
@@ -60,16 +75,8 @@ class PopGymVecEnv(EnvInterface):
             "info": info,
         }
 
-    @property
-    def obs_dim(self) -> int:
-        return self._obs_dim
-
-    @property
-    def action_dim(self) -> int:
-        return self._action_dim
-
     def action_mask(self):
-        return None  # PopGym has no illegal actions
+        return None
 
     def get_episode_stats(self):
         return {}
