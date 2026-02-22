@@ -1,17 +1,16 @@
 from __future__ import annotations
-import gymnasium as gym
-from dataclasses import dataclass
-from typing import Dict, Tuple
 
+from dataclasses import dataclass
+
+import gymnasium as gym
 import torch
 import torch.nn as nn
 from torch.distributions.categorical import Categorical
 
-from dreamerrl.models.obs_encoder import build_obs_encoder, get_flat_obs_dim
-from dreamer.models.init import init_weights
 from dreamerrl.models.actor import Actor
 from dreamerrl.models.decoder import ObsDecoder
-from dreamerrl.models.encoder import ObsEncoder
+from dreamerrl.models.init import init_weights
+from dreamerrl.models.obs_encoder import build_obs_encoder, get_flat_obs_dim
 from dreamerrl.models.posterior import Posterior
 from dreamerrl.models.prior import Prior
 from dreamerrl.models.reward_head import RewardHead
