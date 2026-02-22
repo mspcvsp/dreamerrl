@@ -2,7 +2,6 @@
     // -----------------------------
     // Python interpreter & analysis
     // -----------------------------
-    "python.defaultInterpreterPath": "/home/mspcvsp/miniconda/envs/cage2_env/bin/python",
     "python.analysis.typeCheckingMode": "basic",
     "python.analysis.autoImportCompletions": true,
     "python.analysis.useLibraryCodeForTypes": true,
