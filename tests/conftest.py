@@ -3,7 +3,7 @@ import torch
 
 
 def pytest_addoption(parser):
-    parser.addoption("--device", action="store", default="cpu", help="Device to run tests on: cpu or cuda")
+    parser.addoption("--device", action="store", default="cpu", help="cpu or cuda")
 
 
 @pytest.fixture(scope="session")
