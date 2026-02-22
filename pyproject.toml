@@ -33,7 +33,9 @@ dev = [
 
 [tool.setuptools.packages.find]
 where = ["."]
-include = ["lstmppo*"]
+include = ["dreamerrl*"]
+exclude = ["tests*"]
+
 
 # -----------------------------
 # Ruff configuration
