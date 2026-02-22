@@ -1,5 +1,5 @@
 from __future__ import annotations
-
+import gymnasium as gym
 from dataclasses import dataclass
 from typing import Dict, Tuple
 
@@ -39,7 +39,7 @@ class DreamerAgent(nn.Module):
     - Full Dreamer (stochastic RSSM, KL balancing, free nats, overshooting)
     """
 
-    def __init__(self, cfg: DreamerConfig, obs_shape, action_dim, device):
+    def __init__(self, cfg: DreamerConfig, obs_space: gym.Space, action_dim: int, device: torch.device):
         super().__init__()
         self.cfg = cfg
         self.device = device
