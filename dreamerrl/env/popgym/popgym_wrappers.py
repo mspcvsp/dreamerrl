@@ -2,10 +2,10 @@ from typing import Any, Dict, Optional
 
 import gymnasium as gym
 import torch
+from env.env import EnvInterface
 from gymnasium.spaces import Discrete
 from gymnasium.vector import SyncVectorEnv
 
-from env.env import EnvInterface
 from .popgym_preprocessing import flatten_obs
 
 

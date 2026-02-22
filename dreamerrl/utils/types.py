@@ -7,6 +7,7 @@ from typing import Optional
 # ---------------------------------------------------------
 @dataclass
 class WorldModelConfig:
+    reward_hidden: int = 256
     deter_size: int = 200
     stoch_size: int = 30
     hidden_size: int = 200
@@ -49,6 +50,8 @@ class TrainingConfig:
     grad_clip: float = 100.0
     updates_per_step: int = 1
     warmup_steps: int = 1000
+    random_exploration_steps: int = 2500
+    replay_capacity: int = 10000
 
     cuda: bool = True
     seed: int = 0
