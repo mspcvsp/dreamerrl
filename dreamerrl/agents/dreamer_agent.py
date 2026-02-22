@@ -7,7 +7,7 @@ import torch
 import torch.nn as nn
 from torch.distributions.categorical import Categorical
 
-from dreamerrl.models.obs_encoder import build_obs_encoder
+from dreamerrl.models.obs_encoder import build_obs_encoder, get_flat_obs_dim
 from dreamer.models.init import init_weights
 from dreamerrl.models.actor import Actor
 from dreamerrl.models.decoder import ObsDecoder
@@ -62,7 +62,7 @@ class DreamerAgent(nn.Module):
             deter_size=cfg.world.deter_size,
             stoch_size=cfg.world.stoch_size,
             hidden_size=cfg.world.decoder_hidden,
-            obs_shape=obs_shape,
+            obs_shape=get_flat_obs_dim(obs_space),
         ).to(device)
 
         self.reward_head = RewardHead(
