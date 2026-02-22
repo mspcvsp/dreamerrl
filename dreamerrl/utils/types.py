@@ -78,6 +78,15 @@ class LoggingConfig:
 # ---------------------------------------------------------
 @dataclass
 class DreamerConfig:
+    mode: str = "lite"
+
+    # Feature toggles
+    use_stochastic_latent: bool = False
+    use_kl_balance: bool = False
+    use_free_nats: bool = False
+    use_overshooting: bool = False
+    use_value_bootstrap: bool = False
+
     world: WorldModelConfig = field(default_factory=WorldModelConfig)
     ac: ActorCriticConfig = field(default_factory=ActorCriticConfig)
     train: TrainingConfig = field(default_factory=TrainingConfig)
@@ -89,3 +98,18 @@ class DreamerConfig:
 
         ts = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
         self.log.run_name = f"{self.env.env_id}__dreamer__{ts}"
+
+    def __post_init__(self):
+        if self.mode == "lite":
+            self.use_stochastic_latent = False
+            self.use_kl_balance = False
+            self.use_free_nats = False
+            self.use_overshooting = False
+            self.use_value_bootstrap = False
+
+        elif self.mode == "full":
+            self.use_stochastic_latent = True
+            self.use_kl_balance = True
+            self.use_free_nats = True
+            self.use_overshooting = True
+            self.use_value_bootstrap = True
