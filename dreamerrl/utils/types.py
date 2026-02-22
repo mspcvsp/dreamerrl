@@ -48,6 +48,7 @@ class TrainingConfig:
 
     grad_clip: float = 100.0
     updates_per_step: int = 1
+    warmup_steps: int = 1000
 
     cuda: bool = True
     seed: int = 0
