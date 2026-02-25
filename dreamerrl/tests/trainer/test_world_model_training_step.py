@@ -18,7 +18,6 @@ def test_world_model_training_step(world_model, device):
         device=device,
     )
 
-    # Build a small episode
     for t in range(6):
         buffer.add(
             state=torch.randn(obs_dim, device=device),
@@ -40,5 +39,5 @@ def test_world_model_training_step(world_model, device):
     out = trainer.world_model_training_step(batch_size=2, seq_len=3)
 
     assert "loss" in out
-    assert torch.isfinite(out["loss"])
     assert out["loss"].dim() == 0
+    assert torch.isfinite(out["loss"])

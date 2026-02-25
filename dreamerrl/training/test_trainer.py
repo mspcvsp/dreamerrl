@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from typing import Any, Dict
 
 import torch
@@ -11,7 +13,7 @@ from dreamerrl.training.replay_buffer import DreamerReplayBuffer
 class TestDreamerTrainer:
     """
     Minimal trainer used ONLY for unit tests.
-    Does NOT initialize env, wandb, schedulers, or cfg.
+    No env, no wandb, no cfg.
     """
 
     def __init__(
@@ -28,9 +30,7 @@ class TestDreamerTrainer:
         self.replay = replay_buffer
         self.device = device
 
-    # -------------------------------------------------------------
-    # World model training step
-    # -------------------------------------------------------------
+    # ---------------- World model training step ----------------
     def world_model_training_step(self, batch_size: int, seq_len: int) -> Dict[str, Any]:
         batch = self.replay.sample(batch_size, seq_len, device=self.device)
 
@@ -56,9 +56,7 @@ class TestDreamerTrainer:
 
         return {"loss": loss}
 
-    # -------------------------------------------------------------
-    # Imagination rollout
-    # -------------------------------------------------------------
+    # ---------------- Imagination rollout ----------------
     def imagination_rollout(self, state, horizon: int):
         hs, zs, values, actions = [], [], [], []
 
@@ -83,18 +81,25 @@ class TestDreamerTrainer:
             "action": torch.stack(actions) if actions else None,
         }
 
-    # -------------------------------------------------------------
-    # λ-return
-    # -------------------------------------------------------------
-    @staticmethod
-    def lambda_return(reward, value, discount, lam):
-        T, B = reward.shape
-        ret = torch.zeros_like(reward)
 
-        next_val = value[-1]
-        for t in reversed(range(T)):
-            delta = reward[t] + discount * next_val - value[t]
-            next_val = value[t] + lam * delta
-            ret[t] = next_val
+def lambda_return(
+    reward: torch.Tensor,
+    value: torch.Tensor,
+    discount: float,
+    lam: float,
+) -> torch.Tensor:
+    """
+    reward: (B, T)
+    value:  (B, T+1) or (B, T) depending on usage
+    Returns: (B, T)
+    """
+    B, T = reward.shape
+    ret = torch.zeros_like(reward)
 
-        return ret
+    next_val = value[:, -1]
+    for t in reversed(range(T)):
+        delta = reward[:, t] + discount * next_val - value[:, t]
+        next_val = value[:, t] + lam * delta
+        ret[:, t] = next_val
+
+    return ret
