@@ -1,9 +1,9 @@
 import pytest
 import torch
-from dreamerrl.tests.helpers.numerical_equivalence import assert_close_cpu_gpu
 
 from dreamerrl.models.actor import Actor
 from dreamerrl.models.value_head import ValueHead
+from dreamerrl.tests.helpers.numerical_equivalence import assert_close_cpu_gpu
 
 
 @pytest.mark.skipif(not torch.cuda.is_available(), reason="CUDA required")
