@@ -89,6 +89,33 @@ def lambda_return(
     lam: float,
 ) -> torch.Tensor:
     """
+    λ-return blends short-horizon TD and long-horizon Monte Carlo:
+
+    TD(0) target (λ = 0):
+        r_t + γ V(s_{t+1})
+
+    Monte Carlo target (λ = 1):
+        r_t + γ r_{t+1} + γ² r_{t+2} + ...
+
+    λ-return mixes all n-step returns with exponentially decaying weights:
+
+       G_t^λ = (1-λ) * [1-step]
+               + λ(1-λ) * [2-step]
+               + λ²(1-λ) * [3-step]
+               + ...
+
+    Visual intuition:
+
+        r_t      r_{t+1}      r_{t+2}      r_{t+3}      ...
+        |----------|-----------|-----------|-----------|
+        | 1-step   | 2-step    | 3-step    | 4-step    |
+
+        weight: (1-λ)   λ(1-λ)    λ²(1-λ)     λ³(1-λ)   ...
+
+    λ = 0 → trust critic immediately (low variance, high bias)
+    λ = 1 → trust full rollout (high variance, low bias)
+    0 < λ < 1 → smooth bias–variance tradeoff for stable value learning
+    ----------------------------------------------------------------------
     reward: (B, T)
     value:  (B, T+1) or (B, T) depending on usage
     Returns: (B, T)

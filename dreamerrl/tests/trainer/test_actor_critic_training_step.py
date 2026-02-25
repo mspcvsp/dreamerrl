@@ -4,6 +4,7 @@ import torch
 from dreamerrl.models.actor import Actor
 from dreamerrl.models.value_head import ValueHead
 from dreamerrl.training.replay_buffer import DreamerReplayBuffer
+from dreamerrl.training.test_trainer import TestDreamerTrainer, lambda_return
 
 
 @pytest.mark.trainer
@@ -35,9 +36,18 @@ def test_actor_critic_training_step(world_model, device):
     actor = Actor(deter, stoch, hidden_size=128, action_dim=action_dim).to(device)
     critic = ValueHead(deter, stoch, hidden_size=128).to(device)
 
-    # Simple imagined rollout + value/policy losses
+    # Instantiate to assert the trainer wiring is valid; the test computes losses manually.
+    TestDreamerTrainer(
+        world_model=world_model,
+        actor=actor,
+        critic=critic,
+        replay_buffer=buffer,
+        device=device,
+    )
+
     batch = buffer.sample(batch_size=2, seq_len=3, device=device)
 
+    # Inline batch size to avoid unused variable
     state = world_model.init_state(batch["state"].size(0))
     horizon = 5
 
@@ -55,11 +65,9 @@ def test_actor_critic_training_step(world_model, device):
     logp = dist.log_prob(actions)  # (T, B)
 
     # Dummy λ-return target
-    from dreamerrl.training.test_trainer import lambda_return
-
     returns = lambda_return(
         reward=rewards.squeeze(-1).transpose(0, 1),  # (B, T)
-        value=values.squeeze(-1).transpose(0, 1),  # (B, T) – treat last as bootstrap-free
+        value=values.squeeze(-1).transpose(0, 1),  # (B, T)
         discount=0.99,
         lam=0.95,
     ).transpose(0, 1)  # back to (T, B)
