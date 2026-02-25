@@ -6,6 +6,7 @@ from dreamerrl.models.value_head import ValueHead
 from dreamerrl.tests.helpers.numerical_equivalence import assert_close_cpu_gpu
 
 
+@pytest.mark.actor_critic
 @pytest.mark.skipif(not torch.cuda.is_available(), reason="CUDA required")
 def test_actor_critic_cpu_gpu_equivalence():
     B = 4

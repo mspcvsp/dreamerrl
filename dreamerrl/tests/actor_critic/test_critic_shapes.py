@@ -1,8 +1,10 @@
+import pytest
 import torch
 
 from dreamerrl.models.value_head import ValueHead
 
 
+@pytest.mark.actor_critic
 def test_critic_shapes(device):
     B = 4
     deter, stoch = 32, 16

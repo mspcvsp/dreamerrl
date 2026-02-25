@@ -1,8 +1,10 @@
+import pytest
 import torch
 
 from dreamerrl.models.actor import Actor
 
 
+@pytest.mark.actor_critic
 def test_actor_shapes(device):
     B = 4
     deter, stoch, action_dim = 32, 16, 5

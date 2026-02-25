@@ -83,6 +83,33 @@ class DreamerReplayBuffer:
     def __len__(self) -> int:
         return len(self._episodes)
 
+    @property
+    def num_episodes(self) -> int:
+        return len(self._episodes)
+
+    @property
+    def num_transitions(self) -> int:
+        return self.total_steps_added
+
+    def get_episode(self, idx: int) -> Dict[str, torch.Tensor]:
+        ep = self._episodes[idx]
+        return {
+            "state": ep.state,
+            "action": ep.action,
+            "reward": ep.reward,
+            "is_first": ep.is_first,
+            "is_last": ep.is_last,
+            "is_terminal": ep.is_terminal,
+            # Optional: add timestamps for contiguity tests
+            "t": torch.arange(ep.length, device=ep.state.device),
+        }
+
+    @torch.no_grad()
+    def add(self, **kwargs):
+        # Wrap single-env transition into batch of size 1
+        trans = {k: v.unsqueeze(0) for k, v in kwargs.items()}
+        self.add_batch(trans)
+
     @torch.no_grad()
     def add_batch(self, trans: Dict[str, Any]) -> None:
         """

@@ -57,6 +57,11 @@ def fake_obs(device, obs_dim):
 
 
 @pytest.fixture
+def batch_size():
+    return 8
+
+
+@pytest.fixture
 def fake_batch(device, obs_dim):
     torch.manual_seed(0)
     B, L = 4, 5
