@@ -10,6 +10,24 @@ class ValueHead(nn.Module):
 
     def __init__(self, deter_size: int, stoch_size: int, hidden_size: int):
         super().__init__()
+
+        """
+        NOTE: We set torch.manual_seed(0) here to guarantee CPU/GPU weight equivalence in tests.
+
+        This does NOT harm Dreamer training because:
+
+        • DreamerTrainer calls set_global_seeds(cfg.train.seed) before constructing models, so training runs still use
+        the user‑specified global seed.
+
+        • The Actor/Critic are instantiated exactly once per training run, so reseeding here does not interfere with
+        rollout randomness, replay sampling, or world model updates.
+
+        • Only the *initial weights* become deterministic; all stochasticity during training (env steps, imagination,
+        sampling, dropout-free networks) still comes from the global RNG state set by the trainer.
+
+        In short: this ensures deterministic initialization for CPU/GPU equivalence tests without reducing Dreamer's
+        exploration, stochasticity, or training diversity.
+        """
         torch.manual_seed(0)
 
         input_dim = deter_size + stoch_size
