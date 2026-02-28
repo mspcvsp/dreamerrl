@@ -8,6 +8,7 @@ from torch.distributions import Categorical
 class Actor(nn.Module):
     def __init__(self, deter_size, stoch_size, hidden_size, action_dim):
         super().__init__()
+        torch.manual_seed(0)
         self.net = nn.Sequential(
             nn.Linear(deter_size + stoch_size, hidden_size),
             nn.SiLU(),

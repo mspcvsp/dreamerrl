@@ -10,6 +10,7 @@ class ValueHead(nn.Module):
 
     def __init__(self, deter_size: int, stoch_size: int, hidden_size: int):
         super().__init__()
+        torch.manual_seed(0)
 
         input_dim = deter_size + stoch_size
 
