@@ -4,7 +4,7 @@ import torch
 from dreamerrl.models.actor import Actor
 from dreamerrl.models.value_head import ValueHead
 from dreamerrl.training.replay_buffer import DreamerReplayBuffer
-from dreamerrl.training.test_trainer import TestDreamerTrainer
+from dreamerrl.training.test_trainer import _TestDreamerTrainer
 
 
 @pytest.mark.trainer
@@ -26,7 +26,7 @@ def test_imagination_rollout(world_model, device):
         device=device,
     )
 
-    trainer = TestDreamerTrainer(
+    trainer = _TestDreamerTrainer(
         world_model=world_model,
         actor=actor,
         critic=critic,

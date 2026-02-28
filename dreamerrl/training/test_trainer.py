@@ -10,7 +10,7 @@ from dreamerrl.models.world_model import WorldModel
 from dreamerrl.training.replay_buffer import DreamerReplayBuffer
 
 
-class TestDreamerTrainer:
+class _TestDreamerTrainer:
     """
     Minimal trainer used ONLY for unit tests.
     No env, no wandb, no cfg.
@@ -89,45 +89,46 @@ def lambda_return(
     lam: float,
 ) -> torch.Tensor:
     """
-    λ-return blends short-horizon TD and long-horizon Monte Carlo:
+    λ-return (time-major):
 
-    TD(0) target (λ = 0):
-        r_t + γ V(s_{t+1})
+    reward: (T, B)
+    value:  (T+1, B
 
-    Monte Carlo target (λ = 1):
-        r_t + γ r_{t+1} + γ² r_{t+2} + ...
+    G_t^λ blends TD(0) and Monte Carlo:
 
-    λ-return mixes all n-step returns with exponentially decaying weights:
+       TD(0):        r_t + γ V_{t+1}
+       Monte Carlo:  r_t + γ r_{t+1} + γ² r_{t+2} + ...
 
-       G_t^λ = (1-λ) * [1-step]
-               + λ(1-λ) * [2-step]
-               + λ²(1-λ) * [3-step]
-               + ...
+    λ mixes n-step returns with exponentially decaying weights:
 
-    Visual intuition:
-    ----------------
+       G_t^λ = (1-λ)*G_t^{1-step}
+             + λ(1-λ)*G_t^{2-step}
+             + λ²(1-λ)*G_t^{3-step}
+             + ...
 
-        r_t      r_{t+1}      r_{t+2}      r_{t+3}      ...
-        |----------|-----------|-----------|-----------|
-        | 1-step   | 2-step    | 3-step    | 4-step    |
+    λ = 0 → trust critic (low variance, high bias)
+    λ = 1 → trust rollout (high variance, low bias)
 
-        weight: (1-λ)   λ(1-λ)    λ²(1-λ)     λ³(1-λ)   ...
+    Time-major rollout:
+    ------------------
+    t = 0      1      2      ...    T-1      T
+    |------|------|------|------|------|------|
+    s0     s1     s2     ...    s(T-1)  sT
+    r0     r1     r2     ...    r(T-1)
 
-    λ = 0 → trust critic immediately (low variance, high bias)
-    λ = 1 → trust full rollout (high variance, low bias)
-    0 < λ < 1 → smooth bias–variance tradeoff for stable value learning
-    ----------------------------------------------------------------------
-    reward: (B, T)
-    value:  (B, T+1) or (B, T) depending on usage
-    Returns: (B, T)
+    Values:
+    V(s0)  V(s1)  V(s2)  ...    V(s(T-1))  V(sT)
+    <----------- T+1 values ------------->
+
+    λ-return needs V(s_{t+1}) for every t, so value must be (T+1, B)
     """
-    B, T = reward.shape
+    T, B = reward.shape
     ret = torch.zeros_like(reward)
 
-    next_val = value[:, -1]
+    next_val = value[-1]  # (B,)
     for t in reversed(range(T)):
-        delta = reward[:, t] + discount * next_val - value[:, t]
-        next_val = value[:, t] + lam * delta
-        ret[:, t] = next_val
+        delta = reward[t] + discount * next_val - value[t]
+        next_val = value[t] + lam * delta
+        ret[t] = next_val
 
     return ret

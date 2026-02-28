@@ -2,7 +2,7 @@ import pytest
 import torch
 
 from dreamerrl.training.replay_buffer import DreamerReplayBuffer
-from dreamerrl.training.test_trainer import TestDreamerTrainer
+from dreamerrl.training.test_trainer import _TestDreamerTrainer
 
 
 @pytest.mark.trainer
@@ -28,7 +28,7 @@ def test_world_model_training_step(world_model, device):
             is_terminal=torch.tensor(False, device=device),
         )
 
-    trainer = TestDreamerTrainer(
+    trainer = _TestDreamerTrainer(
         world_model=world_model,
         actor=None,
         critic=None,

@@ -4,7 +4,7 @@ import torch
 from dreamerrl.models.actor import Actor
 from dreamerrl.models.value_head import ValueHead
 from dreamerrl.training.replay_buffer import DreamerReplayBuffer
-from dreamerrl.training.test_trainer import TestDreamerTrainer, lambda_return
+from dreamerrl.training.test_trainer import _TestDreamerTrainer, lambda_return
 
 
 @pytest.mark.trainer
@@ -22,7 +22,6 @@ def test_actor_critic_training_step(world_model, device):
         device=device,
     )
 
-    # Build a small episode
     for t in range(6):
         buffer.add(
             state=torch.randn(obs_dim, device=device),
@@ -36,8 +35,7 @@ def test_actor_critic_training_step(world_model, device):
     actor = Actor(deter, stoch, hidden_size=128, action_dim=action_dim).to(device)
     critic = ValueHead(deter, stoch, hidden_size=128).to(device)
 
-    # Instantiate to assert the trainer wiring is valid; the test computes losses manually.
-    TestDreamerTrainer(
+    _TestDreamerTrainer(
         world_model=world_model,
         actor=actor,
         critic=critic,
@@ -47,7 +45,6 @@ def test_actor_critic_training_step(world_model, device):
 
     batch = buffer.sample(batch_size=2, seq_len=3, device=device)
 
-    # Inline batch size to avoid unused variable
     state = world_model.init_state(batch["state"].size(0))
     horizon = 5
 
@@ -56,24 +53,20 @@ def test_actor_critic_training_step(world_model, device):
         state = world_model.imagine_step(state)
         imagined.append(state)
 
-    rewards = torch.stack([world_model.predict_reward(s) for s in imagined], dim=0)  # (T, B, 1)
-    values = torch.stack([critic(s.h, s.z) for s in imagined], dim=0)  # (T, B, 1)
+    rewards = torch.stack([world_model.predict_reward(s) for s in imagined], dim=0).squeeze(-1)  # (T, B)
+    values = torch.stack([critic(s.h, s.z) for s in imagined], dim=0).squeeze(-1)  # (T, B)
 
     logits = torch.stack([actor(s.h, s.z) for s in imagined], dim=0)  # (T, B, A)
     dist = torch.distributions.Categorical(logits=logits)
     actions = dist.sample()
     logp = dist.log_prob(actions)  # (T, B)
 
-    # Dummy λ-return target
-    returns = lambda_return(
-        reward=rewards.squeeze(-1).transpose(0, 1),  # (B, T)
-        value=values.squeeze(-1).transpose(0, 1),  # (B, T)
-        discount=0.99,
-        lam=0.95,
-    ).transpose(0, 1)  # back to (T, B)
+    # λ-return in time-major
+    value_bootstrap = torch.cat([values, values[-1:].detach()], dim=0)  # (T+1, B)
+    returns = lambda_return(rewards, value_bootstrap, discount=0.99, lam=0.95)  # (T, B)
 
     actor_loss = -(logp * returns.detach()).mean()
-    critic_loss = (values.squeeze(-1) - returns.detach()).pow(2).mean()
+    critic_loss = (values - returns.detach()).pow(2).mean()
 
     assert torch.isfinite(actor_loss)
     assert torch.isfinite(critic_loss)
