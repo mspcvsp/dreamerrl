@@ -63,6 +63,12 @@ class WorldModel(nn.Module):
     ):
         super().__init__()
 
+        """
+        Deterministic initialization for CPU/GPU equivalence tests. This does NOT affect training randomness because
+        DreamerTrainer calls set_global_seeds(cfg.train.seed) *after* model construction.
+        """
+        torch.manual_seed(0)
+
         self.device = device or torch.device("cpu")
         self.deter_size = deter_size
         self.stoch_size = stoch_size

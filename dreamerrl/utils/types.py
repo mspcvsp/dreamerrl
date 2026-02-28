@@ -117,3 +117,9 @@ class DreamerConfig:
             self.use_free_nats = True
             self.use_overshooting = True
             self.use_value_bootstrap = True
+
+
+def make_default_config() -> DreamerConfig:
+    cfg = DreamerConfig()
+    cfg.init_run_name()
+    return cfg
