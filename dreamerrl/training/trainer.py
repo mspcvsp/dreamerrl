@@ -11,6 +11,12 @@ from dreamerrl.env.popgym.popgym_wrappers import PopGymVecEnv
 from dreamerrl.models.actor import Actor
 from dreamerrl.models.value_head import ValueHead
 from dreamerrl.models.world_model import WorldModel
+
+# --- Core algorithmic functions (single source of truth) ---
+from dreamerrl.training.core import (
+    actor_critic_update,
+    world_model_training_step,
+)
 from dreamerrl.training.replay_buffer import DreamerReplayBuffer
 from dreamerrl.utils.seed import set_global_seeds
 from dreamerrl.utils.types import DreamerConfig
@@ -58,7 +64,6 @@ class DreamerTrainer:
             device=self.device,
         )
 
-        # Latent state for online interaction (B = num_envs)
         self.world_state = self.world.init_state(self.env.batch_size)
 
         # -----------------------------------------------------
@@ -96,7 +101,7 @@ class DreamerTrainer:
         self.critic_opt = torch.optim.Adam(self.critic.parameters(), lr=cfg.train.critic_lr)
 
         # -----------------------------------------------------
-        # LR Schedulers (warmup only)
+        # LR Schedulers
         # -----------------------------------------------------
         self.model_lr_sch = DreamerLRScheduler(cfg.train.model_lr, cfg.train.warmup_steps)
         self.actor_lr_sch = DreamerLRScheduler(cfg.train.actor_lr, cfg.train.warmup_steps)
@@ -112,15 +117,9 @@ class DreamerTrainer:
         # -----------------------------------------------------
         set_global_seeds(cfg.train.seed)
 
-        # Initial env state
         self.env_state: Dict[str, Any] = self.env.reset()
-
-        # Global step counter (env steps, not updates)
         self.total_env_steps: int = 0
 
-    # -------------------------------------------------------------
-    # Properties
-    # -------------------------------------------------------------
     @property
     def global_step(self) -> int:
         return self.total_env_steps
@@ -132,23 +131,17 @@ class DreamerTrainer:
         for update_idx in range(total_updates):
             t0 = time.time()
 
-            # 1. Collect environment steps
             self.collect_env_steps()
 
-            # 2. Sample sequences from replay
             batch = self.replay.sample(
                 batch_size=self.cfg.train.batch_size,
                 seq_len=self.cfg.train.seq_len,
                 device=self.device,
             )
 
-            # 3. Update world model
             model_loss = self.update_world_model(batch, update_idx)
-
-            # 4. Imagination rollout + actor/critic update
             actor_loss, critic_loss = self.update_actor_critic(batch, update_idx)
 
-            # 5. Logging
             wandb.log(
                 {
                     "loss/model": model_loss,
@@ -163,7 +156,6 @@ class DreamerTrainer:
     # Collect steps from environment
     # -------------------------------------------------------------
     def collect_env_steps(self) -> None:
-        # Phase 1: random exploration
         if self.global_step < self.cfg.train.random_exploration_steps:
             actions = torch.randint(
                 low=0,
@@ -176,11 +168,9 @@ class DreamerTrainer:
 
         next_state = self.env.step(actions)
 
-        # Update world model state with new observations
         out = self.world.observe_step(self.world_state, next_state["state"])
         self.world_state = out["state"]
 
-        # Store in replay
         self.replay.add_batch(
             {
                 "state": next_state["state"],
@@ -196,7 +186,7 @@ class DreamerTrainer:
         self.total_env_steps += self.env.batch_size
 
     # -------------------------------------------------------------
-    # World Model Update
+    # World Model Update (delegated to core/)
     # -------------------------------------------------------------
     def update_world_model(self, batch: Dict[str, torch.Tensor], update_idx: int) -> float:
         lr = self.model_lr_sch(update_idx)
@@ -205,41 +195,22 @@ class DreamerTrainer:
 
         self.model_opt.zero_grad()
 
-        obs = batch["state"]  # (B, L, obs_dim)
-        reward = batch["reward"]  # (B, L)
-
-        B, L, _ = obs.shape
-
-        state = self.world.init_state(B)
-
-        kl_losses = []
-        recon_losses = []
-        reward_losses = []
-
-        for t in range(L):
-            out = self.world.observe_step(state, obs[:, t])
-            state = out["state"]
-
-            recon_losses.append(((out["recon"] - obs[:, t]) ** 2).mean())
-            reward_losses.append(((out["reward_pred"].squeeze(-1) - reward[:, t]) ** 2).mean())
-            kl_losses.append(out["kl"])
-
-        model_loss = (
-            torch.stack(recon_losses).mean()
-            + torch.stack(reward_losses).mean()
-            + self.cfg.world.kl_scale * torch.stack(kl_losses).mean()
+        loss = world_model_training_step(
+            world_model=self.world,
+            batch=batch,
+            kl_scale=self.cfg.world.kl_scale,
         )
 
-        model_loss.backward()
+        loss.backward()
         torch.nn.utils.clip_grad_norm_(self.world.parameters(), self.cfg.train.grad_clip)
         self.model_opt.step()
 
-        return float(model_loss.item())
+        return float(loss.item())
 
     # -------------------------------------------------------------
-    # Actor + Critic Update
+    # Actor + Critic Update (delegated to core/)
     # -------------------------------------------------------------
-    def update_actor_critic(self, batch: Dict[str, torch.Tensor], update_idx: int) -> tuple[float, float]:
+    def update_actor_critic(self, batch: Dict[str, torch.Tensor], update_idx: int):
         lr_actor = self.actor_lr_sch(update_idx)
         lr_critic = self.critic_lr_sch(update_idx)
 
@@ -248,31 +219,15 @@ class DreamerTrainer:
         for pg in self.critic_opt.param_groups:
             pg["lr"] = lr_critic
 
-        B = batch["state"].size(0)
-        state = self.world.init_state(B)
-
-        imagined_states = []
-        for _ in range(self.cfg.world.imagination_horizon):
-            state = self.world.imagine_step(state)
-            imagined_states.append(state)
-
-        rewards = torch.stack([self.world.predict_reward(s) for s in imagined_states])  # (T, B, 1)
-        values = torch.stack([self.critic(s.h, s.z) for s in imagined_states])  # (T, B, 1)
-
-        returns = self.lambda_return(
-            rewards.squeeze(-1),
-            values.squeeze(-1),
-            self.cfg.ac.discount,
-            self.cfg.ac.lambda_,
+        actor_loss, critic_loss = actor_critic_update(
+            world_model=self.world,
+            actor=self.actor,
+            critic=self.critic,
+            batch=batch,
+            imagination_horizon=self.cfg.world.imagination_horizon,
+            discount=self.cfg.ac.discount,
+            lam=self.cfg.ac.lambda_,
         )
-
-        logits = torch.stack([self.actor(s.h, s.z) for s in imagined_states])  # (T, B, A)
-        dist = torch.distributions.Categorical(logits=logits)
-        actions = dist.sample()
-        logp = dist.log_prob(actions)
-
-        actor_loss = -(logp * returns.detach()).mean()
-        critic_loss = (values.squeeze(-1) - returns.detach()).pow(2).mean()
 
         self.actor_opt.zero_grad()
         actor_loss.backward()
@@ -285,58 +240,3 @@ class DreamerTrainer:
         self.critic_opt.step()
 
         return float(actor_loss.item()), float(critic_loss.item())
-
-    # -------------------------------------------------------------
-    # λ-return
-    # -------------------------------------------------------------
-    def lambda_return(
-        self,
-        rewards: torch.Tensor,
-        values: torch.Tensor,
-        discount: float,
-        lambda_: float,
-    ) -> torch.Tensor:
-        """
-        λ-return (time-major):
-
-        reward: (T, B)
-        value:  (T+1, B
-
-        G_t^λ blends TD(0) and Monte Carlo:
-
-        TD(0):        r_t + γ V_{t+1}
-        Monte Carlo:  r_t + γ r_{t+1} + γ² r_{t+2} + ...
-
-        λ mixes n-step returns with exponentially decaying weights:
-
-        G_t^λ = (1-λ)*G_t^{1-step}
-                + λ(1-λ)*G_t^{2-step}
-                + λ²(1-λ)*G_t^{3-step}
-                + ...
-
-        λ = 0 → trust critic (low variance, high bias)
-        λ = 1 → trust rollout (high variance, low bias)
-
-        Time-major rollout:
-        ------------------
-        t = 0      1      2      ...    T-1      T
-        |------|------|------|------|------|------|
-        s0     s1     s2     ...    s(T-1)  sT
-        r0     r1     r2     ...    r(T-1)
-
-        Values:
-        V(s0)  V(s1)  V(s2)  ...    V(s(T-1))  V(sT)
-        <----------- T+1 values ------------->
-
-        λ-return needs V(s_{t+1}) for every t, so value must be (T+1, B)
-        """
-        T, B = rewards.shape
-        returns = torch.zeros_like(values)
-
-        next_value = values[-1]  # (B,)
-        for t in reversed(range(T)):
-            delta = rewards[t] + discount * next_value - values[t]
-            next_value = values[t] + lambda_ * delta
-            returns[t] = next_value
-
-        return returns
