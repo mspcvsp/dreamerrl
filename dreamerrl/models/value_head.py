@@ -12,9 +12,13 @@ class ValueHead(nn.Module):
         super().__init__()
 
         """
+        Deterministic initialization for CPU/GPU equivalence tests.
+        -----------------------------------------------------------
         NOTE: We set torch.manual_seed(0) here to guarantee CPU/GPU weight equivalence in tests.
 
         This does NOT harm Dreamer training because:
+
+        • The specific seed value (0) has no special meaning—any fixed integer would work.
 
         • DreamerTrainer calls set_global_seeds(cfg.train.seed) before constructing models, so training runs still use
         the user‑specified global seed.
