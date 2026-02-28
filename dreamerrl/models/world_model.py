@@ -107,11 +107,10 @@ class WorldModel(nn.Module):
             hidden_size=reward_hidden,
         ).to(build_device)
 
-        # ---------------------------------------------------------
-        # Move entire model to target device AFTER construction.
-        # This preserves identical CPU-initialized weights.
-        # ---------------------------------------------------------
-        self.to(self.device)
+        """
+        DO NOT MOVE TO DEVICE HERE. The caller (trainer or test) will move the model. This guarantees CPU/GPU models
+        start from identical weights.
+        """
 
     # ------------------------------------------------------------------
     # Initialization
