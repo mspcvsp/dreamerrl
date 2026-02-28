@@ -38,31 +38,19 @@ from __future__ import annotations
 import torch
 
 
-def lambda_return(
-    reward: torch.Tensor,
-    value: torch.Tensor,
-    discount: float,
-    lam: float,
-) -> torch.Tensor:
+def lambda_return(reward, value, discount, lam):
     """
-    Time-major λ-return.
-
-    Args:
-        reward: (T, B) tensor of rewards.
-        value:  (T+1, B) tensor of value predictions.
-        discount: scalar discount factor γ.
-        lam: scalar λ parameter.
-
-    Returns:
-        (T, B) tensor of λ-returns.
+    reward: (T, B)
+    value:  (T+1, B)
+    returns: (T, B)
     """
     T, B = reward.shape
     ret = torch.zeros_like(reward)
 
-    next_val = value[-1]  # (B,)
+    next_ret = value[-1]  # G_T = V(s_T)
     for t in reversed(range(T)):
-        delta = reward[t] + discount * next_val - value[t]
-        next_val = value[t] + lam * delta
-        ret[t] = next_val
+        # canonical λ-return recurrence
+        next_ret = reward[t] + discount * ((1 - lam) * value[t + 1] + lam * next_ret)
+        ret[t] = next_ret
 
     return ret
