@@ -57,6 +57,12 @@ class DreamerReplayBuffer:
         store_device: torch.device = torch.device("cpu"),
         min_episode_len: int = 2,
     ):
+        """
+        Deterministic initialization for CPU/GPU equivalence tests. This does NOT affect Dreamer training because the
+        trainer reseeds global RNG immediately after constructing the buffer.
+        """
+        random.seed(0)
+
         self.num_envs = int(num_envs)
         self.obs_dim = int(obs_dim)
         self.capacity_episodes = int(capacity_episodes)
