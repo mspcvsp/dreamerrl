@@ -17,15 +17,6 @@ from .world_model_core import RSSMCore
 
 @dataclass
 class WorldModelState:
-    """
-    Latent state of the world model at a single timestep.
-    Works for both Dreamer-Lite and full Dreamer.
-
-    h: deterministic state (B, deter_size)
-    z: stochastic state (B, stoch_size) -- zero in Dreamer-Lite
-    prior_stats / post_stats: optional dicts with mean/std/z
-    """
-
     h: torch.Tensor
     z: torch.Tensor
     prior_stats: Optional[Dict[str, torch.Tensor]] = None
@@ -34,18 +25,7 @@ class WorldModelState:
 
 class WorldModel(nn.Module):
     """
-    Full Dreamer world model:
-
-        obs  → encoder → embed
-        (h,z) + embed → posterior → z_t
-        (h,z)         → prior     → ẑ_t
-        (h,z) → RSSMCore → h_t
-        (h,z) → ObsDecoder → obŝ
-        (h,z) → RewardHead → r̂
-
-    Flags:
-    - use_stochastic_latent = False → Dreamer-Lite (z ≡ 0, no KL)
-    - use_stochastic_latent = True  → full Dreamer (prior/posterior, KL)
+    Dreamer world model with deterministic CPU/GPU‑equivalent initialization.
     """
 
     def __init__(
@@ -63,11 +43,16 @@ class WorldModel(nn.Module):
     ):
         super().__init__()
 
-        """
-        Deterministic initialization for CPU/GPU equivalence tests. This does NOT affect training randomness because
-        DreamerTrainer calls set_global_seeds(cfg.train.seed) *after* model construction.
-        """
+        # ---------------------------------------------------------
+        # Deterministic initialization for CPU/GPU equivalence tests.
+        # Trainer reseeds RNG after construction, so training remains stochastic.
+        # ---------------------------------------------------------
         torch.manual_seed(0)
+        if torch.cuda.is_available():
+            torch.cuda.manual_seed_all(0)
+
+        # Always construct on CPU first
+        build_device = torch.device("cpu")
 
         self.device = device or torch.device("cpu")
         self.deter_size = deter_size
@@ -75,25 +60,34 @@ class WorldModel(nn.Module):
         self.use_stochastic_latent = use_stochastic_latent
 
         # ---------------------------------------------------------
-        # Observation shape / encoder / decoder
+        # Observation encoder / decoder
         # ---------------------------------------------------------
         self.obs_space = obs_space
         self.flat_obs_dim = get_flat_obs_dim(obs_space)
 
         # Encoder: obs → embed
-        self.encoder = build_obs_encoder(obs_space, embed_dim=encoder_hidden)
+        self.encoder = build_obs_encoder(obs_space, embed_dim=encoder_hidden).to(build_device)
 
         # RSSM deterministic core
         self.rssm = RSSMCore(
             deter_size=deter_size,
             stoch_size=stoch_size,
             hidden_size=rssm_hidden,
-        )
+        ).to(build_device)
 
         # Prior / Posterior (only used if use_stochastic_latent=True)
         if self.use_stochastic_latent:
-            self.prior = Prior(deter_size=deter_size, stoch_size=stoch_size, hidden_size=rssm_hidden)
-            self.posterior = Posterior(deter_size=deter_size, stoch_size=stoch_size, hidden_size=rssm_hidden)
+            self.prior = Prior(
+                deter_size=deter_size,
+                stoch_size=stoch_size,
+                hidden_size=rssm_hidden,
+            ).to(build_device)
+
+            self.posterior = Posterior(
+                deter_size=deter_size,
+                stoch_size=stoch_size,
+                hidden_size=rssm_hidden,
+            ).to(build_device)
         else:
             self.prior = None
             self.posterior = None
@@ -104,15 +98,19 @@ class WorldModel(nn.Module):
             stoch_size=stoch_size,
             hidden_size=decoder_hidden,
             obs_shape=self.flat_obs_dim,
-        )
+        ).to(build_device)
 
         # Reward head: (h,z) → scalar reward
         self.reward_head = RewardHead(
             deter_size=deter_size,
             stoch_size=stoch_size,
             hidden_size=reward_hidden,
-        )
+        ).to(build_device)
 
+        # ---------------------------------------------------------
+        # Move entire model to target device AFTER construction.
+        # This preserves identical CPU-initialized weights.
+        # ---------------------------------------------------------
         self.to(self.device)
 
     # ------------------------------------------------------------------
@@ -124,53 +122,31 @@ class WorldModel(nn.Module):
         return WorldModelState(h=h0, z=z0)
 
     # ------------------------------------------------------------------
-    # Single-step observation update: (h,z) + obs_t → new state, recon, reward, KL
+    # Single-step observation update
     # ------------------------------------------------------------------
     def observe_step(
         self,
         prev: WorldModelState,
         obs: torch.Tensor,
     ) -> Dict[str, Any]:
-        """
-        prev: WorldModelState at t-1
-        obs:  (B, flat_obs_dim) already flattened by env wrapper
-
-        Returns dict with:
-            - state: WorldModelState at t
-            - recon: reconstructed obs (B, flat_obs_dim)
-            - reward_pred: predicted reward (B, 1)
-            - kl: KL divergence (scalar tensor) or 0 for Dreamer-Lite
-        """
-        # Encode observation
         embed = self.encoder(obs)
 
         if self.use_stochastic_latent:
-            assert self.posterior is not None and self.prior is not None, (
-                "Posterior and Prior must be defined for stochastic latent"
-            )
+            assert self.posterior is not None
+            assert self.prior is not None
 
-            # Posterior conditioned on h_{t-1}, embed_t
             post = self.posterior(prev.h, embed)
             z = post["z"]
-
-            # Prior from h_{t-1}
             prior = self.prior(prev.h)
-
-            # Deterministic transition
             h = self.rssm(prev.h, z)
-
             state = WorldModelState(h=h, z=z, prior_stats=prior, post_stats=post)
-
-            # KL between posterior and prior
             kl = self.kl_divergence(post, prior)
         else:
-            # Dreamer-Lite: no stochastic latent, z ≡ 0, no KL
             z = torch.zeros_like(prev.z)
             h = self.rssm(prev.h, z)
             state = WorldModelState(h=h, z=z)
             kl = torch.zeros((), device=self.device)
 
-        # Reconstruction and reward prediction
         recon = self.decoder(state.h, state.z)
         reward_pred = self.reward_head(state.h, state.z)
 
@@ -182,14 +158,12 @@ class WorldModel(nn.Module):
         }
 
     # ------------------------------------------------------------------
-    # Imagination step: (h,z) → prior, sample z, next h
+    # Imagination step
     # ------------------------------------------------------------------
     def imagine_step(self, prev: WorldModelState) -> WorldModelState:
-        """
-        Used for imagination rollouts (no real observations).
-        """
         if self.use_stochastic_latent:
-            assert self.prior is not None, "Prior must be defined for stochastic latent"
+            assert self.prior is not None
+
             prior = self.prior(prev.h)
             z = prior["z"]
             h = self.rssm(prev.h, z)
@@ -200,24 +174,17 @@ class WorldModel(nn.Module):
             return WorldModelState(h=h, z=z)
 
     # ------------------------------------------------------------------
-    # KL divergence between posterior and prior (diagonal Gaussians)
+    # KL divergence
     # ------------------------------------------------------------------
     @staticmethod
     def kl_divergence(post: Dict[str, torch.Tensor], prior: Dict[str, torch.Tensor]) -> torch.Tensor:
-        """
-        KL(q || p) for diagonal Gaussians.
-        post / prior: dict with 'mean' and 'std'
-        Returns scalar tensor.
-        """
         mean_q, std_q = post["mean"], post["std"]
         mean_p, std_p = prior["mean"], prior["std"]
 
         var_q = std_q**2
         var_p = std_p**2
 
-        # KL per dimension
         kl = torch.log(std_p / std_q) + (var_q + (mean_q - mean_p) ** 2) / (2 * var_p) - 0.5
-
         return kl.sum(dim=-1).mean()
 
     # ------------------------------------------------------------------
