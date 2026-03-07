@@ -3,20 +3,13 @@ import torch
 from dreamerrl.models.decoder import ObsDecoder
 
 
-def test_decoder_deterministic():
+def test_decoder_idempotence():
+    """
+    Same inputs → same outputs within the same call context (ensures no mutation, no randomness, no hidden state)
+    """
     B, deter_size, stoch_size, hidden_size, obs_dim = 4, 32, 16, 64, 8
 
-    # Fix seed so two decoders initialize identically
-    torch.manual_seed(0)
-    decoder1 = ObsDecoder(
-        deter_size=deter_size,
-        stoch_size=stoch_size,
-        hidden_size=hidden_size,
-        obs_shape=obs_dim,
-    )
-
-    torch.manual_seed(0)
-    decoder2 = ObsDecoder(
+    decoder = ObsDecoder(
         deter_size=deter_size,
         stoch_size=stoch_size,
         hidden_size=hidden_size,
@@ -26,7 +19,8 @@ def test_decoder_deterministic():
     h = torch.randn(B, deter_size)
     z = torch.randn(B, stoch_size)
 
-    out1 = decoder1(h, z)
-    out2 = decoder2(h, z)
+    out1 = decoder(h, z)
+    out2 = decoder(h, z)
 
+    # Must be exactly identical
     torch.testing.assert_close(out1, out2)
