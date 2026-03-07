@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 from dataclasses import dataclass
 from typing import Any, Dict, Optional
 
@@ -59,6 +60,10 @@ class WorldModel(nn.Module):
         self.stoch_size = stoch_size
         self.use_stochastic_latent = use_stochastic_latent
 
+        # Enable deterministic latents only for CPU/GPU numerical equivalence tests
+        # Training remains stochastic.
+        self.deterministic_latent_for_tests = bool(int(os.environ.get("DREAMER_DETERMINISTIC_TEST", "0")))
+
         # ---------------------------------------------------------
         # Observation encoder / decoder
         # ---------------------------------------------------------
@@ -81,12 +86,14 @@ class WorldModel(nn.Module):
                 deter_size=deter_size,
                 stoch_size=stoch_size,
                 hidden_size=rssm_hidden,
+                deterministic_latent_for_tests=self.deterministic_latent_for_tests,
             ).to(build_device)
 
             self.posterior = Posterior(
                 deter_size=deter_size,
                 stoch_size=stoch_size,
                 hidden_size=rssm_hidden,
+                deterministic_latent_for_tests=self.deterministic_latent_for_tests,
             ).to(build_device)
         else:
             self.prior = None

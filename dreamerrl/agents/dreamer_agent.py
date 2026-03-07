@@ -54,8 +54,8 @@ class DreamerAgent(nn.Module):
             hidden_size=cfg.world.hidden_size,
         ).to(device)
 
-        self.prior = Prior(cfg.world.deter_size, cfg.world.stoch_size).to(device)
-        self.posterior = Posterior(cfg.world.deter_size, cfg.world.stoch_size).to(device)
+        self.prior = Prior(cfg.world.deter_size, cfg.world.stoch_size, cfg.world.hidden_size).to(device)
+        self.posterior = Posterior(cfg.world.deter_size, cfg.world.stoch_size, cfg.world.hidden_size).to(device)
 
         self.decoder = ObsDecoder(
             deter_size=cfg.world.deter_size,

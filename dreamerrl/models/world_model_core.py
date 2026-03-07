@@ -2,6 +2,8 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
+from .deterministic_layernorm import DeterministicLayerNorm
+
 
 class RSSMCore(nn.Module):
     """
@@ -29,7 +31,7 @@ class RSSMCore(nn.Module):
         # Deterministic transition: h' = f(h, z)
         # ---------------------------------------------------------
         self.fc1 = nn.Linear(deter_size + stoch_size, hidden_size)
-        self.ln1 = nn.LayerNorm(hidden_size)
+        self.ln1 = DeterministicLayerNorm(hidden_size)
         self.fc2 = nn.Linear(hidden_size, deter_size)
 
         self.apply(self._init_weights)
