@@ -45,6 +45,22 @@ def world_model_config():
 
 
 @pytest.fixture
+def make_world_model(device, obs_space, action_dim, world_model_config):
+    def _make(**overrides):
+        cfg = dict(world_model_config)
+        cfg.update(overrides)
+        wm = WorldModel(
+            obs_space=obs_space,
+            action_dim=action_dim,
+            device=device,
+            **cfg,
+        )
+        return wm.to(device)
+
+    return _make
+
+
+@pytest.fixture
 def world_model(device, obs_space, action_dim, world_model_config):
     wm = WorldModel(
         obs_space=obs_space,
