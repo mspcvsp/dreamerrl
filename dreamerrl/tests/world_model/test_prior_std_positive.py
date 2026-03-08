@@ -9,5 +9,5 @@ def test_prior_std_positive(make_world_model):
 
     prior = wm.prior(h)
 
-    assert (prior.std > 0).all()
-    assert torch.isfinite(prior.std).all()
+    assert (prior["std"] > 0).all()
+    assert torch.isfinite(prior["std"]).all()

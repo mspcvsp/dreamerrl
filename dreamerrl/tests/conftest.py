@@ -3,7 +3,7 @@ import numpy as np
 import pytest
 import torch
 
-from dreamerrl.models.world_model import WorldModel
+from dreamerrl.models.world_model import WorldModel, WorldModelState
 
 
 @pytest.fixture(scope="session")
@@ -88,3 +88,16 @@ def fake_batch(device, obs_dim):
         "is_last": torch.zeros(B, L, dtype=torch.bool, device=device),
         "is_terminal": torch.zeros(B, L, dtype=torch.bool, device=device),
     }
+
+
+@pytest.fixture
+def state_to_cpu():
+    def _to_cpu(state: WorldModelState) -> WorldModelState:
+        return WorldModelState(
+            h=state.h.cpu(),
+            z=state.z.cpu(),
+            prior_stats=({k: v.cpu() for k, v in state.prior_stats.items()} if state.prior_stats is not None else None),
+            post_stats=({k: v.cpu() for k, v in state.post_stats.items()} if state.post_stats is not None else None),
+        )
+
+    return _to_cpu

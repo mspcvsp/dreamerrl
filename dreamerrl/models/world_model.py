@@ -71,7 +71,8 @@ class WorldModel(nn.Module):
         self.flat_obs_dim = get_flat_obs_dim(obs_space)
 
         # Encoder: obs → embed
-        self.encoder = build_obs_encoder(obs_space, embed_dim=encoder_hidden).to(build_device)
+        self.embed_size = encoder_hidden
+        self.encoder = build_obs_encoder(obs_space, embed_dim=self.embed_size).to(build_device)
 
         # RSSM deterministic core
         self.rssm = RSSMCore(
@@ -123,8 +124,10 @@ class WorldModel(nn.Module):
     # Initialization
     # ------------------------------------------------------------------
     def init_state(self, batch_size: int) -> WorldModelState:
-        h0 = torch.zeros(batch_size, self.deter_size, device=self.device)
-        z0 = torch.zeros(batch_size, self.stoch_size, device=self.device)
+        # Infer device from model parameters, not from self.device
+        param_device = next(self.parameters()).device
+        h0 = torch.zeros(batch_size, self.deter_size, device=param_device)
+        z0 = torch.zeros(batch_size, self.stoch_size, device=param_device)
         return WorldModelState(h=h0, z=z0)
 
     # ------------------------------------------------------------------
@@ -178,6 +181,52 @@ class WorldModel(nn.Module):
             z = torch.zeros_like(prev.z)
             h = self.rssm(prev.h, z)
             return WorldModelState(h=h, z=z)
+
+    def imagination_rollout(self, state0: WorldModelState, horizon: int):
+        states_h = []
+        states_z = []
+        rewards = []
+
+        state = state0
+        for _ in range(horizon):
+            state = self.imagine_step(state)
+            states_h.append(state.h)
+            states_z.append(state.z)
+            rewards.append(self.reward_head(state.h, state.z))
+
+        return {
+            "state": WorldModelState(
+                h=torch.stack(states_h, dim=1),
+                z=torch.stack(states_z, dim=1),
+            ),
+            "reward_pred": torch.stack(rewards, dim=1),
+        }
+
+    def training_step(self, batch):
+        B, L = batch["state"].shape[:2]
+        state = self.init_state(B)
+
+        device = next(self.parameters()).device
+        total_kl = torch.tensor(0.0, device=device)
+        total_recon = torch.tensor(0.0, device=device)
+        total_reward = torch.tensor(0.0, device=device)
+
+        for t in range(L):
+            obs = batch["state"][:, t]
+            out = self.observe_step(state, obs)
+            state = out["state"]
+
+            total_kl = total_kl + out["kl"]
+            total_recon = total_recon + ((out["recon"] - obs) ** 2).mean()
+            total_reward = total_reward + ((out["reward_pred"] - batch["reward"][:, t : t + 1]) ** 2).mean()
+
+        loss = total_kl + total_recon + total_reward
+
+        return loss, {
+            "kl": total_kl.detach(),
+            "recon": total_recon.detach(),
+            "reward": total_reward.detach(),
+        }
 
     # ------------------------------------------------------------------
     # KL divergence

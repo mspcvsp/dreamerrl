@@ -10,5 +10,5 @@ def test_posterior_std_positive(make_world_model):
 
     post = wm.posterior(h, embed)
 
-    assert (post.std > 0).all()
-    assert torch.isfinite(post.std).all()
+    assert (post["std"] > 0).all()
+    assert torch.isfinite(post["std"]).all()
