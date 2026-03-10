@@ -4,6 +4,8 @@ import pytest
 import torch
 
 from dreamerrl.models.world_model import WorldModel, WorldModelState
+from dreamerrl.training.replay_buffer import DreamerReplayBuffer
+from dreamerrl.training.test_trainer import _TestDreamerTrainer
 
 
 @pytest.fixture(scope="session")
@@ -101,3 +103,49 @@ def state_to_cpu():
         )
 
     return _to_cpu
+
+
+@pytest.fixture
+def replay_buffer_factory(obs_dim, device):
+    def make():
+        num_envs = 1
+        capacity_episodes = 100
+        rb = DreamerReplayBuffer(
+            num_envs=num_envs,
+            obs_dim=obs_dim,
+            capacity_episodes=capacity_episodes,
+            device=device,
+        )
+        torch.manual_seed(0)
+        for _ in range(20):
+            rb.add(
+                state=torch.randn(obs_dim, device=device),
+                action=torch.zeros(1, device=device),
+                reward=torch.randn((), device=device),
+                is_first=torch.tensor(True, device=device),
+                is_last=torch.tensor(False, device=device),
+                is_terminal=torch.tensor(False, device=device),
+            )
+            rb.add(
+                state=torch.randn(obs_dim, device=device),
+                action=torch.zeros(1, device=device),
+                reward=torch.randn((), device=device),
+                is_first=torch.tensor(False, device=device),
+                is_last=torch.tensor(True, device=device),
+                is_terminal=torch.tensor(False, device=device),
+            )
+        return rb
+
+    return make
+
+
+@pytest.fixture
+def test_trainer(world_model, replay_buffer_factory, device):
+    # No actor/critic needed for world-model-only tests
+    return _TestDreamerTrainer(
+        world_model=world_model,
+        actor=None,
+        critic=None,
+        replay_buffer=replay_buffer_factory(),
+        device=device,
+    )
