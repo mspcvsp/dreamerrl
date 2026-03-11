@@ -1,13 +1,16 @@
+from __future__ import annotations
+
+from typing import Any
+
 import gymnasium as gym
 import numpy as np
 import torch
 import torch.nn as nn
 
-# ============================================================
-# 1. Compute flat observation dimension (unchanged)
-# ============================================================
 
-
+# ============================================================
+# 1. Compute flat observation dimension
+# ============================================================
 def get_flat_obs_dim(space: gym.Space) -> int:
     if isinstance(space, gym.spaces.Box):
         return int(np.prod(space.shape))
@@ -18,16 +21,15 @@ def get_flat_obs_dim(space: gym.Space) -> int:
     elif isinstance(space, gym.spaces.Discrete):
         return 1
     else:
-        raise NotImplementedError(f"Unsupported observation space: {space}")
+        raise NotImplementedError(f"Unsupported observation space: {space!r}")
 
 
 # ============================================================
-# 2. Flatten obs (unchanged)
+# 2. Flatten obs (numpy, for env-side use if needed)
 # ============================================================
-
-
-def flatten_obs(obs, space: gym.Space) -> np.ndarray:
+def flatten_obs(obs: Any, space: gym.Space) -> np.ndarray:
     if isinstance(space, gym.spaces.Box):
+        obs = np.asarray(obs, dtype=np.float32)
         return obs.reshape(obs.shape[0], -1)
     elif isinstance(space, gym.spaces.Dict):
         parts = [flatten_obs(obs[k], sub) for k, sub in space.spaces.items()]
@@ -44,17 +46,16 @@ def flatten_obs(obs, space: gym.Space) -> np.ndarray:
 # ============================================================
 # 3. Dreamer ObsEncoder (MLP with SiLU + Xavier)
 # ============================================================
-
-
 class ObsEncoder(nn.Module):
     """
-    Dreamer-style observation encoder:
-    - Input: flat observation vector (B, flat_dim)
-    - Output: embedding vector (B, embed_dim)
-    - Uses SiLU activations and Xavier initialization
+    Dreamer-style observation encoder.
+
+    - Input:  (B, flat_dim) tensor
+    - Output: (B, embed_dim) tensor
+    - Uses SiLU activations and Xavier initialization.
     """
 
-    def __init__(self, flat_dim: int, embed_dim: int = 256):
+    def __init__(self, flat_dim: int, embed_dim: int = 256) -> None:
         super().__init__()
 
         self.net = nn.Sequential(
@@ -64,10 +65,11 @@ class ObsEncoder(nn.Module):
             nn.SiLU(),
         )
 
-        self.output_size = embed_dim
+        self.output_size: int = embed_dim
         self.apply(self._init_weights)
 
-    def _init_weights(self, m):
+    @staticmethod
+    def _init_weights(m: nn.Module) -> None:
         if isinstance(m, nn.Linear):
             nn.init.xavier_uniform_(m.weight)
             if m.bias is not None:
@@ -75,14 +77,14 @@ class ObsEncoder(nn.Module):
 
     def forward(self, obs: torch.Tensor) -> torch.Tensor:
         # obs: (B, flat_dim)
+        if obs.dim() != 2:
+            raise ValueError(f"ObsEncoder expects 2D input (B, F), got shape {tuple(obs.shape)}")
         return self.net(obs)
 
 
 # ============================================================
 # 4. Builder
 # ============================================================
-
-
-def build_obs_encoder(space: gym.Space, embed_dim: int = 256) -> nn.Module:
+def build_obs_encoder(space: gym.Space, embed_dim: int = 256) -> ObsEncoder:
     flat_dim = get_flat_obs_dim(space)
     return ObsEncoder(flat_dim, embed_dim)
