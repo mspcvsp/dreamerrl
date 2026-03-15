@@ -153,9 +153,8 @@ def test_trainer(world_model, replay_buffer_factory, device):
 
 @pytest.fixture
 def imagine_input(world_model, batch_size=4, device="cpu"):
-    latent_dim = world_model.latent_dim
-    h = torch.randn(batch_size, latent_dim, device=device)
-    z = torch.randn(batch_size, latent_dim, device=device)
+    h = torch.randn(batch_size, world_model.deter_size, device=device)
+    z = torch.randn(batch_size, world_model.latent_dim, device=device)
     return world_model.state_class(h=h, z=z)
 
 

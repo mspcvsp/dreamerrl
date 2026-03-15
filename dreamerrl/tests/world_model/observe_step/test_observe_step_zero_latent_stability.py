@@ -25,7 +25,7 @@ def test_observe_step_zero_latent_stability(world_model, obs_batch):
     }
 
     with torch.no_grad():
-        out = wm.observe_step(zero_state, obs_batch)
+        out = wm.observe_step(zero_state, obs_batch["obs"])
 
     # --- Invariants ---
 
@@ -43,7 +43,7 @@ def test_observe_step_zero_latent_stability(world_model, obs_batch):
 
     # 4. Deterministic under zero-latent conditions
     with torch.no_grad():
-        out2 = wm.observe_step(zero_state, obs_batch)
+        out2 = wm.observe_step(zero_state, obs_batch["obs"])
 
     for k in out:
         assert torch.allclose(out[k], out2[k]), f"{k} is not deterministic under zero-latent mode"

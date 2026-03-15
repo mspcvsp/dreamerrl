@@ -221,14 +221,18 @@ class WorldModel(nn.Module):
     # ------------------------------------------------------------------
     # Imagination step
     # ------------------------------------------------------------------
-    def imagine_step(self, prev: WorldModelState) -> WorldModelState:
+    def imagine_step(self, prev: WorldModelState, stochastic: bool = True) -> WorldModelState:
         if self.use_stochastic_latent:
-            assert self.prior is not None
-
+            assert self.prior is not None, "Prior network must be defined when use_stochastic_latent=True"
             prior = self.prior(prev.h)
-            z = prior["z"]
+
+            if stochastic:
+                z = prior["z"]
+            else:
+                z = prior["mean"]  # deterministic latent
+
             h = self.rssm(prev.h, z)
-            return WorldModelState(h=h, z=z, prior_stats=prior, post_stats=None)
+            return self.state_class(h=h, z=z, prior_stats=prior, post_stats=None)
         else:
             z = torch.zeros_like(prev.z)
             h = self.rssm(prev.h, z)
