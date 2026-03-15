@@ -152,7 +152,25 @@ def test_trainer(world_model, replay_buffer_factory, device):
 
 
 @pytest.fixture
-def imagine_input(rssm, batch_size=4, latent_dim=32, device="cpu"):
+def imagine_input(world_model, batch_size=4, device="cpu"):
+    latent_dim = world_model.latent_dim
     h = torch.randn(batch_size, latent_dim, device=device)
     z = torch.randn(batch_size, latent_dim, device=device)
-    return rssm.state_class(h=h, z=z)
+    return world_model.state_class(h=h, z=z)
+
+
+@pytest.fixture
+def obs_input(obs_batch):
+    return obs_batch
+
+
+@pytest.fixture
+def rssm(world_model):
+    return world_model.rssm
+
+
+@pytest.fixture
+def obs_batch(obs_space, action_dim, batch_size=4, device="cpu"):
+    obs = torch.randn(batch_size, *obs_space.shape, device=device)
+    action = torch.randint(0, action_dim, (batch_size,), device=device)
+    return {"obs": obs, "action": action}

@@ -23,6 +23,57 @@ class WorldModelState:
     prior_stats: Optional[Dict[str, torch.Tensor]] = None
     post_stats: Optional[Dict[str, torch.Tensor]] = None
 
+    def to(self, device: torch.device):
+        return WorldModelState(
+            h=self.h.to(device),
+            z=self.z.to(device),
+            prior_stats=(
+                {k: v.to(device) for k, v in self.prior_stats.items()} if self.prior_stats is not None else None
+            ),
+            post_stats=({k: v.to(device) for k, v in self.post_stats.items()} if self.post_stats is not None else None),
+        )
+
+    def cpu(self):
+        return self.to(torch.device("cpu"))
+
+    def cuda(self):
+        return self.to(torch.device("cuda"))
+
+    def detach(self):
+        return WorldModelState(
+            h=self.h.detach(),
+            z=self.z.detach(),
+            prior_stats=(
+                {k: v.detach() for k, v in self.prior_stats.items()} if self.prior_stats is not None else None
+            ),
+            post_stats=({k: v.detach() for k, v in self.post_stats.items()} if self.post_stats is not None else None),
+        )
+
+    def clone(self):
+        return WorldModelState(
+            h=self.h.clone(),
+            z=self.z.clone(),
+            prior_stats=({k: v.clone() for k, v in self.prior_stats.items()} if self.prior_stats is not None else None),
+            post_stats=({k: v.clone() for k, v in self.post_stats.items()} if self.post_stats is not None else None),
+        )
+
+    def to_dict(self):
+        return {
+            "h": self.h,
+            "z": self.z,
+            "prior_stats": self.prior_stats,
+            "post_stats": self.post_stats,
+        }
+
+    @classmethod
+    def from_dict(cls, d):
+        return cls(
+            h=d["h"],
+            z=d["z"],
+            prior_stats=d.get("prior_stats"),
+            post_stats=d.get("post_stats"),
+        )
+
 
 class WorldModel(nn.Module):
     """
@@ -59,6 +110,7 @@ class WorldModel(nn.Module):
         self.deter_size = deter_size
         self.stoch_size = stoch_size
         self.use_stochastic_latent = use_stochastic_latent
+        self.state_class = WorldModelState
 
         # Enable deterministic latents only for CPU/GPU numerical equivalence tests
         # Training remains stochastic.
@@ -128,7 +180,7 @@ class WorldModel(nn.Module):
         param_device = next(self.parameters()).device
         h0 = torch.zeros(batch_size, self.deter_size, device=param_device)
         z0 = torch.zeros(batch_size, self.stoch_size, device=param_device)
-        return WorldModelState(h=h0, z=z0)
+        return self.state_class(h=h0, z=z0)
 
     # ------------------------------------------------------------------
     # Single-step observation update
@@ -250,3 +302,7 @@ class WorldModel(nn.Module):
 
     def predict_reward(self, state: WorldModelState) -> torch.Tensor:
         return self.reward_head(state.h, state.z)
+
+    @property
+    def latent_dim(self):
+        return self.stoch_size
