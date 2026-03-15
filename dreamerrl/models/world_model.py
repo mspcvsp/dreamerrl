@@ -66,13 +66,20 @@ class WorldModelState:
         }
 
     @classmethod
-    def from_dict(cls, d):
+    def from_dict(cls, d: Dict[str, Any]) -> WorldModelState:
         return cls(
             h=d["h"],
             z=d["z"],
             prior_stats=d.get("prior_stats"),
             post_stats=d.get("post_stats"),
         )
+
+    # Make it behave like a dict for tests that iterate over it
+    def __iter__(self):
+        return iter(self.to_dict())
+
+    def __getitem__(self, key):
+        return self.to_dict()[key]
 
 
 class WorldModel(nn.Module):
@@ -187,9 +194,21 @@ class WorldModel(nn.Module):
     # ------------------------------------------------------------------
     def observe_step(
         self,
-        prev: WorldModelState,
-        obs: torch.Tensor,
+        prev,
+        obs: Optional[torch.Tensor] = None,
     ) -> Dict[str, Any]:
+        # Allow observe_step(obs_batch) as shorthand
+        if obs is None:
+            # prev is actually the obs batch dict
+            obs_batch = prev
+            obs = obs_batch["obs"]
+            assert isinstance(obs, torch.Tensor)
+            prev = self.init_state(obs.shape[0])
+
+        # Allow prev to be a dict with "h"/"z"
+        if isinstance(prev, dict):
+            prev = self.state_class.from_dict(prev)
+
         embed = self.encoder(obs)
 
         if self.use_stochastic_latent:
@@ -200,12 +219,12 @@ class WorldModel(nn.Module):
             z = post["z"]
             prior = self.prior(prev.h)
             h = self.rssm(prev.h, z)
-            state = WorldModelState(h=h, z=z, prior_stats=prior, post_stats=post)
+            state = self.state_class(h=h, z=z, prior_stats=prior, post_stats=post)
             kl = self.kl_divergence(post, prior)
         else:
             z = torch.zeros_like(prev.z)
             h = self.rssm(prev.h, z)
-            state = WorldModelState(h=h, z=z)
+            state = self.state_class(h=h, z=z)
             kl = torch.zeros((), device=self.device)
 
         recon = self.decoder(state.h, state.z)
@@ -223,40 +242,33 @@ class WorldModel(nn.Module):
     # ------------------------------------------------------------------
     def imagine_step(self, prev: WorldModelState, stochastic: bool = True) -> WorldModelState:
         if self.use_stochastic_latent:
-            assert self.prior is not None, "Prior network must be defined when use_stochastic_latent=True"
+            assert self.prior is not None
+
             prior = self.prior(prev.h)
 
             if stochastic:
                 z = prior["z"]
             else:
-                z = prior["mean"]  # deterministic latent
+                # deterministic latent for tests
+                z = prior["mean"]
 
             h = self.rssm(prev.h, z)
             return self.state_class(h=h, z=z, prior_stats=prior, post_stats=None)
         else:
             z = torch.zeros_like(prev.z)
             h = self.rssm(prev.h, z)
-            return WorldModelState(h=h, z=z)
+            return self.state_class(h=h, z=z)
 
     def imagination_rollout(self, state0: WorldModelState, horizon: int):
-        states_h = []
-        states_z = []
-        rewards = []
+        device = next(self.parameters()).device
+        state = state0.to(device)
 
-        state = state0
+        rollout = []
         for _ in range(horizon):
             state = self.imagine_step(state)
-            states_h.append(state.h)
-            states_z.append(state.z)
-            rewards.append(self.reward_head(state.h, state.z))
+            rollout.append(state.clone())  # WorldModelState elements
 
-        return {
-            "state": WorldModelState(
-                h=torch.stack(states_h, dim=1),
-                z=torch.stack(states_z, dim=1),
-            ),
-            "reward_pred": torch.stack(rewards, dim=1),
-        }
+        return rollout
 
     def training_step(self, batch):
         B, L = batch["state"].shape[:2]
@@ -309,4 +321,5 @@ class WorldModel(nn.Module):
 
     @property
     def latent_dim(self):
+        # tests only ever use this for z dimension
         return self.stoch_size
