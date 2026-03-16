@@ -1,41 +1,31 @@
 import torch
 
-from dreamerrl.training.core import imagination_rollout
+from dreamerrl.training.core import imagine_trajectory_for_testing
 
 
-def test_imagination_rollout_invariants(world_model):
+def test_imagination_invariants(world_model):
     B, H = 4, 6
     deter = world_model.deter_size
     stoch = world_model.stoch_size
 
     state = world_model.init_state(B)
 
-    out = imagination_rollout(
+    traj = imagine_trajectory_for_testing(
         world_model=world_model,
-        actor=None,
-        critic=None,
         state=state,
         horizon=H,
-        with_values=False,
-        with_actions=False,
-        no_grad=True,
     )
 
-    # --- Assert non-None first (fixes Pylance) ---
-    assert out["h"] is not None
-    assert out["z"] is not None
+    h = traj["h"]
+    z = traj["z"]
+    reward = traj["reward"]
 
-    # --- Now safe to access attributes ---
-    h = out["h"]
-    z = out["z"]
-
+    # Basic shape invariants
     assert h.shape == (H, B, deter)
     assert z.shape == (H, B, stoch)
+    assert reward.shape == (H, B)
 
-    # value/action intentionally None
-    assert out["value"] is None
-    assert out["action"] is None
-
-    # --- Pylance-safe finite checks ---
+    # Finite values
     assert torch.isfinite(h).all()
     assert torch.isfinite(z).all()
+    assert torch.isfinite(reward).all()

@@ -10,7 +10,7 @@ from dreamerrl.models.world_model import WorldModel
 
 # --- Core functions (single source of truth) ---
 from dreamerrl.training.core import (
-    imagination_rollout,
+    imagine_trajectory_for_training,
     lambda_return,
     world_model_training_step,
 )
@@ -51,7 +51,11 @@ class _TestDreamerTrainer:
 
     # ---------------- Imagination rollout ----------------
     def imagination_rollout(self, state, horizon: int):
-        return imagination_rollout(
+        # For training, actor and critic MUST be provided
+        assert self.actor is not None, "Training imagination requires an Actor"
+        assert self.critic is not None, "Training imagination requires a Critic"
+
+        return imagine_trajectory_for_training(
             world_model=self.world,
             actor=self.actor,
             critic=self.critic,

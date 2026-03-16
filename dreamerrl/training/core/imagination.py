@@ -1,84 +1,92 @@
+# dreamerrl/training/core/imagination.py
+
 from __future__ import annotations
 
-from contextlib import nullcontext
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List
 
 import torch
+from torch.distributions import Categorical
 
-from dreamerrl.models.world_model import WorldModel
+from dreamerrl.models.actor import Actor
+from dreamerrl.models.value_head import ValueHead
+from dreamerrl.models.world_model import WorldModel, WorldModelState
 
 
-def imagination_rollout(
+def imagine_trajectory_for_training(
     world_model: WorldModel,
-    actor: Optional[torch.nn.Module],
-    critic: Optional[torch.nn.Module],
-    state: Any,
+    actor: Actor,
+    critic: ValueHead,
+    state: WorldModelState,
     horizon: int,
-    with_values: bool = True,
-    with_actions: bool = True,
-    no_grad: bool = True,
-) -> Dict[str, Optional[torch.Tensor]]:
+) -> Dict[str, Any]:
     """
-    Tiny rollout inspector.
-
-    Rolls out the world model for `horizon` steps starting from `state`
-    and optionally annotates with values and actions.
-
-    Returns a dict with:
-        "h":      (T, B, deter_size)
-        "z":      (T, B, stoch_size)
-        "value":  (T, B) or None
-        "action": (T, B) or None
+    Training-time imagination.
+    Always returns actions, values, rewards, h, z.
     """
     device = next(world_model.parameters()).device
-    start_state = world_model._ensure_state(state).to(device)
+    s = state.to(device)
 
-    ctx = torch.no_grad() if no_grad else nullcontext()
-    with ctx:
-        states = world_model.imagination_rollout(start_state, horizon=horizon)
+    hs: List[torch.Tensor] = []
+    zs: List[torch.Tensor] = []
+    rewards: List[torch.Tensor] = []
+    actions: List[torch.Tensor] = []
+    values: List[torch.Tensor] = []
 
-        h = torch.stack([s.h for s in states], dim=0)
-        z = torch.stack([s.z for s in states], dim=0)
+    for _ in range(horizon):
+        # reward + value
+        r = world_model.predict_reward(s).squeeze(-1)
+        v = critic(s.h, s.z).squeeze(-1)
 
-        value: Optional[torch.Tensor] = None
-        action: Optional[torch.Tensor] = None
+        rewards.append(r)
+        values.append(v)
 
-        if critic is not None and with_values:
-            # critic expects (T, B, ...) tensors
-            value = critic(h, z).squeeze(-1)
+        # action
+        logits = actor(s.h, s.z)
+        dist = Categorical(logits=logits)
+        a = dist.sample()
+        actions.append(a)
 
-        if actor is not None and with_actions:
-            logits = actor(h, z)  # (T, B, A)
-            dist = torch.distributions.Categorical(logits=logits)
-            action = dist.sample()  # (T, B)
+        # world model transition
+        s = world_model.imagine_step(s)
+        hs.append(s.h)
+        zs.append(s.z)
 
     return {
-        "h": h,
-        "z": z,
-        "value": value,
-        "action": action,
+        "h": torch.stack(hs, dim=0),
+        "z": torch.stack(zs, dim=0),
+        "reward": torch.stack(rewards, dim=0),
+        "value": torch.stack(values, dim=0),
+        "action": torch.stack(actions, dim=0),
     }
 
 
-def imagine_trajectory(
+def imagine_trajectory_for_testing(
     world_model: WorldModel,
-    actor: Optional[torch.nn.Module],
-    critic: Optional[torch.nn.Module],
-    state: Any,
+    state: WorldModelState,
     horizon: int,
-) -> Dict[str, Optional[torch.Tensor]]:
+) -> Dict[str, Any]:
     """
-    Backwards‑compatible wrapper used by tests.
+    Testing-time imagination.
+    Only returns h, z, reward.
+    No actor, no critic.
+    """
+    device = next(world_model.parameters()).device
+    s = state.to(device)
 
-    Delegates to `imagination_rollout` with no values/actions by default.
-    """
-    return imagination_rollout(
-        world_model=world_model,
-        actor=actor,
-        critic=critic,
-        state=state,
-        horizon=horizon,
-        with_values=False,
-        with_actions=False,
-        no_grad=True,
-    )
+    hs: List[torch.Tensor] = []
+    zs: List[torch.Tensor] = []
+    rewards: List[torch.Tensor] = []
+
+    for _ in range(horizon):
+        r = world_model.predict_reward(s).squeeze(-1)
+        rewards.append(r)
+
+        s = world_model.imagine_step(s)
+        hs.append(s.h)
+        zs.append(s.z)
+
+    return {
+        "h": torch.stack(hs, dim=0),
+        "z": torch.stack(zs, dim=0),
+        "reward": torch.stack(rewards, dim=0),
+    }

@@ -1,41 +1,38 @@
 import torch
 
-from dreamerrl.training.core import imagination_rollout
+from dreamerrl.training.core import imagine_trajectory_for_training
 
 
-def test_trainer_imagination_rollout(world_model):
+def test_training_imagination_rollout(world_model, actor, critic):
     B, H = 3, 5
     deter = world_model.deter_size
     stoch = world_model.stoch_size
 
     state = world_model.init_state(B)
 
-    out = imagination_rollout(
+    traj = imagine_trajectory_for_training(
         world_model=world_model,
-        actor=None,
-        critic=None,
+        actor=actor,
+        critic=critic,
         state=state,
         horizon=H,
-        with_values=False,
-        with_actions=False,
-        no_grad=True,
     )
 
-    # --- Assert non-None first ---
-    assert out["h"] is not None
-    assert out["z"] is not None
+    h = traj["h"]
+    z = traj["z"]
+    reward = traj["reward"]
+    value = traj["value"]
+    action = traj["action"]
 
-    h = out["h"]
-    z = out["z"]
-
-    # --- Shape checks ---
+    # Shapes
     assert h.shape == (H, B, deter)
     assert z.shape == (H, B, stoch)
+    assert reward.shape == (H, B)
+    assert value.shape == (H, B)
+    assert action.shape == (H, B)
 
-    # --- Optional fields ---
-    assert out["value"] is None
-    assert out["action"] is None
-
-    # --- Finite checks ---
+    # Finite values
     assert torch.isfinite(h).all()
     assert torch.isfinite(z).all()
+    assert torch.isfinite(reward).all()
+    assert torch.isfinite(value).all()
