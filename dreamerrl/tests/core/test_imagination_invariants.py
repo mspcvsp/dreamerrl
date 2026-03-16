@@ -9,11 +9,33 @@ def test_imagination_rollout_invariants(world_model):
     stoch = world_model.stoch_size
 
     state = world_model.init_state(B)
-    out = imagination_rollout(world_model, actor=None, critic=None, state=state, horizon=H)
 
-    assert out["h"].shape == (H, B, deter)
-    assert out["z"].shape == (H, B, stoch)
+    out = imagination_rollout(
+        world_model=world_model,
+        actor=None,
+        critic=None,
+        state=state,
+        horizon=H,
+        with_values=False,
+        with_actions=False,
+        no_grad=True,
+    )
+
+    # --- Assert non-None first (fixes Pylance) ---
+    assert out["h"] is not None
+    assert out["z"] is not None
+
+    # --- Now safe to access attributes ---
+    h = out["h"]
+    z = out["z"]
+
+    assert h.shape == (H, B, deter)
+    assert z.shape == (H, B, stoch)
+
+    # value/action intentionally None
     assert out["value"] is None
     assert out["action"] is None
-    assert torch.isfinite(out["h"]).all()
-    assert torch.isfinite(out["z"]).all()
+
+    # --- Pylance-safe finite checks ---
+    assert torch.isfinite(h).all()
+    assert torch.isfinite(z).all()

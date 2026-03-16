@@ -23,42 +23,32 @@ def actor_critic_update(
     discount: float,
     lam: float,
 ) -> Tuple[torch.Tensor, torch.Tensor]:
-    """
-    Compute actor and critic losses using imagined rollouts and λ-return.
-
-    Args:
-        world_model: the world model.
-        actor: policy network.
-        critic: value network.
-        batch: replay batch (only batch size is used here).
-        imagination_horizon: number of imagination steps T.
-        discount: discount factor γ.
-        lam: λ parameter.
-
-    Returns:
-        (actor_loss, critic_loss) as scalar tensors.
-    """
     B = batch["state"].size(0)
     state: WorldModelState = world_model.init_state(B)
 
+    # ---- imagination rollout ----
     imagined_states = []
     for _ in range(imagination_horizon):
         state = world_model.imagine_step(state)
         imagined_states.append(state)
 
+    # ---- rewards ----
     rewards = torch.stack(
-        [world_model.predict_reward(s) for s in imagined_states],
+        [world_model.predict_reward(s).squeeze(-1) for s in imagined_states],
         dim=0,
-    ).squeeze(-1)  # (T, B)
+    )  # (T, B)
 
+    # ---- values ----
     values = torch.stack(
-        [critic(s.h, s.z) for s in imagined_states],
+        [critic(s.h, s.z).squeeze(-1) for s in imagined_states],
         dim=0,
-    ).squeeze(-1)  # (T, B)
+    )  # (T, B)
 
-    # Bootstrap value: (T+1, B)
-    value_bootstrap = torch.cat([values, values[-1:].detach()], dim=0)
+    # ---- bootstrap ----
+    bootstrap = critic(imagined_states[-1].h, imagined_states[-1].z).squeeze(-1)
+    value_bootstrap = torch.cat([values, bootstrap.unsqueeze(0)], dim=0)  # (T+1, B)
 
+    # ---- λ-return ----
     returns = lambda_return(
         reward=rewards,
         value=value_bootstrap,
@@ -66,15 +56,17 @@ def actor_critic_update(
         lam=lam,
     )  # (T, B)
 
+    # ---- policy ----
     logits = torch.stack(
         [actor(s.h, s.z) for s in imagined_states],
         dim=0,
     )  # (T, B, A)
 
     dist = torch.distributions.Categorical(logits=logits)
-    actions = dist.sample()
+    actions = dist.sample()  # (T, B)
     logp = dist.log_prob(actions)  # (T, B)
 
+    # ---- losses ----
     actor_loss = -(logp * returns.detach()).mean()
     critic_loss = (values - returns.detach()).pow(2).mean()
 

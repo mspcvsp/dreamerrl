@@ -1,70 +1,84 @@
 from __future__ import annotations
 
+from contextlib import nullcontext
 from typing import Any, Dict, Optional
 
 import torch
 
-from dreamerrl.models.actor import Actor
-from dreamerrl.models.value_head import ValueHead
-from dreamerrl.models.world_model import (
-    WorldModel,
-    WorldModelState,
-)
+from dreamerrl.models.world_model import WorldModel
 
 
 def imagination_rollout(
     world_model: WorldModel,
-    actor: Optional[Actor],
-    critic: Optional[ValueHead],
-    state: WorldModelState,
+    actor: Optional[torch.nn.Module],
+    critic: Optional[torch.nn.Module],
+    state: Any,
     horizon: int,
-) -> Dict[str, Any]:
+    with_values: bool = True,
+    with_actions: bool = True,
+    no_grad: bool = True,
+) -> Dict[str, Optional[torch.Tensor]]:
     """
-    Roll out imagined trajectories in latent space.
+    Tiny rollout inspector.
 
-    Args:
-        world_model: the world model.
-        actor: policy network (may be None).
-        critic: value network (may be None).
-        state: initial latent state (B batch size).
-        horizon: number of imagination steps T.
+    Rolls out the world model for `horizon` steps starting from `state`
+    and optionally annotates with values and actions.
 
-    Returns:
-        Dict with keys:
-            "h": (T, B, deter)
-            "z": (T, B, stoch)
-            "value": (T, B, 1) or None
-            "action": (T, B) or None
+    Returns a dict with:
+        "h":      (T, B, deter_size)
+        "z":      (T, B, stoch_size)
+        "value":  (T, B) or None
+        "action": (T, B) or None
     """
-    hs, zs, values, actions = [], [], [], []
+    device = next(world_model.parameters()).device
+    start_state = world_model._ensure_state(state).to(device)
 
-    for _ in range(horizon):
-        state = world_model.imagine_step(state)
-        hs.append(state.h)
-        zs.append(state.z)
+    ctx = torch.no_grad() if no_grad else nullcontext()
+    with ctx:
+        states = world_model.imagination_rollout(start_state, horizon=horizon)
 
-        if actor is not None:
-            logits = actor(state.h, state.z)
+        h = torch.stack([s.h for s in states], dim=0)
+        z = torch.stack([s.z for s in states], dim=0)
+
+        value: Optional[torch.Tensor] = None
+        action: Optional[torch.Tensor] = None
+
+        if critic is not None and with_values:
+            # critic expects (T, B, ...) tensors
+            value = critic(h, z).squeeze(-1)
+
+        if actor is not None and with_actions:
+            logits = actor(h, z)  # (T, B, A)
             dist = torch.distributions.Categorical(logits=logits)
-            act = dist.sample()
-            actions.append(act)
+            action = dist.sample()  # (T, B)
 
-        if critic is not None:
-            values.append(critic(state.h, state.z))
-
-    out: Dict[str, Any] = {
-        "h": torch.stack(hs),  # (T, B, deter)
-        "z": torch.stack(zs),  # (T, B, stoch)
+    return {
+        "h": h,
+        "z": z,
+        "value": value,
+        "action": action,
     }
 
-    if values:
-        out["value"] = torch.stack(values)  # (T, B, 1)
-    else:
-        out["value"] = None
 
-    if actions:
-        out["action"] = torch.stack(actions)  # (T, B)
-    else:
-        out["action"] = None
+def imagine_trajectory(
+    world_model: WorldModel,
+    actor: Optional[torch.nn.Module],
+    critic: Optional[torch.nn.Module],
+    state: Any,
+    horizon: int,
+) -> Dict[str, Optional[torch.Tensor]]:
+    """
+    Backwards‑compatible wrapper used by tests.
 
-    return out
+    Delegates to `imagination_rollout` with no values/actions by default.
+    """
+    return imagination_rollout(
+        world_model=world_model,
+        actor=actor,
+        critic=critic,
+        state=state,
+        horizon=horizon,
+        with_values=False,
+        with_actions=False,
+        no_grad=True,
+    )

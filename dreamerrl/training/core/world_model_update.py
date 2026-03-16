@@ -12,19 +12,6 @@ def world_model_training_step(
     batch: Dict[str, torch.Tensor],
     kl_scale: float,
 ) -> torch.Tensor:
-    """
-    Single world model training step (no optimizer step, just loss).
-
-    Args:
-        world_model: the world model.
-        batch: dict with keys:
-            "state": (B, L, obs_dim)
-            "reward": (B, L)
-        kl_scale: scaling factor for KL loss.
-
-    Returns:
-        Scalar tensor loss.
-    """
     obs = batch["state"]  # (B, L, obs_dim)
     reward = batch["reward"]  # (B, L)
     B, L, _ = obs.shape
@@ -47,5 +34,4 @@ def world_model_training_step(
     reward_loss = torch.stack(reward_losses).mean()
     kl_loss = torch.stack(kl_losses).mean()
 
-    loss = recon_loss + reward_loss + kl_scale * kl_loss
-    return loss
+    return recon_loss + reward_loss + kl_scale * kl_loss
