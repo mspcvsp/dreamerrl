@@ -13,6 +13,6 @@ def test_rollout_matches_repeated_imagine_step(world_model, imagine_input):
             h = wm.imagine_step(h)
             manual.append(h)
 
-    for t in range(5):
-        for k in rollout[t]:
-            assert torch.allclose(rollout[t][k], manual[t][k])
+    for s_rollout, s_manual in zip(rollout, manual):
+        assert torch.allclose(s_rollout.h, s_manual.h)
+        assert torch.allclose(s_rollout.z, s_manual.z)

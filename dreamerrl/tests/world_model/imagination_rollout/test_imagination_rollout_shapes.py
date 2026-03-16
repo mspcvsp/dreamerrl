@@ -1,10 +1,15 @@
-def test_imagination_rollout_shapes(world_model, fake_batch):
-    B, _ = fake_batch["state"].shape[:2]
-    horizon = 5
+import torch
 
-    state0 = world_model.init_state(B)
-    rollout = world_model.imagination_rollout(state0, horizon=horizon)
 
-    assert rollout["state"].h.shape == (B, horizon, world_model.deter_size)
-    assert rollout["state"].z.shape == (B, horizon, world_model.stoch_size)
-    assert rollout["reward_pred"].shape == (B, horizon, 1)
+def test_imagination_rollout_shapes(world_model, imagine_input):
+    wm = world_model.to("cpu")
+    H = 5
+
+    with torch.no_grad():
+        rollout = wm.imagination_rollout(imagine_input, horizon=H)
+
+    assert len(rollout) == H
+    for s in rollout:
+        assert isinstance(s, type(imagine_input))
+        assert s.h.shape == imagine_input.h.shape
+        assert s.z.shape == imagine_input.z.shape

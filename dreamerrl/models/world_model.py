@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import os
 from dataclasses import dataclass
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Optional
 
 import gymnasium as gym
 import torch
@@ -23,7 +23,7 @@ class WorldModelState:
     prior_stats: Optional[Dict[str, torch.Tensor]] = None
     post_stats: Optional[Dict[str, torch.Tensor]] = None
 
-    def to(self, device: torch.device) -> WorldModelState:
+    def to(self, device: torch.device) -> "WorldModelState":
         return WorldModelState(
             h=self.h.to(device),
             z=self.z.to(device),
@@ -33,13 +33,13 @@ class WorldModelState:
             post_stats=({k: v.to(device) for k, v in self.post_stats.items()} if self.post_stats is not None else None),
         )
 
-    def cpu(self) -> WorldModelState:
+    def cpu(self) -> "WorldModelState":
         return self.to(torch.device("cpu"))
 
-    def cuda(self) -> WorldModelState:
+    def cuda(self) -> "WorldModelState":
         return self.to(torch.device("cuda"))
 
-    def detach(self) -> WorldModelState:
+    def detach(self) -> "WorldModelState":
         return WorldModelState(
             h=self.h.detach(),
             z=self.z.detach(),
@@ -49,7 +49,7 @@ class WorldModelState:
             post_stats=({k: v.detach() for k, v in self.post_stats.items()} if self.post_stats is not None else None),
         )
 
-    def clone(self) -> WorldModelState:
+    def clone(self) -> "WorldModelState":
         return WorldModelState(
             h=self.h.clone(),
             z=self.z.clone(),
@@ -58,14 +58,15 @@ class WorldModelState:
         )
 
     def to_dict(self) -> Dict[str, Any]:
-        # Only expose tensor fields for dict‑like behavior in tests
         return {
             "h": self.h,
             "z": self.z,
+            "prior_stats": self.prior_stats,
+            "post_stats": self.post_stats,
         }
 
     @classmethod
-    def from_dict(cls, d: Dict[str, Any]) -> WorldModelState:
+    def from_dict(cls, d: Dict[str, Any]) -> "WorldModelState":
         return cls(
             h=d["h"],
             z=d["z"],
@@ -75,19 +76,10 @@ class WorldModelState:
 
     # Make it behave like a dict for tests that iterate over it
     def __iter__(self):
-        # Only iterate over tensor keys so tests don't try .cpu() on dicts
         return iter(self.to_dict())
 
     def __getitem__(self, key: str) -> Any:
-        if key == "h":
-            return self.h
-        if key == "z":
-            return self.z
-        if key == "prior_stats":
-            return self.prior_stats
-        if key == "post_stats":
-            return self.post_stats
-        raise KeyError(key)
+        return self.to_dict()[key]
 
 
 class WorldModel(nn.Module):
@@ -110,7 +102,10 @@ class WorldModel(nn.Module):
     ):
         super().__init__()
 
-        # Deterministic init for CPU/GPU equivalence tests
+        # ---------------------------------------------------------
+        # Deterministic initialization for CPU/GPU equivalence tests.
+        # Trainer reseeds RNG after construction, so training remains stochastic.
+        # ---------------------------------------------------------
         torch.manual_seed(0)
         if torch.cuda.is_available():
             torch.cuda.manual_seed_all(0)
@@ -124,10 +119,13 @@ class WorldModel(nn.Module):
         self.use_stochastic_latent = use_stochastic_latent
         self.state_class = WorldModelState
 
-        # Deterministic latent mode for tests only
+        # Enable deterministic latents only for CPU/GPU numerical equivalence tests
+        # Training remains stochastic.
         self.deterministic_latent_for_tests = bool(int(os.environ.get("DREAMER_DETERMINISTIC_TEST", "0")))
 
+        # ---------------------------------------------------------
         # Observation encoder / decoder
+        # ---------------------------------------------------------
         self.obs_space = obs_space
         self.flat_obs_dim = get_flat_obs_dim(obs_space)
 
@@ -176,7 +174,10 @@ class WorldModel(nn.Module):
             hidden_size=reward_hidden,
         ).to(build_device)
 
-        # DO NOT MOVE TO DEVICE HERE; caller controls .to(...)
+        """
+        DO NOT MOVE TO DEVICE HERE. The caller (trainer or test) will move the model. This guarantees CPU/GPU models
+        start from identical weights.
+        """
 
     # ------------------------------------------------------------------
     # Initialization
@@ -195,21 +196,10 @@ class WorldModel(nn.Module):
         self,
         prev: Any,
         obs: Optional[torch.Tensor] = None,
-    ) -> Any:
-        """
-        Two modes:
-
-        1) Shorthand: observe_step(obs_batch_dict)
-           - obs_batch_dict must have key "obs"
-           - returns WorldModelState
-
-        2) Full: observe_step(prev_state, obs_tensor)
-           - prev_state can be WorldModelState or dict with "h"/"z"
-           - returns dict with keys: "state", "recon", "reward_pred", "kl"
-        """
-        shorthand_mode = obs is None
-
-        if shorthand_mode:
+    ) -> Dict[str, Any]:
+        # Allow observe_step(obs_batch) as shorthand
+        if obs is None:
+            # prev is actually the obs batch dict
             obs_batch = prev
             obs = obs_batch["obs"]
             assert isinstance(obs, torch.Tensor)
@@ -238,10 +228,6 @@ class WorldModel(nn.Module):
         recon = self.decoder(state.h, state.z)
         reward_pred = self.reward_head(state.h, state.z)
 
-        if shorthand_mode:
-            # Integration tests expect a WorldModelState here
-            return state
-
         return {
             "state": state,
             "recon": recon,
@@ -268,29 +254,23 @@ class WorldModel(nn.Module):
         else:
             z = torch.zeros_like(prev_state.z)
             h = self.rssm(prev_state.h, z)
-            return self.state_class(h=h, z=z, prior_stats=None, post_stats=None)
+            return self.state_class(h=h, z=z)
 
-    # ------------------------------------------------------------------
-    # Imagination rollout
-    # ------------------------------------------------------------------
     def imagination_rollout(
         self,
         state0: Any,
         horizon: int,
-    ) -> List[WorldModelState]:
+    ) -> list[WorldModelState]:
         device = next(self.parameters()).device
         state = self._ensure_state(state0).to(device)
 
-        rollout: List[WorldModelState] = []
+        rollout: list[WorldModelState] = []
         for _ in range(horizon):
             state = self.imagine_step(state)
             rollout.append(state)
 
         return rollout
 
-    # ------------------------------------------------------------------
-    # Training step
-    # ------------------------------------------------------------------
     def training_step(self, batch: Dict[str, torch.Tensor]):
         B, L = batch["state"].shape[:2]
         state: WorldModelState = self.init_state(B)
@@ -304,10 +284,18 @@ class WorldModel(nn.Module):
             obs = batch["state"][:, t]
             out = self.observe_step(state, obs)
             state = out["state"]
+            assert isinstance(state, WorldModelState)
 
-            total_kl = total_kl + out["kl"]
-            total_recon = total_recon + ((out["recon"] - obs) ** 2).mean()
-            total_reward = total_reward + ((out["reward_pred"] - batch["reward"][:, t : t + 1]) ** 2).mean()
+            kl_t = out["kl"]
+            recon_t = out["recon"]
+            reward_pred_t = out["reward_pred"]
+            assert isinstance(kl_t, torch.Tensor)
+            assert isinstance(recon_t, torch.Tensor)
+            assert isinstance(reward_pred_t, torch.Tensor)
+
+            total_kl = total_kl + kl_t
+            total_recon = total_recon + ((recon_t - obs) ** 2).mean()
+            total_reward = total_reward + ((reward_pred_t - batch["reward"][:, t : t + 1]) ** 2).mean()
 
         loss = total_kl + total_recon + total_reward
 
@@ -348,19 +336,16 @@ class WorldModel(nn.Module):
         # tests only ever use this for z dimension
         return self.stoch_size
 
-    # ------------------------------------------------------------------
-    # Internal helpers
-    # ------------------------------------------------------------------
     def _ensure_state(self, s: Any) -> WorldModelState:
         # Already a WorldModelState
         if isinstance(s, WorldModelState):
             return s
 
-        # observe_step two‑arg mode returns {"state": WorldModelState, ...}
+        # observe_step returns {"state": WorldModelState}
         if isinstance(s, dict) and "state" in s:
             s = s["state"]
 
-        # dict with h/z (and maybe stats)
+        # dict with h/z
         if isinstance(s, dict) and "h" in s and "z" in s:
             return self.state_class.from_dict(s)
 

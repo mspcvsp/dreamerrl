@@ -1,13 +1,14 @@
 import torch
 
 
-def test_imagination_rollout_deterministic(world_model):
-    B, horizon = 4, 6
-    state0 = world_model.init_state(B)
+def test_imagination_rollout_deterministic(world_model, imagine_input):
+    wm = world_model.to("cpu")
 
-    roll1 = world_model.imagination_rollout(state0, horizon=horizon)
-    roll2 = world_model.imagination_rollout(state0, horizon=horizon)
+    with torch.no_grad():
+        out1 = wm.imagination_rollout(imagine_input, horizon=5)
+        out2 = wm.imagination_rollout(imagine_input, horizon=5)
 
-    torch.testing.assert_close(roll1["state"].h, roll2["state"].h)
-    torch.testing.assert_close(roll1["state"].z, roll2["state"].z)
-    torch.testing.assert_close(roll1["reward_pred"], roll2["reward_pred"])
+    assert len(out1) == len(out2) == 5
+    for s1, s2 in zip(out1, out2):
+        assert torch.allclose(s1.h, s2.h)
+        assert torch.allclose(s1.z, s2.z)
