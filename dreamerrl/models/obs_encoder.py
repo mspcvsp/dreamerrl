@@ -7,6 +7,8 @@ import numpy as np
 import torch
 import torch.nn as nn
 
+from dreamerrl.utils.transforms import symlog
+
 
 # ============================================================
 # 1. Compute flat observation dimension
@@ -76,9 +78,9 @@ class ObsEncoder(nn.Module):
                 nn.init.zeros_(m.bias)
 
     def forward(self, obs: torch.Tensor) -> torch.Tensor:
-        # obs: (B, flat_dim)
         if obs.dim() != 2:
-            raise ValueError(f"ObsEncoder expects 2D input (B, F), got shape {tuple(obs.shape)}")
+            raise ValueError(...)
+        obs = symlog(obs)
         return self.net(obs)
 
 
