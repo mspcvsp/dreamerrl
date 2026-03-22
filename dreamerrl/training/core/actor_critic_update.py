@@ -1,73 +1,91 @@
 from __future__ import annotations
 
-from typing import Dict, Tuple
-
 import torch
+from torch.distributions import Categorical
 
-from dreamerrl.models.actor import Actor
-from dreamerrl.models.value_head import ValueHead
-from dreamerrl.models.world_model import (
-    WorldModel,
-    WorldModelState,
-)
-
-from .lambda_return import lambda_return
+from dreamerrl.training.core.imagination import imagine_trajectory_for_training
+from dreamerrl.training.core.lambda_return import lambda_return
+from dreamerrl.utils.transforms import symlog
+from dreamerrl.utils.twohot import twohot_encode, value_from_logits
 
 
 def actor_critic_update(
-    world_model: WorldModel,
-    actor: Actor,
-    critic: ValueHead,
-    batch: Dict[str, torch.Tensor],
+    world_model,
+    actor,
+    critic,
+    batch,
     imagination_horizon: int,
     discount: float,
-    lam: float,
-) -> Tuple[torch.Tensor, torch.Tensor]:
-    B = batch["state"].size(0)
-    state: WorldModelState = world_model.init_state(B)
+    lam: float,  # <--- matches trainer
+) -> tuple[torch.Tensor, torch.Tensor]:
+    # ---------------------------------------------------------
+    # 1. Imagination rollout
+    # ---------------------------------------------------------
+    start_state = world_model.init_state(batch["state"].shape[0])
+    traj = imagine_trajectory_for_training(
+        world_model=world_model,
+        actor=actor,
+        critic=critic,
+        state=start_state,
+        horizon=imagination_horizon,
+    )
 
-    # ---- imagination rollout ----
-    imagined_states = []
-    for _ in range(imagination_horizon):
-        state = world_model.imagine_step(state)
-        imagined_states.append(state)
+    h = traj["h"]  # (T, B, deter)
+    z = traj["z"]  # (T, B, stoch)
+    reward = traj["reward"]  # (T, B)
+    action = traj["action"]  # (T, B)
 
-    # ---- rewards ----
-    rewards = torch.stack(
-        [world_model.predict_reward(s).squeeze(-1) for s in imagined_states],
-        dim=0,
-    )  # (T, B)
+    T, B = reward.shape
 
-    # ---- values ----
-    values = torch.stack(
-        [critic(s.h, s.z).squeeze(-1) for s in imagined_states],
-        dim=0,
-    )  # (T, B)
+    # ---------------------------------------------------------
+    # 2. Critic target: λ-return in symlog space
+    # ---------------------------------------------------------
+    with torch.no_grad():
+        bootstrap_logits = critic(h[-1], z[-1])  # (B, num_bins)
+        bootstrap_value = value_from_logits(bootstrap_logits)  # (B,)
 
-    # ---- bootstrap ----
-    bootstrap = critic(imagined_states[-1].h, imagined_states[-1].z).squeeze(-1)
-    value_bootstrap = torch.cat([values, bootstrap.unsqueeze(0)], dim=0)  # (T+1, B)
+        returns = lambda_return(
+            reward=reward,
+            value=bootstrap_value,
+            discount=discount,
+            lam=lam,  # <--- correct
+        )  # (T, B)
 
-    # ---- λ-return ----
-    returns = lambda_return(
-        reward=rewards,
-        value=value_bootstrap,
-        discount=discount,
-        lam=lam,
-    )  # (T, B)
+        returns_symlog = symlog(returns)
 
-    # ---- policy ----
-    logits = torch.stack(
-        [actor(s.h, s.z) for s in imagined_states],
-        dim=0,
-    )  # (T, B, A)
+    # ---------------------------------------------------------
+    # 3. Critic loss (two-hot)
+    # ---------------------------------------------------------
+    critic_logits = critic(
+        h.reshape(T * B, -1),
+        z.reshape(T * B, -1),
+    ).reshape(T, B, -1)
 
-    dist = torch.distributions.Categorical(logits=logits)
-    actions = dist.sample()  # (T, B)
-    logp = dist.log_prob(actions)  # (T, B)
+    target_twohot = twohot_encode(returns_symlog)
+    log_probs = torch.log_softmax(critic_logits, dim=-1)
+    critic_loss = -(target_twohot * log_probs).sum(dim=-1).mean()
 
-    # ---- losses ----
-    actor_loss = -(logp * returns.detach()).mean()
-    critic_loss = (values - returns.detach()).pow(2).mean()
+    # ---------------------------------------------------------
+    # 4. Actor loss (return normalization)
+    # ---------------------------------------------------------
+    with torch.no_grad():
+        value_pred = value_from_logits(critic_logits)
+        adv = returns - value_pred
+
+        flat = returns.reshape(-1)
+        p5, p95 = torch.quantile(flat, torch.tensor([0.05, 0.95], device=flat.device))
+        scale = torch.clamp(p95 - p5, min=1.0)
+        adv_norm = adv / scale
+
+    logits = actor(
+        h.reshape(T * B, -1),
+        z.reshape(T * B, -1),
+    ).reshape(T, B, -1)
+
+    dist = Categorical(logits=logits)
+    logp = dist.log_prob(action)
+    entropy = dist.entropy()
+
+    actor_loss = -(logp * adv_norm.detach()).mean() - 1e-3 * entropy.mean()
 
     return actor_loss, critic_loss
