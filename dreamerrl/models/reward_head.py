@@ -1,43 +1,65 @@
+from __future__ import annotations
+
 import torch
 import torch.nn as nn
 
+from dreamerrl.utils.transforms import symlog
+from dreamerrl.utils.twohot import BINS, twohot_encode, value_from_logits
+
 
 class RewardHead(nn.Module):
-    """
-    Dreamer-style reward predictor.
-    Predicts scalar reward from latent state (h, z).
-
-    Works for:
-    - Dreamer-Lite (z = 0)
-    - Full Dreamer (z from posterior/prior)
-    """
-
-    def __init__(self, deter_size: int, stoch_size: int, hidden_size: int = 256):
+    def __init__(
+        self,
+        deter_size: int,
+        stoch_size: int,
+        hidden_size: int,
+        num_bins: int | None = None,
+    ):
         super().__init__()
-
         input_dim = deter_size + stoch_size
+        if num_bins is None:
+            num_bins = BINS.numel()
+        self.num_bins = num_bins
 
         self.net = nn.Sequential(
             nn.Linear(input_dim, hidden_size),
             nn.SiLU(),
             nn.Linear(hidden_size, hidden_size),
             nn.SiLU(),
-            nn.Linear(hidden_size, 1),  # scalar reward
+            nn.Linear(hidden_size, num_bins),
         )
 
         self.apply(self._init_weights)
 
-    def _init_weights(self, m):
+    def _init_weights(self, m: nn.Module) -> None:
         if isinstance(m, nn.Linear):
             nn.init.xavier_uniform_(m.weight)
             if m.bias is not None:
                 nn.init.zeros_(m.bias)
 
-    def forward(self, h, z):
-        """
-        h: (B, deter_size)
-        z: (B, stoch_size)
-        Returns: predicted reward (B, 1)
-        """
+    def forward(self, h: torch.Tensor, z: torch.Tensor) -> torch.Tensor:
         x = torch.cat([h, z], dim=-1)
-        return self.net(x)
+        return self.net(x)  # (B, num_bins)
+
+    @staticmethod
+    def loss_from_logits(
+        logits: torch.Tensor,
+        reward: torch.Tensor,
+    ) -> torch.Tensor:
+        """
+        logits: (T, B, num_bins) or (B, num_bins)
+        reward: (T, B) or (B,) raw scalar reward
+        """
+        target = symlog(reward)
+        target_twohot = twohot_encode(target)
+        log_probs = torch.log_softmax(logits, dim=-1)
+        loss = -(target_twohot * log_probs).sum(dim=-1).mean()
+        return loss
+
+    @staticmethod
+    def readout(logits: torch.Tensor) -> torch.Tensor:
+        """
+        logits: (..., num_bins)
+        returns: (...,) scalar reward prediction
+        """
+        return value_from_logits(logits)

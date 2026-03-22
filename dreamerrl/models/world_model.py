@@ -8,6 +8,7 @@ import gymnasium as gym
 import torch
 import torch.nn as nn
 
+from .continue_head import ContinueHead
 from .decoder import ObsDecoder
 from .obs_encoder import build_obs_encoder, get_flat_obs_dim
 from .posterior import Posterior
@@ -174,6 +175,14 @@ class WorldModel(nn.Module):
             hidden_size=reward_hidden,
         ).to(build_device)
 
+        self.continue_head = ContinueHead(
+            deter_size=deter_size,
+            stoch_size=stoch_size,
+            hidden_size=reward_hidden,
+        ).to(build_device)
+
+        self.optimizer = torch.optim.Adam(self.parameters(), lr=1e-4)
+
         """
         DO NOT MOVE TO DEVICE HERE. The caller (trainer or test) will move the model. This guarantees CPU/GPU models
         start from identical weights.
@@ -227,11 +236,13 @@ class WorldModel(nn.Module):
 
         recon = self.decoder(state.h, state.z)
         reward_pred = self.reward_head(state.h, state.z)
+        cont_logits = self.continue_head(state.h, state.z)
 
         return {
             "state": state,
             "recon": recon,
             "reward_pred": reward_pred,
+            "cont_logits": cont_logits,
             "kl": kl,
         }
 
