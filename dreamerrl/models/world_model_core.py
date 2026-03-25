@@ -7,17 +7,10 @@ from .deterministic_layernorm import DeterministicLayerNorm
 
 class RSSMCore(nn.Module):
     """
-    RSSM deterministic core used by both Dreamer-Lite and full Dreamer.
+    RSSM deterministic core.
 
-    - Always updates deterministic state h.
-    - In Dreamer-Lite: z is always zero.
-    - In full Dreamer: z is sampled from posterior/prior.
-
-    Architecture:
-    - Concatenate [h, z]
-    - LayerNorm
-    - SiLU activation
-    - Linear → next deterministic state
+    Dreamer-V3 uses a deterministic transition for h_t and a stochastic latent z_t sampled from the prior/posterior.
+    This module implements the deterministic transition h_{t+1} = f(h_t, z_t).
     """
 
     def __init__(self, deter_size: int, stoch_size: int, hidden_size: int):

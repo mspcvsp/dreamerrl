@@ -9,6 +9,10 @@ class DeterministicLayerNorm(nn.Module):
         self.weight = nn.Parameter(torch.ones(hidden_size))
         self.bias = nn.Parameter(torch.zeros(hidden_size))
 
+        # Deterministic initialization for CPU/GPU equivalence tests.
+        nn.init.ones_(self.weight)
+        nn.init.zeros_(self.bias)
+
     def forward(self, x):
         mean = x.mean(dim=-1, keepdim=True)
         var = x.var(dim=-1, unbiased=False, keepdim=True)

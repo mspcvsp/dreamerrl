@@ -1,7 +1,11 @@
+import torch
 from torch import nn
 
 
 def init_weights(module):
+    # Deterministic initialization to ensure stable tests
+    torch.manual_seed(0)
+
     if isinstance(module, nn.Linear):
         nn.init.xavier_uniform_(module.weight)
         if module.bias is not None:

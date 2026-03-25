@@ -4,9 +4,9 @@ import time
 from typing import Any, Dict
 
 import torch
+import wandb
 from gymnasium.spaces import Discrete
 
-import wandb
 from dreamerrl.env.popgym.popgym_wrappers import PopGymVecEnv
 from dreamerrl.models.actor import Actor
 from dreamerrl.models.value_head import ValueHead
@@ -60,7 +60,6 @@ class DreamerTrainer:
             rssm_hidden=cfg.world.hidden_size,
             decoder_hidden=cfg.world.decoder_hidden,
             reward_hidden=cfg.world.reward_hidden,
-            use_stochastic_latent=cfg.use_stochastic_latent,
             device=self.device,
         )
 

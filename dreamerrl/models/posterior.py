@@ -25,6 +25,9 @@ class Posterior(nn.Module):
     ):
         super().__init__()
 
+        # Deterministic initialization to ensure stable tests
+        torch.manual_seed(0)
+
         self.deter_size = deter_size
         self.stoch_size = stoch_size
         self.hidden_size = hidden_size

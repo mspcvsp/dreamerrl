@@ -43,6 +43,38 @@ class Actor(nn.Module):
     def forward(self, h, z):
         return self.net(torch.cat([h, z], dim=-1))
 
+    """
+    Why both forward() and forward_logits() exist
+    ---------------------------------------------
+
+    These two methods perform the *same computation* (produce action logits),
+    but they serve different semantic roles in the Dreamer-V3 architecture:
+
+    • forward() is the standard PyTorch entry point.
+      It keeps the module compatible with nn.Sequential, TorchScript, and
+      general PyTorch tooling.
+
+    • forward_logits() is a semantic alias used only in training code.
+      It makes the actor-critic update self-documenting: when reading the
+      training loop, it's immediately clear that we want *logits* (not actions)
+      for computing log-probs, entropy, and advantages.
+
+    This separation prevents accidental misuse:
+      - imagination and actor-critic updates always call forward_logits()
+      - environment interaction always calls act()
+      - tests can assert invariants on each mode independently
+
+    In short: forward() is the PyTorch API; forward_logits() is the Dreamer-V3
+    training API. They intentionally share the same signature to keep the
+    actor simple, deterministic, and easy to test.
+    """
+
+    def forward_logits(self, h, z):
+        return self.forward(h, z)
+
+    def distribution(self, h, z):
+        return Categorical(logits=self.forward(h, z))
+
     @torch.no_grad()
     def act(self, state):
         """

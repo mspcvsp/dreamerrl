@@ -67,6 +67,7 @@ class DreamerAgent(nn.Module):
         self.reward_head = RewardHead(
             deter_size=cfg.world.deter_size,
             stoch_size=cfg.world.stoch_size,
+            hidden_size=cfg.world.reward_hidden,
         ).to(device)
 
         # ---------------------------------------------------------

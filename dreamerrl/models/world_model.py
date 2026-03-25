@@ -1,6 +1,7 @@
+# dreamerrl/models/world_model.py
+
 from __future__ import annotations
 
-import os
 from dataclasses import dataclass
 from typing import Any, Dict, Optional
 
@@ -24,68 +25,20 @@ class WorldModelState:
     prior_stats: Optional[Dict[str, torch.Tensor]] = None
     post_stats: Optional[Dict[str, torch.Tensor]] = None
 
-    def to(self, device: torch.device) -> "WorldModelState":
+    def to(self, device):
         return WorldModelState(
             h=self.h.to(device),
             z=self.z.to(device),
-            prior_stats=(
-                {k: v.to(device) for k, v in self.prior_stats.items()} if self.prior_stats is not None else None
-            ),
-            post_stats=({k: v.to(device) for k, v in self.post_stats.items()} if self.post_stats is not None else None),
+            prior_stats=None if self.prior_stats is None else {k: v.to(device) for k, v in self.prior_stats.items()},
+            post_stats=None if self.post_stats is None else {k: v.to(device) for k, v in self.post_stats.items()},
         )
-
-    def cpu(self) -> "WorldModelState":
-        return self.to(torch.device("cpu"))
-
-    def cuda(self) -> "WorldModelState":
-        return self.to(torch.device("cuda"))
-
-    def detach(self) -> "WorldModelState":
-        return WorldModelState(
-            h=self.h.detach(),
-            z=self.z.detach(),
-            prior_stats=(
-                {k: v.detach() for k, v in self.prior_stats.items()} if self.prior_stats is not None else None
-            ),
-            post_stats=({k: v.detach() for k, v in self.post_stats.items()} if self.post_stats is not None else None),
-        )
-
-    def clone(self) -> "WorldModelState":
-        return WorldModelState(
-            h=self.h.clone(),
-            z=self.z.clone(),
-            prior_stats=({k: v.clone() for k, v in self.prior_stats.items()} if self.prior_stats is not None else None),
-            post_stats=({k: v.clone() for k, v in self.post_stats.items()} if self.post_stats is not None else None),
-        )
-
-    def to_dict(self) -> Dict[str, Any]:
-        return {
-            "h": self.h,
-            "z": self.z,
-            "prior_stats": self.prior_stats,
-            "post_stats": self.post_stats,
-        }
-
-    @classmethod
-    def from_dict(cls, d: Dict[str, Any]) -> "WorldModelState":
-        return cls(
-            h=d["h"],
-            z=d["z"],
-            prior_stats=d.get("prior_stats"),
-            post_stats=d.get("post_stats"),
-        )
-
-    # Make it behave like a dict for tests that iterate over it
-    def __iter__(self):
-        return iter(self.to_dict())
-
-    def __getitem__(self, key: str) -> Any:
-        return self.to_dict()[key]
 
 
 class WorldModel(nn.Module):
     """
-    Dreamer world model with deterministic CPU/GPU‑equivalent initialization.
+    Clean Dreamer‑V3 world model.
+    Contains only modules + observe_step + imagine_step.
+    All training logic lives in training/core/world_model_update.py.
     """
 
     def __init__(
@@ -98,232 +51,91 @@ class WorldModel(nn.Module):
         rssm_hidden: int = 256,
         decoder_hidden: int = 256,
         reward_hidden: int = 256,
-        use_stochastic_latent: bool = True,
         device: Optional[torch.device] = None,
     ):
         super().__init__()
 
-        # ---------------------------------------------------------
-        # Deterministic initialization for CPU/GPU equivalence tests.
-        # Trainer reseeds RNG after construction, so training remains stochastic.
-        # ---------------------------------------------------------
+        # Deterministic initialization for CPU/GPU equivalence tests
         torch.manual_seed(0)
         if torch.cuda.is_available():
             torch.cuda.manual_seed_all(0)
 
-        # Always construct on CPU first
         build_device = torch.device("cpu")
-
         self.device = device or torch.device("cpu")
         self.deter_size = deter_size
         self.stoch_size = stoch_size
-        self.use_stochastic_latent = use_stochastic_latent
-        self.state_class = WorldModelState
 
-        # Enable deterministic latents only for CPU/GPU numerical equivalence tests
-        # Training remains stochastic.
-        self.deterministic_latent_for_tests = bool(int(os.environ.get("DREAMER_DETERMINISTIC_TEST", "0")))
-
-        # ---------------------------------------------------------
-        # Observation encoder / decoder
-        # ---------------------------------------------------------
+        # Encoder
         self.obs_space = obs_space
         self.flat_obs_dim = get_flat_obs_dim(obs_space)
-
-        # Encoder: obs → embed
         self.embed_size = encoder_hidden
         self.encoder = build_obs_encoder(obs_space, embed_dim=self.embed_size).to(build_device)
 
-        # RSSM deterministic core
-        self.rssm = RSSMCore(
-            deter_size=deter_size,
-            stoch_size=stoch_size,
-            hidden_size=rssm_hidden,
-        ).to(build_device)
+        # RSSM
+        self.rssm = RSSMCore(deter_size, stoch_size, rssm_hidden).to(build_device)
 
-        # Prior / Posterior (only used if use_stochastic_latent=True)
-        if self.use_stochastic_latent:
-            self.prior = Prior(
-                deter_size=deter_size,
-                stoch_size=stoch_size,
-                hidden_size=rssm_hidden,
-                deterministic_latent_for_tests=self.deterministic_latent_for_tests,
-            ).to(build_device)
+        # Prior / Posterior
+        self.prior = Prior(deter_size, stoch_size, rssm_hidden).to(build_device)
+        self.posterior = Posterior(deter_size, stoch_size, rssm_hidden).to(build_device)
 
-            self.posterior = Posterior(
-                deter_size=deter_size,
-                stoch_size=stoch_size,
-                hidden_size=rssm_hidden,
-                deterministic_latent_for_tests=self.deterministic_latent_for_tests,
-            ).to(build_device)
-        else:
-            self.prior = None
-            self.posterior = None
-
-        # Decoder: (h,z) → reconstructed obs
-        self.decoder = ObsDecoder(
-            deter_size=deter_size,
-            stoch_size=stoch_size,
-            hidden_size=decoder_hidden,
-            obs_shape=self.flat_obs_dim,
-        ).to(build_device)
-
-        # Reward head: (h,z) → scalar reward
-        self.reward_head = RewardHead(
-            deter_size=deter_size,
-            stoch_size=stoch_size,
-            hidden_size=reward_hidden,
-        ).to(build_device)
-
-        self.continue_head = ContinueHead(
-            deter_size=deter_size,
-            stoch_size=stoch_size,
-            hidden_size=reward_hidden,
-        ).to(build_device)
-
-        self.optimizer = torch.optim.Adam(self.parameters(), lr=1e-4)
-
-        """
-        DO NOT MOVE TO DEVICE HERE. The caller (trainer or test) will move the model. This guarantees CPU/GPU models
-        start from identical weights.
-        """
+        # Decoder + Heads
+        self.decoder = ObsDecoder(deter_size, stoch_size, decoder_hidden, self.flat_obs_dim).to(build_device)
+        self.reward_head = RewardHead(deter_size, stoch_size, reward_hidden).to(build_device)
+        self.continue_head = ContinueHead(deter_size, stoch_size, reward_hidden).to(build_device)
 
     # ------------------------------------------------------------------
     # Initialization
     # ------------------------------------------------------------------
     def init_state(self, batch_size: int) -> WorldModelState:
-        # Infer device from model parameters, not from self.device
-        param_device = next(self.parameters()).device
-        h0 = torch.zeros(batch_size, self.deter_size, device=param_device)
-        z0 = torch.zeros(batch_size, self.stoch_size, device=param_device)
-        return self.state_class(h=h0, z=z0)
+        device = next(self.parameters()).device
+        h0 = torch.zeros(batch_size, self.deter_size, device=device)
+        z0 = torch.zeros(batch_size, self.stoch_size, device=device)
+        return WorldModelState(h=h0, z=z0)
 
     # ------------------------------------------------------------------
-    # Single-step observation update
+    # Observe real environment transition
     # ------------------------------------------------------------------
-    def observe_step(
-        self,
-        prev: Any,
-        obs: Optional[torch.Tensor] = None,
-    ) -> Dict[str, Any]:
-        # Allow observe_step(obs_batch) as shorthand
-        if obs is None:
-            # prev is actually the obs batch dict
-            obs_batch = prev
-            obs = obs_batch["obs"]
-            assert isinstance(obs, torch.Tensor)
-            prev_state = self.init_state(obs.shape[0])
-        else:
-            prev_state = self._ensure_state(prev)
-
+    def observe_step(self, prev: Any, obs: torch.Tensor) -> Dict[str, Any]:
+        prev_state = self._ensure_state(prev)
         embed = self.encoder(obs)
 
-        if self.use_stochastic_latent:
-            assert self.posterior is not None
-            assert self.prior is not None
+        post = self.posterior(prev_state.h, embed)
+        prior = self.prior(prev_state.h)
 
-            post = self.posterior(prev_state.h, embed)
-            z = post["z"]
-            prior = self.prior(prev_state.h)
-            h = self.rssm(prev_state.h, z)
-            state = self.state_class(h=h, z=z, prior_stats=prior, post_stats=post)
-            kl = self.kl_divergence(post, prior)
-        else:
-            z = torch.zeros_like(prev_state.z)
-            h = self.rssm(prev_state.h, z)
-            state = self.state_class(h=h, z=z)
-            kl = torch.zeros((), device=self.device)
+        z = post["z"]
+        h = self.rssm(prev_state.h, z)
 
-        recon = self.decoder(state.h, state.z)
-        reward_pred = self.reward_head(state.h, state.z)
-        cont_logits = self.continue_head(state.h, state.z)
+        state = WorldModelState(h=h, z=z, prior_stats=prior, post_stats=post)
+
+        recon = self.decoder(h, z)
+        reward_logits = self.reward_head(h, z)
+        cont_logits = self.continue_head(h, z).squeeze(-1)
 
         return {
             "state": state,
             "recon": recon,
-            "reward_pred": reward_pred,
+            "reward_logits": reward_logits,
             "cont_logits": cont_logits,
-            "kl": kl,
+            "kl": self.kl_divergence(post, prior),
         }
 
     # ------------------------------------------------------------------
-    # Imagination step
+    # Imagination step (latent rollout)
     # ------------------------------------------------------------------
-    def imagine_step(
-        self,
-        prev: Any,
-        stochastic: bool = True,
-    ) -> WorldModelState:
+    def imagine_step(self, prev: Any, stochastic: bool = True) -> WorldModelState:
         prev_state = self._ensure_state(prev)
+        prior = self.prior(prev_state.h)
 
-        if self.use_stochastic_latent:
-            assert self.prior is not None, "Prior must be defined for stochastic latent mode"
-            prior = self.prior(prev_state.h)
-            z = prior["z"] if stochastic else prior["mean"]
-            h = self.rssm(prev_state.h, z)
-            return self.state_class(h=h, z=z, prior_stats=prior, post_stats=None)
-        else:
-            z = torch.zeros_like(prev_state.z)
-            h = self.rssm(prev_state.h, z)
-            return self.state_class(h=h, z=z)
+        z = prior["z"] if stochastic else prior["mean"]
+        h = self.rssm(prev_state.h, z)
 
-    def imagination_rollout(
-        self,
-        state0: Any,
-        horizon: int,
-    ) -> list[WorldModelState]:
-        device = next(self.parameters()).device
-        state = self._ensure_state(state0).to(device)
-
-        rollout: list[WorldModelState] = []
-        for _ in range(horizon):
-            state = self.imagine_step(state)
-            rollout.append(state)
-
-        return rollout
-
-    def training_step(self, batch: Dict[str, torch.Tensor]):
-        B, L = batch["state"].shape[:2]
-        state: WorldModelState = self.init_state(B)
-
-        device = next(self.parameters()).device
-        total_kl = torch.tensor(0.0, device=device)
-        total_recon = torch.tensor(0.0, device=device)
-        total_reward = torch.tensor(0.0, device=device)
-
-        for t in range(L):
-            obs = batch["state"][:, t]
-            out = self.observe_step(state, obs)
-            state = out["state"]
-            assert isinstance(state, WorldModelState)
-
-            kl_t = out["kl"]
-            recon_t = out["recon"]
-            reward_pred_t = out["reward_pred"]
-            assert isinstance(kl_t, torch.Tensor)
-            assert isinstance(recon_t, torch.Tensor)
-            assert isinstance(reward_pred_t, torch.Tensor)
-
-            total_kl = total_kl + kl_t
-            total_recon = total_recon + ((recon_t - obs) ** 2).mean()
-            total_reward = total_reward + ((reward_pred_t - batch["reward"][:, t : t + 1]) ** 2).mean()
-
-        loss = total_kl + total_recon + total_reward
-
-        return loss, {
-            "kl": total_kl.detach(),
-            "recon": total_recon.detach(),
-            "reward": total_reward.detach(),
-        }
+        return WorldModelState(h=h, z=z, prior_stats=prior, post_stats=None)
 
     # ------------------------------------------------------------------
     # KL divergence
     # ------------------------------------------------------------------
     @staticmethod
-    def kl_divergence(
-        post: Dict[str, torch.Tensor],
-        prior: Dict[str, torch.Tensor],
-    ) -> torch.Tensor:
+    def kl_divergence(post, prior):
         mean_q, std_q = post["mean"], post["std"]
         mean_p, std_p = prior["mean"], prior["std"]
 
@@ -334,30 +146,11 @@ class WorldModel(nn.Module):
         return kl.sum(dim=-1).mean()
 
     # ------------------------------------------------------------------
-    # Convenience helpers
+    # Helpers
     # ------------------------------------------------------------------
-    def reconstruct(self, state: WorldModelState) -> torch.Tensor:
-        return self.decoder(state.h, state.z)
-
-    def predict_reward(self, state: WorldModelState) -> torch.Tensor:
-        return self.reward_head(state.h, state.z)
-
-    @property
-    def latent_dim(self) -> int:
-        # tests only ever use this for z dimension
-        return self.stoch_size
-
-    def _ensure_state(self, s: Any) -> WorldModelState:
-        # Already a WorldModelState
+    def _ensure_state(self, s):
         if isinstance(s, WorldModelState):
             return s
-
-        # observe_step returns {"state": WorldModelState}
         if isinstance(s, dict) and "state" in s:
-            s = s["state"]
-
-        # dict with h/z
-        if isinstance(s, dict) and "h" in s and "z" in s:
-            return self.state_class.from_dict(s)
-
-        raise TypeError("State must be dict or WorldModelState")
+            return s["state"]
+        raise TypeError("State must be WorldModelState or dict with 'state'")
