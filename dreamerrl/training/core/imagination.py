@@ -52,3 +52,26 @@ def imagine_trajectory_for_training(
         "action": torch.stack(actions, dim=0),
         "bootstrap_value": bootstrap_value,
     }
+
+
+def imagine_trajectory_for_testing(world_model, state, horizon):
+    device = next(world_model.parameters()).device
+    s = state.to(device)
+
+    hs, zs, rewards = [], [], []
+
+    for _ in range(horizon):
+        reward_logits = world_model.reward_head(s.h, s.z)
+        r = value_from_logits(reward_logits)
+
+        rewards.append(r)
+        hs.append(s.h)
+        zs.append(s.z)
+
+        s = world_model.imagine_step(s)
+
+    return {
+        "h": torch.stack(hs, dim=0),
+        "z": torch.stack(zs, dim=0),
+        "reward": torch.stack(rewards, dim=0),
+    }

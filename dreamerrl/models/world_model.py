@@ -33,6 +33,22 @@ class WorldModelState:
             post_stats=None if self.post_stats is None else {k: v.to(device) for k, v in self.post_stats.items()},
         )
 
+    def clone(self) -> "WorldModelState":
+        return WorldModelState(
+            h=self.h.clone(),
+            z=self.z.clone(),
+            prior_stats=None if self.prior_stats is None else {k: v.clone() for k, v in self.prior_stats.items()},
+            post_stats=None if self.post_stats is None else {k: v.clone() for k, v in self.post_stats.items()},
+        )
+
+    def detach(self) -> "WorldModelState":
+        return WorldModelState(
+            h=self.h.detach(),
+            z=self.z.detach(),
+            prior_stats=None if self.prior_stats is None else {k: v.detach() for k, v in self.prior_stats.items()},
+            post_stats=None if self.post_stats is None else {k: v.detach() for k, v in self.post_stats.items()},
+        )
+
 
 class WorldModel(nn.Module):
     """
