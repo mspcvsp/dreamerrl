@@ -6,6 +6,8 @@ import torch
 from dreamerrl.models.world_model import WorldModel, WorldModelState
 from dreamerrl.training.replay_buffer import DreamerReplayBuffer
 from dreamerrl.training.test_trainer import _TestDreamerTrainer
+from dreamerrl.models.actor import Actor
+from dreamerrl.models.value_head import ValueHead
 
 
 @pytest.fixture(scope="session")
@@ -42,10 +44,12 @@ def world_model_config():
         rssm_hidden=64,
         decoder_hidden=64,
         reward_hidden=64,
-        use_stochastic_latent=True,
     )
 
 
+# ---------------------------------------------------------------------
+# World model constructors
+# ---------------------------------------------------------------------
 @pytest.fixture
 def make_world_model(device, obs_space, action_dim, world_model_config):
     def _make(**overrides):
@@ -73,6 +77,31 @@ def world_model(device, obs_space, action_dim, world_model_config):
     return wm.to(device)
 
 
+# ---------------------------------------------------------------------
+# Actor / Critic fixtures (needed for trainer tests)
+# ---------------------------------------------------------------------
+@pytest.fixture
+def actor(world_model, action_dim, device):
+    return Actor(
+        world_model.deter_size,
+        world_model.stoch_size,
+        hidden_size=128,
+        action_dim=action_dim,
+    ).to(device)
+
+
+@pytest.fixture
+def critic(world_model, device):
+    return ValueHead(
+        world_model.deter_size,
+        world_model.stoch_size,
+        hidden_size=128,
+    ).to(device)
+
+
+# ---------------------------------------------------------------------
+# Fake data
+# ---------------------------------------------------------------------
 @pytest.fixture
 def fake_obs(device, obs_dim):
     torch.manual_seed(0)
@@ -92,19 +121,25 @@ def fake_batch(device, obs_dim):
     }
 
 
+# ---------------------------------------------------------------------
+# State helpers
+# ---------------------------------------------------------------------
 @pytest.fixture
 def state_to_cpu():
     def _to_cpu(state: WorldModelState) -> WorldModelState:
         return WorldModelState(
             h=state.h.cpu(),
             z=state.z.cpu(),
-            prior_stats=({k: v.cpu() for k, v in state.prior_stats.items()} if state.prior_stats is not None else None),
-            post_stats=({k: v.cpu() for k, v in state.post_stats.items()} if state.post_stats is not None else None),
+            prior_stats=({k: v.cpu() for k, v in state.prior_stats.items()} if state.prior_stats else None),
+            post_stats=({k: v.cpu() for k, v in state.post_stats.items()} if state.post_stats else None),
         )
 
     return _to_cpu
 
 
+# ---------------------------------------------------------------------
+# Replay buffer
+# ---------------------------------------------------------------------
 @pytest.fixture
 def replay_buffer_factory(obs_dim, device):
     def make():
@@ -139,9 +174,11 @@ def replay_buffer_factory(obs_dim, device):
     return make
 
 
+# ---------------------------------------------------------------------
+# Trainer
+# ---------------------------------------------------------------------
 @pytest.fixture
 def test_trainer(world_model, replay_buffer_factory, device):
-    # No actor/critic needed for world-model-only tests
     return _TestDreamerTrainer(
         world_model=world_model,
         actor=None,
@@ -151,18 +188,19 @@ def test_trainer(world_model, replay_buffer_factory, device):
     )
 
 
+# ---------------------------------------------------------------------
+# Imagination input
+# ---------------------------------------------------------------------
 @pytest.fixture
 def imagine_input(world_model, batch_size=4, device="cpu"):
     h = torch.randn(batch_size, world_model.deter_size, device=device)
-    z = torch.randn(batch_size, world_model.latent_dim, device=device)
-    return world_model.state_class(h=h, z=z)
+    z = torch.randn(batch_size, world_model.stoch_size, device=device)
+    return WorldModelState(h=h, z=z)
 
 
-@pytest.fixture
-def obs_input(obs_batch):
-    return obs_batch
-
-
+# ---------------------------------------------------------------------
+# RSSM + obs fixtures
+# ---------------------------------------------------------------------
 @pytest.fixture
 def rssm(world_model):
     return world_model.rssm
