@@ -133,7 +133,7 @@ def actor_critic_update(
                 lam=lam,
             )  # (T, B)
 
-            return symlog(returns)
+            return symlog(returns.squeeze(-1))  # (T, B)
 
     returns_symlog = compute_returns()  # (T, B)
 

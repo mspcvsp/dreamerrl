@@ -108,10 +108,29 @@ class WorldModel(nn.Module):
         z0 = torch.zeros(batch_size, self.stoch_size, device=device)
         return WorldModelState(h=h0, z=z0)
 
+    def observe_step(self, *args, **kwargs):
+        """
+        Dreamer-Lite compatibility shim:
+        Allow calling observe_step({"obs": ..., "action": ...})
+        """
+        # Case 1: Dreamer-Lite dict call
+        if len(args) == 1 and isinstance(args[0], dict):
+            batch = args[0]
+            obs = batch["obs"]
+
+            # Dreamer-Lite tests assume an implicit initial state
+            prev_state = self.init_state(obs.size(0))
+
+            # V3 observe_step ignores action
+            return self._observe_step_v3(prev_state, obs)
+
+        # Case 2: Normal V3 call
+        return self._observe_step_v3(*args, **kwargs)
+
     # ------------------------------------------------------------------
     # Observe real environment transition
     # ------------------------------------------------------------------
-    def observe_step(self, prev: Any, obs: torch.Tensor) -> Dict[str, Any]:
+    def _observe_step_v3(self, prev: Any, obs: torch.Tensor) -> Dict[str, Any]:
         prev_state = self._ensure_state(prev)
         embed = self.encoder(obs)
 
