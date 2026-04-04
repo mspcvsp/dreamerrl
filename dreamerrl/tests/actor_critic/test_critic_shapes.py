@@ -15,4 +15,4 @@ def test_critic_shapes(device):
     z = torch.randn(B, stoch, device=device)
 
     values = critic(h, z)
-    assert values.shape == (B, 1)
+    assert values.shape == (B, critic.num_bins)

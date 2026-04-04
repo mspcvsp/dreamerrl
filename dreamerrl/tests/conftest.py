@@ -211,3 +211,8 @@ def obs_batch(obs_space, action_dim, batch_size=4, device="cpu"):
     obs = torch.randn(batch_size, *obs_space.shape, device=device)
     action = torch.randint(0, action_dim, (batch_size,), device=device)
     return {"obs": obs, "action": action}
+
+
+@pytest.fixture
+def obs_input(obs_batch):
+    return obs_batch

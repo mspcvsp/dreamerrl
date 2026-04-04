@@ -11,4 +11,4 @@ def test_reward_head_output_shape():
     z = torch.randn(B, stoch)
 
     out = head(h, z)
-    assert out.shape == (B, 1)
+    assert out.shape == (B, head.num_bins)
