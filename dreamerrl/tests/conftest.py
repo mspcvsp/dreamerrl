@@ -3,11 +3,11 @@ import numpy as np
 import pytest
 import torch
 
+from dreamerrl.models.actor import Actor
+from dreamerrl.models.value_head import ValueHead
 from dreamerrl.models.world_model import WorldModel, WorldModelState
 from dreamerrl.training.replay_buffer import DreamerReplayBuffer
 from dreamerrl.training.test_trainer import _TestDreamerTrainer
-from dreamerrl.models.actor import Actor
-from dreamerrl.models.value_head import ValueHead
 
 
 @pytest.fixture(scope="session")

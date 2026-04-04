@@ -112,9 +112,9 @@ def actor_critic_update(
             critic_logits = critic(
                 h.reshape(T * B, -1),
                 z.reshape(T * B, -1),
-            ).reshape(T, B, -1)
+            )
 
-            values = value_from_logits(critic_logits)  # (T, B)
+            values = value_from_logits(critic_logits).reshape(T, B)
 
             # Bootstrap from final state
             bootstrap_logits = critic(h[-1], z[-1])  # (B, num_bins)
@@ -133,7 +133,7 @@ def actor_critic_update(
                 lam=lam,
             )  # (T, B)
 
-            return symlog(returns.squeeze(-1))  # (T, B)
+            return symlog(returns)  # (T, B)
 
     returns_symlog = compute_returns()  # (T, B)
 
@@ -176,9 +176,9 @@ def actor_critic_update(
             critic_logits = critic(
                 h.reshape(T * B, -1),
                 z.reshape(T * B, -1),
-            ).reshape(T, B, -1)
+            )
 
-            value_pred = value_from_logits(critic_logits)  # (T, B)
+            value_pred = value_from_logits(critic_logits).reshape(T, B)
             adv = returns_symlog - symlog(value_pred)  # (T, B)
 
             # Robust advantage normalization (p5–p95 range)
