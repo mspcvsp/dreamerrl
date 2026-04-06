@@ -6,7 +6,6 @@ import torch
 from dreamerrl.models.actor import Actor
 from dreamerrl.models.value_head import ValueHead
 from dreamerrl.models.world_model import WorldModel, WorldModelState
-from dreamerrl.training.replay_buffer import DreamerReplayBuffer
 from dreamerrl.training.test_trainer import _TestDreamerTrainer
 
 
@@ -106,72 +105,6 @@ def critic(world_model, device):
 def fake_obs(device, obs_dim):
     torch.manual_seed(0)
     return torch.randn(4, obs_dim, device=device)
-
-
-@pytest.fixture
-def fake_batch(device, obs_dim):
-    torch.manual_seed(0)
-    B, L = 4, 5
-    return {
-        "state": torch.randn(B, L, obs_dim, device=device),
-        "reward": torch.randn(B, L, device=device),
-        "is_first": torch.zeros(B, L, dtype=torch.bool, device=device),
-        "is_last": torch.zeros(B, L, dtype=torch.bool, device=device),
-        "is_terminal": torch.zeros(B, L, dtype=torch.bool, device=device),
-    }
-
-
-# ---------------------------------------------------------------------
-# State helpers
-# ---------------------------------------------------------------------
-@pytest.fixture
-def state_to_cpu():
-    def _to_cpu(state: WorldModelState) -> WorldModelState:
-        return WorldModelState(
-            h=state.h.cpu(),
-            z=state.z.cpu(),
-            prior_stats=({k: v.cpu() for k, v in state.prior_stats.items()} if state.prior_stats else None),
-            post_stats=({k: v.cpu() for k, v in state.post_stats.items()} if state.post_stats else None),
-        )
-
-    return _to_cpu
-
-
-# ---------------------------------------------------------------------
-# Replay buffer
-# ---------------------------------------------------------------------
-@pytest.fixture
-def replay_buffer_factory(obs_dim, device):
-    def make():
-        num_envs = 1
-        capacity_episodes = 100
-        rb = DreamerReplayBuffer(
-            num_envs=num_envs,
-            obs_dim=obs_dim,
-            capacity_episodes=capacity_episodes,
-            device=device,
-        )
-        torch.manual_seed(0)
-        for _ in range(20):
-            rb.add(
-                state=torch.randn(obs_dim, device=device),
-                action=torch.zeros(1, device=device),
-                reward=torch.randn((), device=device),
-                is_first=torch.tensor(True, device=device),
-                is_last=torch.tensor(False, device=device),
-                is_terminal=torch.tensor(False, device=device),
-            )
-            rb.add(
-                state=torch.randn(obs_dim, device=device),
-                action=torch.zeros(1, device=device),
-                reward=torch.randn((), device=device),
-                is_first=torch.tensor(False, device=device),
-                is_last=torch.tensor(True, device=device),
-                is_terminal=torch.tensor(False, device=device),
-            )
-        return rb
-
-    return make
 
 
 # ---------------------------------------------------------------------
