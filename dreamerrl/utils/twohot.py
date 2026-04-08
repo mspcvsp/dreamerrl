@@ -12,24 +12,18 @@ def twohot_encode(
     y: torch.Tensor,
     bins: torch.Tensor | None = None,
 ) -> torch.Tensor:
-    """
-    y: (...,) in same space as bins (i.e., symlog-space reward/return)
-    returns: (..., num_bins) soft two-hot encoding
-    """
     if bins is None:
         bins = BINS.to(y.device)
 
     y = y.unsqueeze(-1)  # (..., 1)
-    # distance to each bin
     diff = torch.abs(y - bins)  # (..., num_bins)
     idx = torch.argmin(diff, dim=-1)  # (...,)
 
-    # neighbor index (left/right)
-    # sign of (y - bins[idx]) tells which side
-    idx2 = idx + torch.sign(y - bins[idx]).to(torch.long)
+    # Use squeezed y here so shapes match idx
+    delta = torch.sign(y.squeeze(-1) - bins[idx])  # (...,)
+    idx2 = idx + delta.to(torch.long)
     idx2 = torch.clamp(idx2, 0, bins.numel() - 1)
 
-    # weights
     b1 = bins[idx]
     b2 = bins[idx2]
     denom = torch.clamp(torch.abs(b2 - b1), min=1e-8)
