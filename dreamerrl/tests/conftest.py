@@ -112,11 +112,11 @@ def fake_obs(device, obs_dim):
 # Trainer
 # ---------------------------------------------------------------------
 @pytest.fixture
-def test_trainer(world_model, replay_buffer_factory, device):
+def test_trainer(world_model, actor, critic, replay_buffer_factory, device):
     return _TestDreamerTrainer(
         world_model=world_model,
-        actor=None,
-        critic=None,
+        actor=actor,
+        critic=critic,
         replay_buffer=replay_buffer_factory(),
         device=device,
     )

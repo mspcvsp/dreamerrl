@@ -57,7 +57,7 @@ class _TestDreamerTrainer:
 
         # Synthetic batch in the format expected by world_model_training_step
         batch = {
-            "state": torch.randn(B, T, obs_dim, device=self.device),
+            "obs": torch.randn(B, T, obs_dim, device=self.device),
             "action": torch.zeros(B, T, dtype=torch.long, device=self.device),
             "reward": torch.randn(B, T, device=self.device),
             "is_first": torch.zeros(B, T, device=self.device),
