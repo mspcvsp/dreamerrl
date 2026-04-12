@@ -121,44 +121,49 @@ class WorldModel(nn.Module):
         is_last: torch.Tensor | None = None,
         is_terminal: torch.Tensor | None = None,
     ) -> Dict[str, Any]:
-        """
-        Dreamer-V3 observe_step.
-
-        Tests only require prev + obs; training may pass extra fields.
-        The core RSSM update depends only on prev_state and obs.
-        """
         prev_state = self._ensure_state(prev_state)
         embed = self.encoder(obs)
 
-        post = self.posterior(prev_state.h, embed)
-        prior = self.prior(prev_state.h)
+        # Posterior and prior
+        post_stats = self.posterior(prev_state.h, embed)
+        prior_stats = self.prior(prev_state.h)
 
-        z = post["z"]
+        # RSSM transition
+        z = post_stats["z"]
         h = self.rssm(prev_state.h, z)
 
-        state = WorldModelState(
+        post = WorldModelState(
             h=h,
             z=z,
-            prior_stats=prior,
-            post_stats=post,
+            prior_stats=prior_stats,
+            post_stats=post_stats,
         )
 
+        prior = WorldModelState(
+            h=prev_state.h,
+            z=prior_stats["z"],
+            prior_stats=prior_stats,
+            post_stats=None,
+        )
+
+        # Heads
         recon = self.decoder(h, z)
         reward_logits = self.reward_head(h, z)
         cont_logits = self.continue_head(h, z).squeeze(-1)
 
         return {
-            "post": state,
-            "prior": WorldModelState(
-                h=prev_state.h,
-                z=prior["z"],
-                prior_stats=prior,
-                post_stats=None,
-            ),
+            # V3 training API
+            "post": post,
+            "prior": prior,
+            # Test suite API
+            "post_stats": post_stats,
+            "prior_stats": prior_stats,
+            # Heads
             "recon": recon,
             "reward_logits": reward_logits,
             "cont_logits": cont_logits,
-            "kl": self.kl_divergence(post, prior),
+            # KL
+            "kl": self.kl_divergence(post_stats, prior_stats),
         }
 
     # ------------------------------------------------------------------
