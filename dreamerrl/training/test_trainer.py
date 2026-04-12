@@ -21,14 +21,18 @@ class _TestDreamerTrainer:
         self.replay_buffer = replay_buffer
         self.device = device  # Pre-fill replay buffer with minimal episodes for tests
 
+        # Pre-fill replay buffer with minimal valid episodes
+        num_envs = self.replay_buffer.num_envs
+        obs_dim = self.replay_buffer.obs_dim
+
         for _ in range(5):
             self.replay_buffer.add(
-                state=torch.randn(self.replay_buffer.num_envs, self.replay_buffer.obs_dim),
-                action=torch.zeros(self.replay_buffer.num_envs, dtype=torch.long),
-                reward=torch.zeros(self.replay_buffer.num_envs),
-                is_first=torch.zeros(self.replay_buffer.num_envs),
-                is_last=torch.ones(self.replay_buffer.num_envs),
-                is_terminal=torch.zeros(self.replay_buffer.num_envs),
+                state=torch.randn(num_envs, obs_dim),
+                action=torch.zeros(num_envs, dtype=torch.long),
+                reward=torch.zeros(num_envs),
+                is_first=torch.zeros(num_envs),
+                is_last=torch.ones(num_envs),
+                is_terminal=torch.zeros(num_envs),
             )
 
     # ---------------------------------------------------------
