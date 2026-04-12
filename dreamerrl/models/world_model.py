@@ -148,9 +148,13 @@ class WorldModel(nn.Module):
         cont_logits = self.continue_head(h, z).squeeze(-1)
 
         return {
-            "state": state,
-            "post_stats": post,
-            "prior_stats": prior,
+            "post": state,
+            "prior": WorldModelState(
+                h=prev_state.h,
+                z=prior["z"],
+                prior_stats=prior,
+                post_stats=None,
+            ),
             "recon": recon,
             "reward_logits": reward_logits,
             "cont_logits": cont_logits,
