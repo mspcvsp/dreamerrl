@@ -63,10 +63,18 @@ def world_model_training_step(
     priors = []
 
     for t in range(L):
-        out = world_model.observe_step(state, obs[:, t])
-        state = out["state"]
-        posts.append(out["state"].post_stats)  # each: {"mean", "std", "h", "z", ...}
-        priors.append(out["state"].prior_stats)
+        out = world_model.observe_step(
+            prev_state=state,
+            obs=obs[:, t],
+            action=batch["action"][:, t],
+            reward=batch["reward"][:, t],
+            is_first=batch["is_first"][:, t],
+            is_last=batch["is_last"][:, t],
+            is_terminal=batch["is_terminal"][:, t],
+        )
+        state = out["post"]
+        posts.append(out["post"].post_stats)
+        priors.append(out["prior"].prior_stats)
 
     # ---------------------------------------------------------
     # Decode from posterior states
