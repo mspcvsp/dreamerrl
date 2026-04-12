@@ -183,14 +183,30 @@ class WorldModel(nn.Module):
         return kl.sum(dim=-1)
 
     def structured_kl(self, post, prior):
-        kl_dyn = self.kl_divergence(
-            {"mean": post["mean"].detach(), "std": post["std"].detach()},
-            prior,
-        )
-        kl_rep = self.kl_divergence(
-            post,
-            {"mean": prior["mean"].detach(), "std": prior["std"].detach()},
-        )
+        # KL_dyn = KL[sg(post) || prior]  (per batch)
+        mean_q = post["mean"].detach()
+        std_q = post["std"].detach()
+        mean_p = prior["mean"]
+        std_p = prior["std"]
+
+        var_q = std_q**2
+        var_p = std_p**2
+
+        kl_dyn = torch.log(std_p / std_q) + (var_q + (mean_q - mean_p) ** 2) / (2 * var_p) - 0.5
+        kl_dyn = kl_dyn.sum(dim=-1)  # (B,)
+
+        # KL_rep = KL[post || sg(prior)]  (per batch)
+        mean_q = post["mean"]
+        std_q = post["std"]
+        mean_p = prior["mean"].detach()
+        std_p = prior["std"].detach()
+
+        var_q = std_q**2
+        var_p = std_p**2
+
+        kl_rep = torch.log(std_p / std_q) + (var_q + (mean_q - mean_p) ** 2) / (2 * var_p) - 0.5
+        kl_rep = kl_rep.sum(dim=-1)  # (B,)
+
         return kl_dyn, kl_rep
 
     # ------------------------------------------------------------------

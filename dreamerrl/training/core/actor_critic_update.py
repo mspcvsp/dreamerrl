@@ -77,7 +77,7 @@ def actor_critic_update(
     # ---------------------------------------------------------
     # 0. Imagination rollout (latent space)
     # ---------------------------------------------------------
-    start_state = world_model.init_state(batch["state"].shape[0])
+    start_state = world_model.init_state(batch["obs"].shape[0])
     traj = imagine_trajectory_for_training(
         world_model=world_model,
         actor=actor,
