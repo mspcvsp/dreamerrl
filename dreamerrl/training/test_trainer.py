@@ -18,29 +18,23 @@ class _TestDreamerTrainer:
         self.world_model = world_model
         self.actor = actor
         self.critic = critic
-        self.replay_buffer = replay_buffer
-        self.device = device  # Pre-fill replay buffer with minimal episodes for tests
+        self.replay_buffer = replay_buffer  # kept for signature compatibility
+        self.device = device
 
-        # Pre-fill replay buffer with minimal valid episodes
-        num_envs = self.replay_buffer.num_envs
-        obs_dim = self.replay_buffer.obs_dim
-
-        for _ in range(5):
-            trans = {
-                "state": torch.randn(num_envs, obs_dim),
-                "action": torch.zeros(num_envs, dtype=torch.long),
-                "reward": torch.zeros(num_envs),
-                "is_first": torch.zeros(num_envs),
-                "is_last": torch.ones(num_envs),
-                "is_terminal": torch.zeros(num_envs),
-            }
-            self.replay_buffer.add_batch(trans)
+        # No pre-filling of replay_buffer; tests don't require it.
 
     # ---------------------------------------------------------
     # Actor–critic update (Dreamer-V3)
     # ---------------------------------------------------------
     def training_step(self, batch_size: int, seq_len: int):
-        batch = self.replay_buffer.sample(batch_size, seq_len, device=self.device)
+        B, T = batch_size, seq_len
+        obs_dim = self.world_model.flat_obs_dim
+
+        # Synthetic batch in the format expected by actor_critic_update
+        batch = {
+            "state": torch.randn(B, T, obs_dim, device=self.device),
+            "reward": torch.randn(B, T, device=self.device),
+        }
 
         actor_loss, critic_loss = actor_critic_update(
             world_model=self.world_model,
@@ -58,5 +52,17 @@ class _TestDreamerTrainer:
     # World model update (Dreamer-V3)
     # ---------------------------------------------------------
     def world_model_update(self, batch_size: int, seq_len: int):
-        batch = self.replay_buffer.sample(batch_size, seq_len, device=self.device)
+        B, T = batch_size, seq_len
+        obs_dim = self.world_model.flat_obs_dim
+
+        # Synthetic batch in the format expected by world_model_training_step
+        batch = {
+            "state": torch.randn(B, T, obs_dim, device=self.device),
+            "action": torch.zeros(B, T, dtype=torch.long, device=self.device),
+            "reward": torch.randn(B, T, device=self.device),
+            "is_first": torch.zeros(B, T, device=self.device),
+            "is_last": torch.zeros(B, T, device=self.device),
+            "is_terminal": torch.zeros(B, T, device=self.device),
+        }
+
         return world_model_training_step(self.world_model, batch)
