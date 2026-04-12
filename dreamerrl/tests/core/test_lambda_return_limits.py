@@ -14,4 +14,5 @@ def test_lambda_return_limits():
 
     # λ = 1 → Monte Carlo
     out1 = lambda_return(reward, value, 1.0, 1.0)
-    assert torch.allclose(out1, torch.tensor([[5], [4], [3], [2], [1]]).repeat(1, B))
+    expected = torch.tensor([[5], [4], [3], [2], [1]], dtype=reward.dtype).repeat(1, B)
+    assert torch.allclose(out1, expected)

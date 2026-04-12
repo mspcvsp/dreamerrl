@@ -26,14 +26,15 @@ class _TestDreamerTrainer:
         obs_dim = self.replay_buffer.obs_dim
 
         for _ in range(5):
-            self.replay_buffer.add(
-                state=torch.randn(num_envs, obs_dim),
-                action=torch.zeros(num_envs, dtype=torch.long),
-                reward=torch.zeros(num_envs),
-                is_first=torch.zeros(num_envs),
-                is_last=torch.ones(num_envs),
-                is_terminal=torch.zeros(num_envs),
-            )
+            trans = {
+                "state": torch.randn(num_envs, obs_dim),
+                "action": torch.zeros(num_envs, dtype=torch.long),
+                "reward": torch.zeros(num_envs),
+                "is_first": torch.zeros(num_envs),
+                "is_last": torch.ones(num_envs),
+                "is_terminal": torch.zeros(num_envs),
+            }
+            self.replay_buffer.add_batch(trans)
 
     # ---------------------------------------------------------
     # Actor–critic update (Dreamer-V3)
