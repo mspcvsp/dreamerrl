@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import torch
+
 from dreamerrl.training.core.actor_critic_update import actor_critic_update
 from dreamerrl.training.core.world_model_update import world_model_training_step
 
@@ -17,7 +19,17 @@ class _TestDreamerTrainer:
         self.actor = actor
         self.critic = critic
         self.replay_buffer = replay_buffer
-        self.device = device
+        self.device = device  # Pre-fill replay buffer with minimal episodes for tests
+
+        for _ in range(5):
+            self.replay_buffer.add(
+                state=torch.randn(self.replay_buffer.num_envs, self.replay_buffer.obs_dim),
+                action=torch.zeros(self.replay_buffer.num_envs, dtype=torch.long),
+                reward=torch.zeros(self.replay_buffer.num_envs),
+                is_first=torch.zeros(self.replay_buffer.num_envs),
+                is_last=torch.ones(self.replay_buffer.num_envs),
+                is_terminal=torch.zeros(self.replay_buffer.num_envs),
+            )
 
     # ---------------------------------------------------------
     # Actor–critic update (Dreamer-V3)

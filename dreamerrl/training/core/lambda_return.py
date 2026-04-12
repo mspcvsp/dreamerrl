@@ -53,4 +53,4 @@ def lambda_return(reward, value, discount, lam):
         next_ret = reward[t] + discount * ((1 - lam) * value[t + 1] + lam * next_ret)
         ret[t] = next_ret
 
-    return ret
+    return ret.to(reward.dtype)

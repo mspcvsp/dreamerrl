@@ -180,7 +180,7 @@ class WorldModel(nn.Module):
         var_p = std_p**2
 
         kl = torch.log(std_p / std_q) + (var_q + (mean_q - mean_p) ** 2) / (2 * var_p) - 0.5
-        return kl.sum(dim=-1)
+        return kl.sum(dim=-1).mean()  # scalar
 
     def structured_kl(self, post, prior):
         # KL_dyn = KL[sg(post) || prior]  (per batch)
