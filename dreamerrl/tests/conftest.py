@@ -6,6 +6,7 @@ import torch
 from dreamerrl.models.actor import Actor
 from dreamerrl.models.value_head import ValueHead
 from dreamerrl.models.world_model import WorldModel, WorldModelState
+from dreamerrl.replay_buffer import ReplayBuffer
 from dreamerrl.training.test_trainer import _TestDreamerTrainer
 
 
@@ -149,3 +150,23 @@ def obs_batch(obs_space, action_dim, batch_size=4, device="cpu"):
 @pytest.fixture
 def obs_input(obs_batch):
     return obs_batch
+
+
+@pytest.fixture
+def replay_buffer_factory(device, obs_dim):
+    def make(
+        num_envs=4,
+        capacity_episodes=100,
+        min_episode_len=2,
+        store_device=torch.device("cpu"),
+    ):
+        return ReplayBuffer(
+            num_envs=num_envs,
+            obs_dim=obs_dim,
+            capacity_episodes=capacity_episodes,
+            device=device,
+            store_device=store_device,
+            min_episode_len=min_episode_len,
+        )
+
+    return make

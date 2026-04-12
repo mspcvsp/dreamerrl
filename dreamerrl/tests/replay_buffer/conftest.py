@@ -1,6 +1,6 @@
 import pytest
 
-from dreamerrl.training.replay_buffer import DreamerReplayBuffer
+from dreamerrl.replay_buffer.replay_buffer import DreamerReplayBuffer
 
 
 @pytest.fixture

@@ -148,6 +148,8 @@ class WorldModel(nn.Module):
 
         return {
             "state": state,
+            "post_stats": post,
+            "prior_stats": prior,
             "recon": recon,
             "reward_logits": reward_logits,
             "cont_logits": cont_logits,
@@ -178,7 +180,18 @@ class WorldModel(nn.Module):
         var_p = std_p**2
 
         kl = torch.log(std_p / std_q) + (var_q + (mean_q - mean_p) ** 2) / (2 * var_p) - 0.5
-        return kl.sum(dim=-1).mean()
+        return kl.sum(dim=-1)
+
+    def structured_kl(self, post, prior):
+        kl_dyn = self.kl_divergence(
+            {"mean": post["mean"].detach(), "std": post["std"].detach()},
+            prior,
+        )
+        kl_rep = self.kl_divergence(
+            post,
+            {"mean": prior["mean"].detach(), "std": prior["std"].detach()},
+        )
+        return kl_dyn, kl_rep
 
     # ------------------------------------------------------------------
     # Helpers
@@ -189,3 +202,23 @@ class WorldModel(nn.Module):
         if isinstance(s, dict) and "state" in s:
             return s["state"]
         raise TypeError("State must be WorldModelState or dict with 'state'")
+
+    def imagine_trajectory_for_training(self, actor, critic, start_state, horizon):
+        from dreamerrl.training.core.imagination import imagine_trajectory_for_training
+
+        return imagine_trajectory_for_training(
+            world_model=self,
+            actor=actor,
+            critic=critic,
+            state=start_state,
+            horizon=horizon,
+        )
+
+    def imagine_trajectory_for_testing(self, start_state, horizon):
+        from dreamerrl.training.core.imagination import imagine_trajectory_for_testing
+
+        return imagine_trajectory_for_testing(
+            world_model=self,
+            state=start_state,
+            horizon=horizon,
+        )

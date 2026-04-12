@@ -11,13 +11,13 @@ from dreamerrl.env.popgym.popgym_wrappers import PopGymVecEnv
 from dreamerrl.models.actor import Actor
 from dreamerrl.models.value_head import ValueHead
 from dreamerrl.models.world_model import WorldModel
+from dreamerrl.replay_buffer.replay_buffer import DreamerReplayBuffer
 
 # --- Core algorithmic functions (single source of truth) ---
 from dreamerrl.training.core import (
     actor_critic_update,
     world_model_training_step,
 )
-from dreamerrl.training.replay_buffer import DreamerReplayBuffer
 from dreamerrl.utils.seed import set_global_seeds
 from dreamerrl.utils.types import DreamerConfig
 
