@@ -183,7 +183,7 @@ class WorldModel(nn.Module):
         return kl.sum(dim=-1).mean()  # scalar
 
     def structured_kl(self, post, prior):
-        # KL_dyn = KL[sg(post) || prior]  (per batch)
+        # KL_dyn = KL[ sg(q) || p ]
         mean_q = post["mean"].detach()
         std_q = post["std"].detach()
         mean_p = prior["mean"]
@@ -193,9 +193,9 @@ class WorldModel(nn.Module):
         var_p = std_p**2
 
         kl_dyn = torch.log(std_p / std_q) + (var_q + (mean_q - mean_p) ** 2) / (2 * var_p) - 0.5
-        kl_dyn = kl_dyn.sum(dim=-1)  # (B,)
+        kl_dyn = kl_dyn.sum(dim=-1)
 
-        # KL_rep = KL[post || sg(prior)]  (per batch)
+        # KL_rep = KL[ q || sg(p) ]
         mean_q = post["mean"]
         std_q = post["std"]
         mean_p = prior["mean"].detach()
@@ -205,7 +205,7 @@ class WorldModel(nn.Module):
         var_p = std_p**2
 
         kl_rep = torch.log(std_p / std_q) + (var_q + (mean_q - mean_p) ** 2) / (2 * var_p) - 0.5
-        kl_rep = kl_rep.sum(dim=-1)  # (B,)
+        kl_rep = kl_rep.sum(dim=-1)
 
         return kl_dyn, kl_rep
 
