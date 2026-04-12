@@ -42,7 +42,13 @@ def world_model_training_step(
 
     device = next(world_model.parameters()).device
 
-    obs = batch["state"].to(device)  # (B, L, obs_dim)
+    if "obs" in batch:
+        obs = batch["obs"].to(device)
+    elif "state" in batch:
+        obs = batch["state"].to(device)
+    else:
+        raise KeyError("Batch must contain 'obs' or 'state'")
+
     reward = batch["reward"].to(device)  # (B, L)
     is_terminal = batch["is_terminal"].to(device)  # (B, L)
     cont = 1.0 - is_terminal.float()  # (B, L)
