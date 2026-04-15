@@ -132,6 +132,10 @@ class WorldModel(nn.Module):
         z = post_stats["z"]
         h = self.rssm(prev_state.h, z)
 
+        # Insert deterministic state into stats dicts
+        post_stats = {**post_stats, "h": h}
+        prior_stats = {**prior_stats, "h": prev_state.h}
+
         post = WorldModelState(
             h=h,
             z=z,
