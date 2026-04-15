@@ -55,7 +55,6 @@ class _TestDreamerTrainer:
         B, T = batch_size, seq_len
         obs_dim = self.world_model.flat_obs_dim
 
-        # Synthetic batch in the format expected by world_model_training_step
         batch = {
             "obs": torch.randn(B, T, obs_dim, device=self.device),
             "action": torch.zeros(B, T, dtype=torch.long, device=self.device),
@@ -65,4 +64,5 @@ class _TestDreamerTrainer:
             "is_terminal": torch.zeros(B, T, device=self.device),
         }
 
-        return world_model_training_step(self.world_model, batch)
+        loss = world_model_training_step(self.world_model, batch)
+        return {"loss": loss}
