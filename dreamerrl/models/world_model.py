@@ -1,5 +1,3 @@
-# dreamerrl/models/world_model.py
-
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -25,7 +23,7 @@ class WorldModelState:
     prior_stats: Optional[Dict[str, torch.Tensor]] = None
     post_stats: Optional[Dict[str, torch.Tensor]] = None
 
-    def to(self, device):
+    def to(self, device: torch.device) -> "WorldModelState":
         return WorldModelState(
             h=self.h.to(device),
             z=self.z.to(device),
@@ -121,6 +119,12 @@ class WorldModel(nn.Module):
         is_last: torch.Tensor | None = None,
         is_terminal: torch.Tensor | None = None,
     ) -> Dict[str, Any]:
+        """
+        Dreamer‑V3 observe_step.
+
+        Core RSSM update depends only on prev_state and obs.
+        Extra arguments are accepted for interface symmetry with training code.
+        """
         prev_state = self._ensure_state(prev_state)
         embed = self.encoder(obs)
 
@@ -224,7 +228,7 @@ class WorldModel(nn.Module):
     # ------------------------------------------------------------------
     # Helpers
     # ------------------------------------------------------------------
-    def _ensure_state(self, s):
+    def _ensure_state(self, s: Any) -> WorldModelState:
         if isinstance(s, WorldModelState):
             return s
         if isinstance(s, dict) and "state" in s:

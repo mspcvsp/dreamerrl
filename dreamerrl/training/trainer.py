@@ -155,6 +155,7 @@ class DreamerTrainer:
     # Collect steps from environment
     # -------------------------------------------------------------
     def collect_env_steps(self) -> None:
+        # 1. Choose action
         if self.global_step < self.cfg.train.random_exploration_steps:
             actions = torch.randint(
                 low=0,
@@ -165,20 +166,31 @@ class DreamerTrainer:
         else:
             actions, _ = self.actor.act(self.world_state)
 
-        next_state = self.env.step(actions)
+        # 2. Step environment
+        env_out = self.env.step(actions)
 
-        out = self.world.observe_step(self.world_state, next_state["state"])
-        self.world_state = out["state"]
+        # 3. Update latent state using observation
+        wm_out = self.world.observe_step(
+            prev_state=self.world_state,
+            obs=env_out["state"],
+            action=actions,
+            reward=env_out["reward"],
+            is_first=env_out["is_first"],
+            is_last=env_out["is_last"],
+            is_terminal=env_out["is_terminal"],
+        )
+        self.world_state = wm_out["post"]
 
+        # 4. Store raw env transition in replay
         self.replay.add_batch(
             {
-                "state": next_state["state"],
+                "state": env_out["state"],
                 "action": actions,
-                "reward": next_state["reward"],
-                "is_first": next_state["is_first"],
-                "is_last": next_state["is_last"],
-                "is_terminal": next_state["is_terminal"],
-                "info": next_state["info"],
+                "reward": env_out["reward"],
+                "is_first": env_out["is_first"],
+                "is_last": env_out["is_last"],
+                "is_terminal": env_out["is_terminal"],
+                "info": env_out["info"],
             }
         )
 
