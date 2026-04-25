@@ -1,6 +1,4 @@
 import torch
-from dreamerrl.models.world_model import WorldModelState
-from dreamerrl.utils.twohot import value_from_logits
 
 
 @torch.no_grad()
