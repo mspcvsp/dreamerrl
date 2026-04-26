@@ -65,16 +65,20 @@ class Prior(nn.Module):
         logits = logits.view(B, self.stoch_size, self.num_classes)
         probs = F.softmax(logits, dim=-1)
 
+        # ------------------------------
+        # Sampling
+        # ------------------------------
         if self.deterministic_latent_for_tests:
-            # Argmax one-hot for deterministic CPU/GPU tests
-            idx = probs.argmax(dim=-1)  # (B, stoch_size)
+            idx = probs.argmax(dim=-1)
             z = F.one_hot(idx, num_classes=self.num_classes).float()
         else:
-            # Straight-through Gumbel-Softmax
             g = -torch.log(-torch.log(torch.rand_like(probs)))
             y = F.softmax((logits + g) / self.temperature, dim=-1)
-            z = y + (y.argmax(dim=-1) - y).detach()
-            z = F.one_hot(z.argmax(dim=-1), num_classes=self.num_classes).float()
+
+            idx = y.argmax(dim=-1)
+            z_hard = F.one_hot(idx, num_classes=self.num_classes).float()
+
+            z = z_hard + (y - y.detach())
 
         # Flatten factors × classes → (B, stoch_size * num_classes)
         z_flat = z.view(B, -1)
