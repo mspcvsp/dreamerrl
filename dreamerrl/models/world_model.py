@@ -6,7 +6,9 @@ from typing import Any, Dict, Optional
 import gymnasium as gym
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 
+from .categorical_kl import structured_kl
 from .continue_head import ContinueHead
 from .decoder import ObsDecoder
 from .obs_encoder import build_obs_encoder, get_flat_obs_dim
@@ -65,6 +67,8 @@ class WorldModel(nn.Module):
         rssm_hidden: int = 256,
         decoder_hidden: int = 256,
         reward_hidden: int = 256,
+        num_classes: int = 32,
+        free_bits: float = 0.0,
         device: Optional[torch.device] = None,
     ):
         super().__init__()
@@ -78,6 +82,8 @@ class WorldModel(nn.Module):
         self.device = device or torch.device("cpu")
         self.deter_size = deter_size
         self.stoch_size = stoch_size
+        self.num_classes = num_classes
+        self.free_bits = free_bits
 
         # Encoder
         self.obs_space = obs_space
@@ -89,11 +95,13 @@ class WorldModel(nn.Module):
         self.rssm = RSSMCore(deter_size, stoch_size, rssm_hidden).to(build_device)
 
         # Prior / Posterior
-        self.prior = Prior(deter_size, stoch_size, rssm_hidden).to(build_device)
-        self.posterior = Posterior(deter_size, stoch_size, rssm_hidden).to(build_device)
+        self.prior = Prior(deter_size, stoch_size, num_classes, rssm_hidden).to(build_device)
+        self.posterior = Posterior(deter_size, stoch_size, num_classes, rssm_hidden).to(build_device)
 
         # Decoder + Heads
-        self.decoder = ObsDecoder(deter_size, stoch_size, decoder_hidden, self.flat_obs_dim).to(build_device)
+        self.decoder = ObsDecoder(deter_size, stoch_size, num_classes, decoder_hidden, self.flat_obs_dim).to(
+            build_device
+        )
         self.reward_head = RewardHead(deter_size, stoch_size, reward_hidden).to(build_device)
         self.continue_head = ContinueHead(deter_size, stoch_size, reward_hidden).to(build_device)
 
@@ -103,7 +111,8 @@ class WorldModel(nn.Module):
     def init_state(self, batch_size: int) -> WorldModelState:
         device = next(self.parameters()).device
         h0 = torch.zeros(batch_size, self.deter_size, device=device)
-        z0 = torch.zeros(batch_size, self.stoch_size, device=device)
+        z0 = torch.zeros(batch_size, self.stoch_size * self.num_classes, device=device)
+
         return WorldModelState(h=h0, z=z0)
 
     # ------------------------------------------------------------------
@@ -159,6 +168,12 @@ class WorldModel(nn.Module):
         reward_logits = self.reward_head(h, z)
         cont_logits = self.continue_head(h, z).squeeze(-1)
 
+        kl_dict = structured_kl(
+            q_probs=post_stats["probs"],
+            p_probs=prior_stats["probs"],
+            free_bits=self.free_bits,
+        )
+
         return {
             # V3 training API
             "post": post,
@@ -171,7 +186,9 @@ class WorldModel(nn.Module):
             "reward_logits": reward_logits,
             "cont_logits": cont_logits,
             # KL
-            "kl": self.kl_divergence(post_stats, prior_stats),
+            "kl": kl_dict["kl_total"],
+            "kl_dyn": kl_dict["kl_dyn"],
+            "kl_rep": kl_dict["kl_rep"],
         }
 
     # ------------------------------------------------------------------
@@ -181,49 +198,13 @@ class WorldModel(nn.Module):
         prev_state = self._ensure_state(prev)
         prior = self.prior(prev_state.h)
 
-        z = prior["z"] if stochastic else prior["mean"]
+        z = prior["z"] if stochastic else prior["probs"].argmax(dim=-1)
+        B = z.shape[0]
+        z = F.one_hot(z, num_classes=self.num_classes).float().view(B, -1)
+
         h = self.rssm(prev_state.h, z)
 
         return WorldModelState(h=h, z=z, prior_stats=prior, post_stats=None)
-
-    # ------------------------------------------------------------------
-    # KL divergence
-    # ------------------------------------------------------------------
-    @staticmethod
-    def kl_divergence(post, prior):
-        mean_q, std_q = post["mean"], post["std"]
-        mean_p, std_p = prior["mean"], prior["std"]
-
-        var_q = std_q**2
-        var_p = std_p**2
-
-        kl = torch.log(std_p / std_q) + (var_q + (mean_q - mean_p) ** 2) / (2 * var_p) - 0.5
-        return kl.sum(dim=-1).mean()  # scalar
-
-    def structured_kl(self, post, prior):
-        def _kl(mean_q, std_q, mean_p, std_p):
-            var_q = std_q**2
-            var_p = std_p**2
-            kl = torch.log(std_p / std_q) + (var_q + (mean_q - mean_p) ** 2) / (2 * var_p) - 0.5
-            return kl.sum(dim=-1)  # (B,)
-
-        # KL_dyn = KL[ post || prior ]
-        kl_dyn = _kl(
-            post["mean"],
-            post["std"],
-            prior["mean"],
-            prior["std"],
-        )
-
-        # KL_rep = KL[ prior || post ]
-        kl_rep = _kl(
-            prior["mean"],
-            prior["std"],
-            post["mean"],
-            post["std"],
-        )
-
-        return kl_dyn, kl_rep
 
     # ------------------------------------------------------------------
     # Helpers

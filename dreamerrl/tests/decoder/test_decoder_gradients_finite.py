@@ -4,8 +4,8 @@ from dreamerrl.models.decoder import ObsDecoder
 
 
 def test_decoder_gradients_finite():
-    B, deter, stoch, hidden, obs_dim = 4, 32, 16, 64, 8
-    dec = ObsDecoder(deter, stoch, hidden, obs_dim)
+    B, deter, stoch, nclasses, hidden, obs_dim = 4, 32, 16, 32, 64, 8
+    dec = ObsDecoder(deter, stoch, nclasses, hidden, obs_dim)
 
     h = torch.randn(B, deter, requires_grad=True)
     z = torch.randn(B, stoch, requires_grad=True)

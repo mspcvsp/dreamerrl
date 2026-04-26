@@ -7,13 +7,14 @@ def test_decoder_cpu_gpu_equivalence():
     if not torch.cuda.is_available():
         return
 
-    B, deter_size, stoch_size, hidden_size, obs_dim = 4, 32, 16, 64, 8
+    B, deter_size, stoch_size, nclasses, hidden_size, obs_dim = 4, 32, 16, 32, 64, 8
 
     # Initialize on CPU for deterministic weights
     torch.manual_seed(0)
     decoder_cpu = ObsDecoder(
         deter_size=deter_size,
         stoch_size=stoch_size,
+        num_classes=nclasses,
         hidden_size=hidden_size,
         obs_shape=obs_dim,
     ).cpu()
@@ -22,6 +23,7 @@ def test_decoder_cpu_gpu_equivalence():
     decoder_gpu = ObsDecoder(
         deter_size=deter_size,
         stoch_size=stoch_size,
+        num_classes=nclasses,
         hidden_size=hidden_size,
         obs_shape=obs_dim,
     ).cuda()

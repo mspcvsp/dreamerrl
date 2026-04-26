@@ -3,25 +3,16 @@ import torch.nn as nn
 
 
 class ObsDecoder(nn.Module):
-    """
-    Dreamer-style observation decoder.
-    Reconstructs flattened observations from latent state (h, z).
-
-    Works for:
-    - Dreamer-Lite (z = 0)
-    - Full Dreamer (z from posterior/prior)
-    """
-
-    def __init__(self, deter_size: int, stoch_size: int, hidden_size: int, obs_shape):
+    def __init__(self, deter_size: int, stoch_size: int, num_classes: int, hidden_size: int, obs_shape):
         super().__init__()
 
-        # Flattened observation dimension
         if isinstance(obs_shape, int):
             self.obs_dim = obs_shape
         else:
             self.obs_dim = int(torch.tensor(obs_shape).prod())
 
-        input_dim = deter_size + stoch_size
+        # PATCH: updated input dimension for discrete latent
+        input_dim = deter_size + stoch_size * num_classes
 
         self.net = nn.Sequential(
             nn.Linear(input_dim, hidden_size),
