@@ -19,10 +19,3 @@ def init_weights(module):
                 nn.init.xavier_uniform_(param)
             elif "bias" in name:
                 nn.init.zeros_(param)
-
-    elif hasattr(module, "mean") and hasattr(module, "std"):
-        # Gaussian heads
-        nn.init.xavier_uniform_(module.mean.weight, gain=0.01)
-        nn.init.zeros_(module.mean.bias)
-        nn.init.xavier_uniform_(module.std.weight, gain=0.01)
-        nn.init.zeros_(module.std.bias)

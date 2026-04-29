@@ -33,7 +33,7 @@ class ObsDecoder(nn.Module):
     def forward(self, h, z):
         """
         h: (B, deter_size)
-        z: (B, stoch_size)
+        z: (B, stoch_size * mum_classes) --- shape for discrete latent
         Returns: reconstructed obs (B, obs_dim)
         """
         x = torch.cat([h, z], dim=-1)
