@@ -1,0 +1,61 @@
+*** dreamerrl/models/posterior.py
+--- dreamerrl/models/posterior.py
+***************
+*** 45,20 ***
+         logits = self.fc_logits(x)
+         logits = logits.view(B, self.stoch_size, self.num_classes)
+         probs = F.softmax(logits, dim=-1)
+
+-        if self.deterministic_latent_for_tests:
+-            idx = probs.argmax(dim=-1)
+-            z = F.one_hot(idx, num_classes=self.num_classes).float()
+-        else:
+-            g = -torch.log(-torch.log(torch.rand_like(probs)))
+-            y = F.softmax((logits + g) / self.temperature, dim=-1)
+-            z = y + (y.argmax(dim=-1) - y).detach()
+-            z = F.one_hot(z.argmax(dim=-1), num_classes=self.num_classes).float()
++        # Correct ST-Gumbel-Softmax
++        if self.deterministic_latent_for_tests:
++            idx = probs.argmax(dim=-1)
++            z_hard = F.one_hot(idx, num_classes=self.num_classes).float()
++            z = z_hard
++        else:
++            g = -torch.log(-torch.log(torch.rand_like(probs)))
++            y = F.softmax((logits + g) / self.temperature, dim=-1)
++            idx = y.argmax(dim=-1)
++            z_hard = F.one_hot(idx, num_classes=self.num_classes).float()
++            z = z_hard + (y - y.detach())
+
+         z_flat = z.view(B, -1)
+         return {"logits": logits, "probs": probs, "z": z_flat}
+
+*** dreamerrl/models/prior.py
+--- dreamerrl/models/prior.py
+***************
+*** 40,20 ***
+         logits = self.fc_logits(x)
+         logits = logits.view(B, self.stoch_size, self.num_classes)
+         probs = F.softmax(logits, dim=-1)
+
+-        if self.deterministic_latent_for_tests:
+-            idx = probs.argmax(dim=-1)
+-            z = F.one_hot(idx, num_classes=self.num_classes).float()
+-        else:
+-            g = -torch.log(-torch.log(torch.rand_like(probs)))
+-            y = F.softmax((logits + g) / self.temperature, dim=-1)
+-            z = y + (y.argmax(dim=-1) - y).detach()
+-            z = F.one_hot(z.argmax(dim=-1), num_classes=self.num_classes).float()
++        # Correct ST-Gumbel-Softmax
++        if self.deterministic_latent_for_tests:
++            idx = probs.argmax(dim=-1)
++            z_hard = F.one_hot(idx, num_classes=self.num_classes).float()
++            z = z_hard
++        else:
++            g = -torch.log(-torch.log(torch.rand_like(probs)))
++            y = F.softmax((logits + g) / self.temperature, dim=-1)
++            idx = y.argmax(dim=-1)
++            z_hard = F.one_hot(idx, num_classes=self.num_classes).float()
++            z = z_hard + (y - y.detach())
+
+         z_flat = z.view(B, -1)
+         return {"logits": logits, "probs": probs, "z": z_flat}

@@ -12,11 +12,12 @@ class RewardHead(nn.Module):
         self,
         deter_size: int,
         stoch_size: int,
+        num_classes: int,
         hidden_size: int,
         num_bins: int | None = None,
     ):
         super().__init__()
-        input_dim = deter_size + stoch_size
+        input_dim = deter_size + stoch_size * num_classes
         if num_bins is None:
             num_bins = BINS.numel()
         self.num_bins = num_bins

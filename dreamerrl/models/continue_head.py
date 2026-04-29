@@ -3,10 +3,10 @@ import torch.nn as nn
 
 
 class ContinueHead(nn.Module):
-    def __init__(self, deter_size, stoch_size, hidden_size=256):
+    def __init__(self, deter_size: int, stoch_size: int, num_classes: int, hidden_size=256):
         super().__init__()
         self.net = nn.Sequential(
-            nn.Linear(deter_size + stoch_size, hidden_size),
+            nn.Linear(deter_size + stoch_size * num_classes, hidden_size),
             nn.SiLU(),
             nn.Linear(hidden_size, 1),
         )

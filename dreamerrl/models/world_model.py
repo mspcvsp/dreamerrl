@@ -92,7 +92,7 @@ class WorldModel(nn.Module):
         self.encoder = build_obs_encoder(obs_space, embed_dim=self.embed_size).to(build_device)
 
         # RSSM
-        self.rssm = RSSMCore(deter_size, stoch_size, rssm_hidden).to(build_device)
+        self.rssm = RSSMCore(deter_size, stoch_size, num_classes, rssm_hidden).to(build_device)
 
         # Prior / Posterior
         self.prior = Prior(deter_size, stoch_size, num_classes, rssm_hidden).to(build_device)
@@ -102,8 +102,8 @@ class WorldModel(nn.Module):
         self.decoder = ObsDecoder(deter_size, stoch_size, num_classes, decoder_hidden, self.flat_obs_dim).to(
             build_device
         )
-        self.reward_head = RewardHead(deter_size, stoch_size, reward_hidden).to(build_device)
-        self.continue_head = ContinueHead(deter_size, stoch_size, reward_hidden).to(build_device)
+        self.reward_head = RewardHead(deter_size, stoch_size, num_classes, reward_hidden).to(build_device)
+        self.continue_head = ContinueHead(deter_size, stoch_size, num_classes, reward_hidden).to(build_device)
 
     # ------------------------------------------------------------------
     # Initialization
@@ -115,9 +115,29 @@ class WorldModel(nn.Module):
 
         return WorldModelState(h=h0, z=z0)
 
-    # ------------------------------------------------------------------
+    # ---------------------------------------------------------------------------------------
     # Observe real environment transition (single V3-style API)
-    # ------------------------------------------------------------------
+    # ---------------------------------------------------------------------------------------
+    # NOTE ABOUT UNUSED ARGUMENTS
+    # ---------------------------
+    # Dreamer‑V3 standardizes the world‑model API to:
+    #   observe_step(prev_state, obs, action, reward, is_first, is_last, is_terminal)
+    #
+    # Even though the RSSM update depends ONLY on (prev_state.h, obs),
+    # the extra arguments MUST remain in the signature for interface symmetry with:
+    #   - the training pipeline (world_model_update.py)
+    #   - replay buffer sampling
+    #   - actor/critic updates
+    #   - continuation prediction and episode-boundary logic
+    #
+    # The world model intentionally ignores action/reward/terminal flags because
+    # Dreamer‑V3’s latent dynamics are learned purely from (h, z, obs).
+    # Removing these parameters breaks the unified API and forces special‑cases
+    # throughout the training stack.
+    #
+    # TL;DR: These arguments are unused by design. They preserve the V3 API contract
+    # and keep the training code generic, stable, and interchangeable.
+    # ---------------------------------------------------------------------------------------
     def observe_step(
         self,
         prev_state: Any,
@@ -194,16 +214,20 @@ class WorldModel(nn.Module):
     # ------------------------------------------------------------------
     # Imagination step (latent rollout)
     # ------------------------------------------------------------------
-    def imagine_step(self, prev: Any, stochastic: bool = True) -> WorldModelState:
+    def imagine_step(self, prev, stochastic=True):
         prev_state = self._ensure_state(prev)
         prior = self.prior(prev_state.h)
 
-        z = prior["z"] if stochastic else prior["probs"].argmax(dim=-1)
-        B = z.shape[0]
-        z = F.one_hot(z, num_classes=self.num_classes).float().view(B, -1)
+        if stochastic:
+            # Already flattened one-hot
+            z = prior["z"]
+        else:
+            # Deterministic: argmax per factor
+            idx = prior["probs"].argmax(dim=-1)  # (B, stoch_size)
+            z = F.one_hot(idx, num_classes=self.num_classes).float()
+            z = z.view(z.shape[0], -1)
 
         h = self.rssm(prev_state.h, z)
-
         return WorldModelState(h=h, z=z, prior_stats=prior, post_stats=None)
 
     # ------------------------------------------------------------------

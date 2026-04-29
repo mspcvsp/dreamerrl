@@ -13,17 +13,18 @@ class RSSMCore(nn.Module):
     This module implements the deterministic transition h_{t+1} = f(h_t, z_t).
     """
 
-    def __init__(self, deter_size: int, stoch_size: int, hidden_size: int):
+    def __init__(self, deter_size: int, stoch_size: int, num_classes: int, hidden_size: int):
         super().__init__()
 
         self.deter_size = deter_size
         self.stoch_size = stoch_size
+        self.num_classes = num_classes
         self.hidden_size = hidden_size
 
         # ---------------------------------------------------------
         # Deterministic transition: h' = f(h, z)
         # ---------------------------------------------------------
-        self.fc1 = nn.Linear(deter_size + stoch_size, hidden_size)
+        self.fc1 = nn.Linear(deter_size + stoch_size * num_classes, hidden_size)
         self.ln1 = DeterministicLayerNorm(hidden_size)
         self.fc2 = nn.Linear(hidden_size, deter_size)
 

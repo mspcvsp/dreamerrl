@@ -45,7 +45,7 @@
     // -----------------------------
     // VS Code UI niceties
     // -----------------------------
-    "workbench.colorTheme": "Default Dark Modern",
+    "workbench.colorTheme": "Dark Modern",
     "breadcrumbs.enabled": true,
     "python-envs.defaultEnvManager": "ms-python.python:conda",
     "python-envs.defaultPackageManager": "ms-python.python:conda",
