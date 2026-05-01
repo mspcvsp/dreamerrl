@@ -3,30 +3,32 @@ from __future__ import annotations
 import torch
 import torch.nn as nn
 
-from dreamerrl.utils.twohot import BINS, twohot_encode, value_from_logits
+from dreamerrl.utils.twohot import twohot_encode, value_from_logits
+from dreamerrl.utils.types import LatentConfig, NetworkConfig
 
 
 class ValueHead(nn.Module):
-    def __init__(
-        self,
-        deter_size: int,
-        stoch_size: int,
-        num_classes: int,
-        hidden_size: int,
-        num_bins: int | None = None,
-    ):
+    """
+    Distributional value head in symlog space with two-hot targets.
+
+    NOTE: Uses the same bins as RewardHead via NetworkConfig,
+    so actor-critic update, imagination, and readout are all consistent.
+    """
+
+    def __init__(self, *, latent: LatentConfig, net: NetworkConfig):
         super().__init__()
-        input_dim = deter_size + stoch_size * num_classes
-        if num_bins is None:
-            num_bins = BINS.numel()
-        self.num_bins = num_bins
+
+        assert net.value_bins is not None, "Critic requires value_bins"
+
+        input_dim = latent.deter_size + latent.z_dim
+        self.bins = net.make_bins()
 
         self.net = nn.Sequential(
-            nn.Linear(input_dim, hidden_size),
+            nn.Linear(input_dim, net.hidden_size),
             nn.SiLU(),
-            nn.Linear(hidden_size, hidden_size),
+            nn.Linear(net.hidden_size, net.hidden_size),
             nn.SiLU(),
-            nn.Linear(hidden_size, num_bins),
+            nn.Linear(net.hidden_size, net.value_bins),
         )
 
         self.apply(self._init_weights)
@@ -41,8 +43,8 @@ class ValueHead(nn.Module):
         x = torch.cat([h, z], dim=-1)
         return self.net(x)  # (B, num_bins)
 
-    @staticmethod
     def loss_from_logits(
+        self,
         logits: torch.Tensor,
         target_returns_symlog: torch.Tensor,
     ) -> torch.Tensor:
@@ -50,11 +52,10 @@ class ValueHead(nn.Module):
         logits: (T, B, num_bins)
         target_returns_symlog: (T, B) in symlog space
         """
-        target_twohot = twohot_encode(target_returns_symlog)
+        target_twohot = twohot_encode(target_returns_symlog, self.bins)
         log_probs = torch.log_softmax(logits, dim=-1)
         loss = -(target_twohot * log_probs).sum(dim=-1).mean()
         return loss
 
-    @staticmethod
-    def readout(logits: torch.Tensor) -> torch.Tensor:
-        return value_from_logits(logits)
+    def readout(self, logits: torch.Tensor) -> torch.Tensor:
+        return value_from_logits(logits, self.bins)

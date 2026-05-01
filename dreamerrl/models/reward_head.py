@@ -4,30 +4,32 @@ import torch
 import torch.nn as nn
 
 from dreamerrl.utils.transforms import symlog
-from dreamerrl.utils.twohot import BINS, twohot_encode, value_from_logits
+from dreamerrl.utils.twohot import twohot_encode, value_from_logits
+from dreamerrl.utils.types import LatentConfig, NetworkConfig
 
 
 class RewardHead(nn.Module):
-    def __init__(
-        self,
-        deter_size: int,
-        stoch_size: int,
-        num_classes: int,
-        hidden_size: int,
-        num_bins: int | None = None,
-    ):
+    """
+    Distributional reward head in symlog space with two-hot targets.
+
+    NOTE: Bins are no longer global; they come from NetworkConfig
+    so critic, reward head, and value decoding all share the same geometry.
+    """
+
+    def __init__(self, *, latent: LatentConfig, net: NetworkConfig):
         super().__init__()
-        input_dim = deter_size + stoch_size * num_classes
-        if num_bins is None:
-            num_bins = BINS.numel()
-        self.num_bins = num_bins
+
+        assert net.value_bins is not None, "RewardHead requires value_bins"
+
+        input_dim = latent.deter_size + latent.z_dim
+        self.bins = net.make_bins()  # moved from global BINS to config-driven
 
         self.net = nn.Sequential(
-            nn.Linear(input_dim, hidden_size),
+            nn.Linear(input_dim, net.hidden_size),
             nn.SiLU(),
-            nn.Linear(hidden_size, hidden_size),
+            nn.Linear(net.hidden_size, net.hidden_size),
             nn.SiLU(),
-            nn.Linear(hidden_size, num_bins),
+            nn.Linear(net.hidden_size, net.value_bins),
         )
 
         self.apply(self._init_weights)
@@ -42,8 +44,8 @@ class RewardHead(nn.Module):
         x = torch.cat([h, z], dim=-1)
         return self.net(x)  # (B, num_bins)
 
-    @staticmethod
     def loss_from_logits(
+        self,
         logits: torch.Tensor,
         reward: torch.Tensor,
     ) -> torch.Tensor:
@@ -51,16 +53,15 @@ class RewardHead(nn.Module):
         logits: (T, B, num_bins) or (B, num_bins)
         reward: (T, B) or (B,) raw scalar reward
         """
-        target = symlog(reward)
-        target_twohot = twohot_encode(target)
+        target_symlog = symlog(reward)
+        target_twohot = twohot_encode(target_symlog, self.bins)
         log_probs = torch.log_softmax(logits, dim=-1)
         loss = -(target_twohot * log_probs).sum(dim=-1).mean()
         return loss
 
-    @staticmethod
-    def readout(logits: torch.Tensor) -> torch.Tensor:
+    def readout(self, logits: torch.Tensor) -> torch.Tensor:
         """
         logits: (..., num_bins)
         returns: (...,) scalar reward prediction
         """
-        return value_from_logits(logits)
+        return value_from_logits(logits, self.bins)

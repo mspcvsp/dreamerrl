@@ -1,28 +1,13 @@
 import torch
 
-from .transforms import symexp
 
-# Bins in symlog space, then mapped back with symexp for readout
-# You can tune range/step later.
-_SYMLOG_BINS = torch.linspace(-10.0, 10.0, steps=41)  # 41 bins
-BINS = symexp(_SYMLOG_BINS)  # (num_bins,)
-
-
-def twohot_encode(
-    y: torch.Tensor,
-    bins: torch.Tensor | None = None,
-) -> torch.Tensor:
-    if bins is None:
-        bins = BINS.to(y.device)
-
+def twohot_encode(y: torch.Tensor, bins: torch.Tensor) -> torch.Tensor:
     y = y.unsqueeze(-1)  # (..., 1)
     diff = torch.abs(y - bins)  # (..., num_bins)
-    idx = torch.argmin(diff, dim=-1)  # (...,)
+    idx = torch.argmin(diff, dim=-1)  # (...)
 
-    # Use squeezed y here so shapes match idx
-    delta = torch.sign(y.squeeze(-1) - bins[idx])  # (...,)
-    idx2 = idx + delta.to(torch.long)
-    idx2 = torch.clamp(idx2, 0, bins.numel() - 1)
+    delta = torch.sign(y.squeeze(-1) - bins[idx])
+    idx2 = torch.clamp(idx + delta.to(torch.long), 0, bins.numel() - 1)
 
     b1 = bins[idx]
     b2 = bins[idx2]
@@ -36,12 +21,6 @@ def twohot_encode(
     return out
 
 
-def value_from_logits(logits: torch.Tensor, bins: torch.Tensor | None = None) -> torch.Tensor:
-    """
-    logits: (..., num_bins)
-    returns: (...,) expected value under softmax(logits) over bins
-    """
-    if bins is None:
-        bins = BINS.to(logits.device)
+def value_from_logits(logits: torch.Tensor, bins: torch.Tensor) -> torch.Tensor:
     probs = torch.softmax(logits, dim=-1)
     return (probs * bins).sum(dim=-1)

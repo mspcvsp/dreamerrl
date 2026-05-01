@@ -1,16 +1,25 @@
 import torch
 import torch.nn as nn
 
+from dreamerrl.utils.types import LatentConfig, NetworkConfig
+
 
 class ContinueHead(nn.Module):
-    def __init__(self, deter_size: int, stoch_size: int, num_classes: int, hidden_size=256):
+    """
+    Predicts continuation logit (not two-hot, no value bins).
+    Uses the same latent geometry as the rest of the world model.
+    """
+
+    def __init__(self, *, latent: LatentConfig, net: NetworkConfig):
         super().__init__()
+        input_dim = latent.deter_size + latent.z_dim
+
         self.net = nn.Sequential(
-            nn.Linear(deter_size + stoch_size * num_classes, hidden_size),
+            nn.Linear(input_dim, net.hidden_size),
             nn.SiLU(),
-            nn.Linear(hidden_size, 1),
+            nn.Linear(net.hidden_size, 1),
         )
 
-    def forward(self, h, z):
+    def forward(self, h: torch.Tensor, z: torch.Tensor) -> torch.Tensor:
         x = torch.cat([h, z], dim=-1)
-        return self.net(x)  # logits
+        return self.net(x)  # (B, 1) logits

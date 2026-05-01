@@ -1,6 +1,10 @@
 from dataclasses import dataclass, field
 from typing import Optional
 
+import torch
+
+from .transforms import symexp
+
 
 # ---------------------------------------------------------
 # 1. World Model Config (RSSM + Encoder/Decoder)
@@ -123,3 +127,38 @@ def make_default_config() -> DreamerConfig:
     cfg = DreamerConfig()
     cfg.init_run_name()
     return cfg
+
+
+@dataclass(frozen=True)
+class LatentConfig:
+    """
+    Shared Dreamer-V3 latent configuration.
+    Prevents silent shape bugs by centralizing latent geometry.
+    """
+
+    deter_size: int
+    stoch_size: int
+    num_classes: int
+
+    @property
+    def z_dim(self) -> int:
+        return self.stoch_size * self.num_classes
+
+
+@dataclass(frozen=True)
+class NetworkConfig:
+    """
+    Shared network configuration for Actor/Critic/Heads.
+    Prevents accidental swapping of hidden_size, action_dim, value_bins.
+    """
+
+    hidden_size: int
+    action_dim: int | None = None
+    value_bins: int | None = None
+    bin_min: float = -10.0
+    bin_max: float = 10.0
+
+    def make_bins(self, device=None):
+        symlog_bins = torch.linspace(self.bin_min, self.bin_max, steps=self.value_bins)
+        bins = symexp(symlog_bins)
+        return bins if device is None else bins.to(device)

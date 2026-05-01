@@ -5,8 +5,6 @@ from dreamerrl.training.core import imagine_trajectory_for_testing
 
 def test_imagination_invariants(world_model):
     B, H = 4, 6
-    deter = world_model.deter_size
-    stoch = world_model.stoch_size
 
     state = world_model.init_state(B)
 
@@ -21,8 +19,8 @@ def test_imagination_invariants(world_model):
     reward = traj["reward"]
 
     # Basic shape invariants
-    assert h.shape == (H, B, deter)
-    assert z.shape == (H, B, stoch)
+    assert h.shape == (H, B, world_model.deter_size)
+    assert z.shape == (H, B, world_model.stoch_size * world_model.num_classes)  # shape for discrete latent
     assert reward.shape == (H, B)
 
     # Finite values

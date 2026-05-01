@@ -16,8 +16,11 @@ def test_actor_critic_update_invariants(world_model, device):
         "reward": torch.randn(B, L, device=device),
     }
 
-    actor = Actor(deter, stoch, hidden_size=64, action_dim=3).to(device)
-    critic = ValueHead(deter, stoch, hidden_size=64).to(device)
+    num_classes = world_model.num_classes
+    hidden_size = world_model.hidden_size
+
+    actor = Actor(deter, stoch, hidden_size=hidden_size, num_classes=num_classes, action_dim=3).to(device)
+    critic = ValueHead(deter, stoch, num_classes=num_classes, hidden_size=hidden_size).to(device)
 
     actor_loss, critic_loss = actor_critic_update(
         world_model=world_model,

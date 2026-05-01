@@ -127,8 +127,35 @@ def test_trainer(world_model, actor, critic, replay_buffer_factory, device):
 # ---------------------------------------------------------------------
 @pytest.fixture
 def imagine_input(world_model, batch_size=4, device="cpu"):
+    """
+    Test-time latent initialization for WorldModelState.
+
+    IMPORTANT:
+    ----------
+    Dreamer‑V3 uses *factored discrete latents* during training:
+        - Posterior/Prior produce `probs` that sum to 1 per factor
+        - `z` is a concatenation of one-hot (or ST‑Gumbel) vectors
+        - shape: (B, stoch_size * num_classes)
+
+    BUT for tests:
+        - We do NOT need `z` to be one-hot
+        - We do NOT need it to sum to 1
+        - We ONLY need the correct shape and dtype
+        - RSSMCore, RewardHead, ContinueHead, Decoder all treat `z`
+          as a generic feature vector, not a probability distribution.
+
+    Therefore:
+        Using `torch.randn` here is correct and intentional.
+        It avoids depending on Prior/Posterior sampling and keeps
+        tests deterministic, isolated, and fast.
+    """
+
     h = torch.randn(batch_size, world_model.deter_size, device=device)
-    z = torch.randn(batch_size, world_model.stoch_size, device=device)
+
+    # V3-correct latent dimension: flattened discrete latent
+    z_dim = world_model.stoch_size * world_model.num_classes
+    z = torch.randn(batch_size, z_dim, device=device)
+
     return WorldModelState(h=h, z=z)
 
 
