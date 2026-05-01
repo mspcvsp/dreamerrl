@@ -8,6 +8,8 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
+from dreamerrl.utils.types import LatentConfig, NetworkConfig
+
 from .categorical_kl import structured_kl
 from .continue_head import ContinueHead
 from .decoder import ObsDecoder
@@ -51,93 +53,46 @@ class WorldModelState:
 
 
 class WorldModel(nn.Module):
-    """
-    Clean Dreamer‑V3 world model.
-    Contains only modules + observe_step + imagine_step.
-    All training logic lives in training/core/world_model_update.py.
-    """
-
     def __init__(
         self,
+        *,
         obs_space: gym.Space,
         action_dim: int,
-        deter_size: int,
-        stoch_size: int,
-        encoder_hidden: int = 256,
-        rssm_hidden: int = 256,
-        decoder_hidden: int = 256,
-        reward_hidden: int = 256,
-        num_classes: int = 32,
+        latent: LatentConfig,
+        net: NetworkConfig,
         free_bits: float = 0.0,
         device: Optional[torch.device] = None,
     ):
         super().__init__()
 
-        # Deterministic initialization for CPU/GPU equivalence tests
         torch.manual_seed(0)
         if torch.cuda.is_available():
             torch.cuda.manual_seed_all(0)
 
         build_device = torch.device("cpu")
         self.device = device or torch.device("cpu")
-        self.deter_size = deter_size
-        self.stoch_size = stoch_size
-        self.num_classes = num_classes
+        self.latent = latent
+        self.net_cfg = net
         self.free_bits = free_bits
 
-        # Encoder
         self.obs_space = obs_space
         self.flat_obs_dim = get_flat_obs_dim(obs_space)
-        self.embed_size = encoder_hidden
+        self.embed_size = net.hidden_size
+
         self.encoder = build_obs_encoder(obs_space, embed_dim=self.embed_size).to(build_device)
+        self.rssm = RSSMCore(latent=latent, net=net).to(build_device)
+        self.prior = Prior(latent=latent, net=net).to(build_device)
+        self.posterior = Posterior(latent=latent, net=net).to(build_device)
+        self.decoder = ObsDecoder(latent=latent, net=net, output_dim=self.flat_obs_dim).to(build_device)
+        self.reward_head = RewardHead(latent=latent, net=net).to(build_device)
+        self.continue_head = ContinueHead(latent=latent, net=net).to(build_device)
 
-        # RSSM
-        self.rssm = RSSMCore(deter_size, stoch_size, num_classes, rssm_hidden).to(build_device)
-
-        # Prior / Posterior
-        self.prior = Prior(deter_size, stoch_size, num_classes, rssm_hidden).to(build_device)
-        self.posterior = Posterior(deter_size, stoch_size, num_classes, rssm_hidden).to(build_device)
-
-        # Decoder + Heads
-        self.decoder = ObsDecoder(deter_size, stoch_size, num_classes, decoder_hidden, self.flat_obs_dim).to(
-            build_device
-        )
-        self.reward_head = RewardHead(deter_size, stoch_size, num_classes, reward_hidden).to(build_device)
-        self.continue_head = ContinueHead(deter_size, stoch_size, num_classes, reward_hidden).to(build_device)
-
-    # ------------------------------------------------------------------
-    # Initialization
-    # ------------------------------------------------------------------
     def init_state(self, batch_size: int) -> WorldModelState:
         device = next(self.parameters()).device
-        h0 = torch.zeros(batch_size, self.deter_size, device=device)
-        z0 = torch.zeros(batch_size, self.stoch_size * self.num_classes, device=device)
-
+        h0 = torch.zeros(batch_size, self.latent.deter_size, device=device)
+        z0 = torch.zeros(batch_size, self.latent.z_dim, device=device)
         return WorldModelState(h=h0, z=z0)
 
-    # ---------------------------------------------------------------------------------------
-    # Observe real environment transition (single V3-style API)
-    # ---------------------------------------------------------------------------------------
-    # NOTE ABOUT UNUSED ARGUMENTS
-    # ---------------------------
-    # Dreamer‑V3 standardizes the world‑model API to:
-    #   observe_step(prev_state, obs, action, reward, is_first, is_last, is_terminal)
-    #
-    # Even though the RSSM update depends ONLY on (prev_state.h, obs),
-    # the extra arguments MUST remain in the signature for interface symmetry with:
-    #   - the training pipeline (world_model_update.py)
-    #   - replay buffer sampling
-    #   - actor/critic updates
-    #   - continuation prediction and episode-boundary logic
-    #
-    # The world model intentionally ignores action/reward/terminal flags because
-    # Dreamer‑V3’s latent dynamics are learned purely from (h, z, obs).
-    # Removing these parameters breaks the unified API and forces special‑cases
-    # throughout the training stack.
-    #
-    # TL;DR: These arguments are unused by design. They preserve the V3 API contract
-    # and keep the training code generic, stable, and interchangeable.
-    # ---------------------------------------------------------------------------------------
     def observe_step(
         self,
         prev_state: Any,
@@ -148,42 +103,21 @@ class WorldModel(nn.Module):
         is_last: torch.Tensor | None = None,
         is_terminal: torch.Tensor | None = None,
     ) -> Dict[str, Any]:
-        """
-        Dreamer‑V3 observe_step.
-
-        Core RSSM update depends only on prev_state and obs.
-        Extra arguments are accepted for interface symmetry with training code.
-        """
         prev_state = self._ensure_state(prev_state)
         embed = self.encoder(obs)
 
-        # Posterior and prior
         post_stats = self.posterior(prev_state.h, embed)
         prior_stats = self.prior(prev_state.h)
 
-        # RSSM transition
         z = post_stats["z"]
         h = self.rssm(prev_state.h, z)
 
-        # Insert deterministic state into stats dicts
         post_stats = {**post_stats, "h": h}
         prior_stats = {**prior_stats, "h": prev_state.h}
 
-        post = WorldModelState(
-            h=h,
-            z=z,
-            prior_stats=prior_stats,
-            post_stats=post_stats,
-        )
+        post = WorldModelState(h=h, z=z, prior_stats=prior_stats, post_stats=post_stats)
+        prior = WorldModelState(h=prev_state.h, z=prior_stats["z"], prior_stats=prior_stats, post_stats=None)
 
-        prior = WorldModelState(
-            h=prev_state.h,
-            z=prior_stats["z"],
-            prior_stats=prior_stats,
-            post_stats=None,
-        )
-
-        # Heads
         recon = self.decoder(h, z)
         reward_logits = self.reward_head(h, z)
         cont_logits = self.continue_head(h, z).squeeze(-1)
@@ -195,44 +129,32 @@ class WorldModel(nn.Module):
         )
 
         return {
-            # V3 training API
             "post": post,
             "prior": prior,
-            # Test suite API
             "post_stats": post_stats,
             "prior_stats": prior_stats,
-            # Heads
             "recon": recon,
             "reward_logits": reward_logits,
             "cont_logits": cont_logits,
-            # KL
             "kl": kl_dict["kl_total"],
             "kl_dyn": kl_dict["kl_dyn"],
             "kl_rep": kl_dict["kl_rep"],
         }
 
-    # ------------------------------------------------------------------
-    # Imagination step (latent rollout)
-    # ------------------------------------------------------------------
-    def imagine_step(self, prev, stochastic=True):
+    def imagine_step(self, prev, stochastic: bool = True) -> WorldModelState:
         prev_state = self._ensure_state(prev)
         prior = self.prior(prev_state.h)
 
         if stochastic:
-            # Already flattened one-hot
             z = prior["z"]
         else:
-            # Deterministic: argmax per factor
             idx = prior["probs"].argmax(dim=-1)  # (B, stoch_size)
-            z = F.one_hot(idx, num_classes=self.num_classes).float()
+            z = F.one_hot(idx, num_classes=self.latent.num_classes).float()
             z = z.view(z.shape[0], -1)
 
         h = self.rssm(prev_state.h, z)
         return WorldModelState(h=h, z=z, prior_stats=prior, post_stats=None)
 
-    # ------------------------------------------------------------------
-    # Helpers
-    # ------------------------------------------------------------------
     def _ensure_state(self, s: Any) -> WorldModelState:
         if isinstance(s, WorldModelState):
             return s
@@ -243,19 +165,9 @@ class WorldModel(nn.Module):
     def imagine_trajectory_for_training(self, actor, critic, start_state, horizon):
         from dreamerrl.training.core.imagination import imagine_trajectory_for_training
 
-        return imagine_trajectory_for_training(
-            world_model=self,
-            actor=actor,
-            critic=critic,
-            state=start_state,
-            horizon=horizon,
-        )
+        return imagine_trajectory_for_training(self, actor, critic, start_state, horizon)
 
     def imagine_trajectory_for_testing(self, start_state, horizon):
         from dreamerrl.training.core.imagination import imagine_trajectory_for_testing
 
-        return imagine_trajectory_for_testing(
-            world_model=self,
-            state=start_state,
-            horizon=horizon,
-        )
+        return imagine_trajectory_for_testing(self, start_state, horizon)

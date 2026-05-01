@@ -26,6 +26,10 @@ class WorldModelConfig:
 
     imagination_horizon: int = 15
 
+    num_classes: int = 32
+    value_bins: int = 41
+    free_bits: float = 0.0
+
 
 # ---------------------------------------------------------
 # 2. Actor/Critic Config

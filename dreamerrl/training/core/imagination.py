@@ -1,5 +1,3 @@
-# dreamerrl/training/core/imagination.py
-
 from __future__ import annotations
 
 from typing import Any, Dict
@@ -10,7 +8,6 @@ from torch.distributions import Categorical
 from dreamerrl.models.actor import Actor
 from dreamerrl.models.value_head import ValueHead
 from dreamerrl.models.world_model import WorldModel, WorldModelState
-from dreamerrl.utils.twohot import value_from_logits
 
 
 def imagine_trajectory_for_training(
@@ -23,12 +20,11 @@ def imagine_trajectory_for_training(
     device = next(world_model.parameters()).device
     s = state.to(device)
 
-    hs, zs = [], []
-    rewards, actions = [], []
+    hs, zs, rewards, actions = [], [], [], []
 
     for _ in range(horizon):
         reward_logits = world_model.reward_head(s.h, s.z)
-        r = value_from_logits(reward_logits)  # (B,)
+        r = world_model.reward_head.readout(reward_logits)
 
         logits = actor(s.h, s.z)
         dist = Categorical(logits=logits)
@@ -41,9 +37,8 @@ def imagine_trajectory_for_training(
         hs.append(s.h)
         zs.append(s.z)
 
-    # Bootstrap value
     bootstrap_logits = critic(s.h, s.z)
-    bootstrap_value = value_from_logits(bootstrap_logits)  # (B,)
+    bootstrap_value = critic.readout(bootstrap_logits)
 
     return {
         "h": torch.stack(hs, dim=0),
@@ -54,7 +49,7 @@ def imagine_trajectory_for_training(
     }
 
 
-def imagine_trajectory_for_testing(world_model, state, horizon):
+def imagine_trajectory_for_testing(world_model: WorldModel, state: WorldModelState, horizon: int):
     device = next(world_model.parameters()).device
     s = state.to(device)
 
@@ -62,7 +57,7 @@ def imagine_trajectory_for_testing(world_model, state, horizon):
 
     for _ in range(horizon):
         reward_logits = world_model.reward_head(s.h, s.z)
-        r = value_from_logits(reward_logits)
+        r = world_model.reward_head.readout(reward_logits)
 
         rewards.append(r)
         hs.append(s.h)
