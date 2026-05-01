@@ -6,41 +6,33 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
+from dreamerrl.utils.types import LatentConfig, NetworkConfig
+
 
 class Prior(nn.Module):
     """
     Factored discrete prior p(z_t | h_{t-1}).
-
-    - stoch_size: number of categorical factors
-    - num_classes: number of classes per factor
-    - deterministic_latent_for_tests:
-        True  -> argmax one-hot (CPU/GPU equivalence tests)
-        False -> straight-through Gumbel-Softmax (training)
     """
 
     def __init__(
         self,
-        deter_size: int,
-        stoch_size: int,
-        num_classes: int,
-        hidden_size: int,
+        *,
+        latent: LatentConfig,
+        net: NetworkConfig,
         deterministic_latent_for_tests: bool = False,
         temperature: float = 1.0,
     ):
         super().__init__()
 
-        torch.manual_seed(0)  # deterministic init for tests
+        torch.manual_seed(0)
 
-        self.deter_size = deter_size
-        self.stoch_size = stoch_size
-        self.num_classes = num_classes
-        self.hidden_size = hidden_size
+        self.latent = latent
+        self.net_cfg = net
         self.temperature = temperature
         self.deterministic_latent_for_tests = deterministic_latent_for_tests
 
-        # Only h_t goes into the prior
-        self.fc1 = nn.Linear(deter_size, hidden_size)
-        self.fc_logits = nn.Linear(hidden_size, stoch_size * num_classes)
+        self.fc1 = nn.Linear(latent.deter_size, net.hidden_size)
+        self.fc_logits = nn.Linear(net.hidden_size, latent.z_dim)
 
         self.apply(self._init_weights)
 
@@ -51,36 +43,23 @@ class Prior(nn.Module):
                 nn.init.zeros_(m.bias)
 
     def forward(self, h: torch.Tensor) -> Dict[str, torch.Tensor]:
-        """
-        Returns:
-            logits: (B, stoch_size, num_classes)
-            probs:  (B, stoch_size, num_classes)
-            z:      (B, stoch_size * num_classes) one-hot (or soft one-hot during training)
-        """
         B = h.shape[0]
 
         x = F.silu(self.fc1(h))
-
-        logits = self.fc_logits(x)  # (B, stoch_size * num_classes)
-        logits = logits.view(B, self.stoch_size, self.num_classes)
+        logits = self.fc_logits(x)  # (B, z_dim)
+        logits = logits.view(B, self.latent.stoch_size, self.latent.num_classes)
         probs = F.softmax(logits, dim=-1)
 
-        # ------------------------------
-        # Sampling
-        # ------------------------------
         if self.deterministic_latent_for_tests:
             idx = probs.argmax(dim=-1)
-            z = F.one_hot(idx, num_classes=self.num_classes).float()
+            z = F.one_hot(idx, num_classes=self.latent.num_classes).float()
         else:
             g = -torch.log(-torch.log(torch.rand_like(probs)))
             y = F.softmax((logits + g) / self.temperature, dim=-1)
-
             idx = y.argmax(dim=-1)
-            z_hard = F.one_hot(idx, num_classes=self.num_classes).float()
-
+            z_hard = F.one_hot(idx, num_classes=self.latent.num_classes).float()
             z = z_hard + (y - y.detach())
 
-        # Flatten factors × classes → (B, stoch_size * num_classes)
         z_flat = z.view(B, -1)
 
         return {

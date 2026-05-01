@@ -2,31 +2,27 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
+from dreamerrl.utils.types import LatentConfig, NetworkConfig
+
 from .deterministic_layernorm import DeterministicLayerNorm
 
 
 class RSSMCore(nn.Module):
     """
-    RSSM deterministic core.
-
-    Dreamer-V3 uses a deterministic transition for h_t and a stochastic latent z_t sampled from the prior/posterior.
-    This module implements the deterministic transition h_{t+1} = f(h_t, z_t).
+    RSSM deterministic core: h_{t+1} = f(h_t, z_t).
     """
 
-    def __init__(self, deter_size: int, stoch_size: int, num_classes: int, hidden_size: int):
+    def __init__(self, *, latent: LatentConfig, net: NetworkConfig):
         super().__init__()
 
-        self.deter_size = deter_size
-        self.stoch_size = stoch_size
-        self.num_classes = num_classes
-        self.hidden_size = hidden_size
+        self.latent = latent
+        self.net_cfg = net
 
-        # ---------------------------------------------------------
-        # Deterministic transition: h' = f(h, z)
-        # ---------------------------------------------------------
-        self.fc1 = nn.Linear(deter_size + stoch_size * num_classes, hidden_size)
-        self.ln1 = DeterministicLayerNorm(hidden_size)
-        self.fc2 = nn.Linear(hidden_size, deter_size)
+        input_dim = latent.deter_size + latent.z_dim
+
+        self.fc1 = nn.Linear(input_dim, net.hidden_size)
+        self.ln1 = DeterministicLayerNorm(net.hidden_size)
+        self.fc2 = nn.Linear(net.hidden_size, latent.deter_size)
 
         self.apply(self._init_weights)
 
@@ -36,19 +32,9 @@ class RSSMCore(nn.Module):
             if m.bias is not None:
                 nn.init.zeros_(m.bias)
 
-    # -------------------------------------------------------------
-    # Forward pass: deterministic update
-    # -------------------------------------------------------------
     def forward(self, h: torch.Tensor, z: torch.Tensor) -> torch.Tensor:
-        """
-        h: (B, deter_size)
-        z: (B, stoch_size)  -- zero vector in Dreamer-Lite
-        """
         x = torch.cat([h, z], dim=-1)
-
         x = self.fc1(x)
         x = self.ln1(x)
         x = F.silu(x)
-
-        h_next = self.fc2(x)
-        return h_next
+        return self.fc2(x)

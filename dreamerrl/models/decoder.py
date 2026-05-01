@@ -1,25 +1,26 @@
 import torch
 import torch.nn as nn
 
+from dreamerrl.utils.types import LatentConfig, NetworkConfig
+
 
 class ObsDecoder(nn.Module):
-    def __init__(self, deter_size: int, stoch_size: int, num_classes: int, hidden_size: int, obs_shape):
+    def __init__(self, *, latent: LatentConfig, net: NetworkConfig, output_dim):
         super().__init__()
 
-        if isinstance(obs_shape, int):
-            self.obs_dim = obs_shape
+        if isinstance(output_dim, int):
+            self.obs_dim = output_dim
         else:
-            self.obs_dim = int(torch.tensor(obs_shape).prod())
+            self.obs_dim = int(torch.tensor(output_dim).prod())
 
-        # PATCH: updated input dimension for discrete latent
-        input_dim = deter_size + stoch_size * num_classes
+        input_dim = latent.deter_size + latent.z_dim
 
         self.net = nn.Sequential(
-            nn.Linear(input_dim, hidden_size),
+            nn.Linear(input_dim, net.hidden_size),
             nn.SiLU(),
-            nn.Linear(hidden_size, hidden_size),
+            nn.Linear(net.hidden_size, net.hidden_size),
             nn.SiLU(),
-            nn.Linear(hidden_size, self.obs_dim),
+            nn.Linear(net.hidden_size, self.obs_dim),
         )
 
         self.apply(self._init_weights)
@@ -31,10 +32,5 @@ class ObsDecoder(nn.Module):
                 nn.init.zeros_(m.bias)
 
     def forward(self, h, z):
-        """
-        h: (B, deter_size)
-        z: (B, stoch_size * mum_classes) --- shape for discrete latent
-        Returns: reconstructed obs (B, obs_dim)
-        """
         x = torch.cat([h, z], dim=-1)
         return self.net(x)
