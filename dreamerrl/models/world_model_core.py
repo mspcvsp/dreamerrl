@@ -3,6 +3,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 from dreamerrl.utils.types import LatentConfig, NetworkConfig
+
 from .deterministic_layernorm import DeterministicLayerNorm
 
 
