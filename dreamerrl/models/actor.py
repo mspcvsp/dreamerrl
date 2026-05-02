@@ -47,6 +47,20 @@ class Actor(nn.Module):
         )
 
     def forward(self, h, z):
+        """
+        IMPORTANT:
+        ---------
+        This Actor returns *logits* for a categorical policy, not an action. Dreamer‑V3 uses a discrete action
+        space, so the correct usage is:
+
+        logits = actor(h, z)
+        dist = Categorical(logits=logits)
+        a = dist.sample()                     # integer action index
+        action = F.one_hot(a, action_dim)     # one-hot vector for RSSMCore
+
+        RSSMCore requires the one-hot action vector. Passing logits or the integer index directly will silently break
+        the latent dynamics.
+        """
         return self.net(torch.cat([h, z], dim=-1))
 
     """

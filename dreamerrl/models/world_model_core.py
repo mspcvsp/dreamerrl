@@ -9,8 +9,16 @@ from .deterministic_layernorm import DeterministicLayerNorm
 
 class RSSMCore(nn.Module):
     """
-    Dreamer‑V3 deterministic core:
+    IMPORTANT:
+    ---------
+    RSSMCore intentionally does NOT use a GRU. Dreamer‑V3 found that GRUs introduce instability (especially with
+    discrete latents), are nondeterministic across devices, and add unnecessary complexity. The deterministic
+    transition is a simple MLP with LayerNorm:
+
     h_{t+1} = f(h_t, action_t)
+
+    Recurrence comes from unrolling this function over time, not from a recurrent cell. This design is more stable,
+    more reproducible, and easier to train.
 
     NOTE:
     - z_t is *not* part of the deterministic update in Dreamer‑V3.
@@ -42,7 +50,21 @@ class RSSMCore(nn.Module):
 
     def forward(self, h: torch.Tensor, action: torch.Tensor) -> torch.Tensor:
         """
+        IMPORTANT:
+        ---------
+        RSSMCore consumes a *one‑hot* action vector, not logits and not a discrete action index. Dreamer‑V3 uses a
+        categorical policy:
+
+        logits = actor(h, z)
+        dist = Categorical(logits)
+        a = dist.sample()                     # integer action ID
+        action = F.one_hot(a, action_dim)     # (B, action_dim)
+
+        Only this one‑hot action vector should be passed to RSSMCore.forward(). Feeding logits or integer IDs will
+        silently corrupt the latent dynamics.
+
         Dreamer‑V3 deterministic transition:
+        -----------------------------------
         h_{t+1} = f(h_t, action_t)
         """
         x = torch.cat([h, action], dim=-1)
