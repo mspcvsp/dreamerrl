@@ -7,6 +7,7 @@ import gymnasium as gym
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from torch.distributions import Categorical
 
 from dreamerrl.utils.types import LatentConfig, NetworkConfig
 
@@ -155,8 +156,23 @@ class WorldModel(nn.Module):
         """
         prev_state = self._ensure_state(prev)
 
-        # 1. Actor chooses action from previous imagined state
-        action = actor(prev_state.h, prev_state.z)
+        # IMPORTANT:
+        # The actor produces *logits*, not actions. In Dreamer‑V3 the policy is a
+        # categorical distribution over discrete actions. Therefore:
+        #
+        #   logits = actor(h, z)
+        #   a = Categorical(logits).sample()        # discrete index
+        #   action = one_hot(a, action_dim)         # tensor fed to RSSMCore
+        #
+        # RSSMCore requires a full action vector of shape (B, action_dim). Passing
+        # logits or integer action IDs will silently break the latent dynamics.
+
+        logits = actor(prev_state.h, prev_state.z)
+        dist = Categorical(logits=logits)
+        a = dist.sample()  # (B,)
+
+        assert self.net_cfg.action_dim is not None, "action_dim must be specified in net config for imagine_step"
+        action = F.one_hot(a, num_classes=self.net_cfg.action_dim).float()
 
         # 2. Deterministic update
         h = self.rssm(prev_state.h, action)
