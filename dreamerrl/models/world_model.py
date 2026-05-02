@@ -110,7 +110,7 @@ class WorldModel(nn.Module):
         prior_stats = self.prior(prev_state.h)
 
         z = post_stats["z"]
-        h = self.rssm(prev_state.h, z)
+        h = self.rssm(prev_state.h, action)
 
         post_stats = {**post_stats, "h": h}
         prior_stats = {**prior_stats, "h": prev_state.h}
