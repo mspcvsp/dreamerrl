@@ -69,7 +69,16 @@ def run_once(cfg, steps=10):
                 "is_terminal": trainer.env_state["is_terminal"],
                 "info": trainer.env_state["info"],
             }
-            latent_out = trainer.world.observe_step(trainer.world_state, dummy["state"])
+
+            action_dim = trainer.world.net_cfg.action_dim
+            assert action_dim is not None, "action_dim must be specified in config for reproducibility check"
+
+            action = torch.zeros(
+                (trainer.world_state.h.shape[0], action_dim),
+                device=trainer.device,
+            )
+
+            latent_out = trainer.world.observe_step(trainer.world_state, dummy["state"], action=action)
             logs["latent_states"].append(
                 {
                     "h": latent_out["state"]["h"].detach().cpu(),

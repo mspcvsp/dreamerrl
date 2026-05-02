@@ -33,7 +33,8 @@ def imagine_trajectory_for_training(
         rewards.append(r)
         actions.append(a)
 
-        s = world_model.imagine_step(s)
+        s = world_model.imagine_step(s, actor)
+
         hs.append(s.h)
         zs.append(s.z)
 
@@ -49,7 +50,7 @@ def imagine_trajectory_for_training(
     }
 
 
-def imagine_trajectory_for_testing(world_model: WorldModel, state: WorldModelState, horizon: int):
+def imagine_trajectory_for_testing(world_model: WorldModel, actor: Actor, state: WorldModelState, horizon: int):
     device = next(world_model.parameters()).device
     s = state.to(device)
 
@@ -63,7 +64,7 @@ def imagine_trajectory_for_testing(world_model: WorldModel, state: WorldModelSta
         hs.append(s.h)
         zs.append(s.z)
 
-        s = world_model.imagine_step(s)
+        s = world_model.imagine_step(s, actor)
 
     return {
         "h": torch.stack(hs, dim=0),

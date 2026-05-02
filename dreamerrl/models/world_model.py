@@ -187,7 +187,7 @@ class WorldModel(nn.Module):
 
         return imagine_trajectory_for_training(self, actor, critic, start_state, horizon)
 
-    def imagine_trajectory_for_testing(self, start_state, horizon):
+    def imagine_trajectory_for_testing(self, actor, start_state, horizon):
         from dreamerrl.training.core.imagination import imagine_trajectory_for_testing
 
-        return imagine_trajectory_for_testing(self, start_state, horizon)
+        return imagine_trajectory_for_testing(self, actor, start_state, horizon)
