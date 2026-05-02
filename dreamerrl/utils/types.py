@@ -206,10 +206,14 @@ class NetworkConfig:
     """
 
     hidden_size: int
-    action_dim: int | None = None
     value_bins: int | None = None
     bin_min: float = -10.0
     bin_max: float = 10.0
+
+    # NOTE:
+    # action_dim must be set for Actor and RSSMCore.
+    # It may be None for Critic/ValueHead networks.
+    action_dim: int | None = None  # Only None for critic/value networks
 
     def make_bins(self, device=None):
         symlog_bins = torch.linspace(self.bin_min, self.bin_max, steps=self.value_bins)
