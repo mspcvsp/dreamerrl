@@ -65,10 +65,6 @@ class WorldModel(nn.Module):
     ):
         super().__init__()
 
-        torch.manual_seed(0)
-        if torch.cuda.is_available():
-            torch.cuda.manual_seed_all(0)
-
         build_device = torch.device("cpu")
         self.device = device or torch.device("cpu")
         self.latent = latent
@@ -97,19 +93,22 @@ class WorldModel(nn.Module):
         self,
         prev_state: Any,
         obs: torch.Tensor,
-        action: torch.Tensor | None = None,
-        reward: torch.Tensor | None = None,
-        is_first: torch.Tensor | None = None,
-        is_last: torch.Tensor | None = None,
-        is_terminal: torch.Tensor | None = None,
+        action: torch.Tensor,
+        reward: Optional[torch.Tensor] = None,
+        is_first: Optional[torch.Tensor] = None,
+        is_last: Optional[torch.Tensor] = None,
+        is_terminal: Optional[torch.Tensor] = None,
     ) -> Dict[str, Any]:
         prev_state = self._ensure_state(prev_state)
         embed = self.encoder(obs)
 
+        # Posterior and prior over z_t given h_t
         post_stats = self.posterior(prev_state.h, embed)
         prior_stats = self.prior(prev_state.h)
 
         z = post_stats["z"]
+
+        # Deterministic update uses action (Dreamer‑V3)
         h = self.rssm(prev_state.h, action)
 
         post_stats = {**post_stats, "h": h}
@@ -141,10 +140,32 @@ class WorldModel(nn.Module):
             "kl_rep": kl_dict["kl_rep"],
         }
 
-    def imagine_step(self, prev, stochastic: bool = True) -> WorldModelState:
-        prev_state = self._ensure_state(prev)
-        prior = self.prior(prev_state.h)
+    def imagine_step(
+        self,
+        prev: Any,
+        actor: nn.Module,
+        stochastic: bool = True,
+    ) -> WorldModelState:
+        """
+        One Dreamer‑V3 imagination step:
 
+        1. Actor chooses action from previous state.
+        2. RSSMCore updates h using (h, action).
+        3. Prior over z from new h.
+        4. Sample (or take mode) for z.
+        """
+        prev_state = self._ensure_state(prev)
+
+        # 1. Actor chooses action from previous imagined state
+        action = actor(prev_state.h, prev_state.z)
+
+        # 2. Deterministic update
+        h = self.rssm(prev_state.h, action)
+
+        # 3. Prior from new h
+        prior = self.prior(h)
+
+        # 4. Sample or mode for z
         if stochastic:
             z = prior["z"]
         else:
@@ -152,7 +173,6 @@ class WorldModel(nn.Module):
             z = F.one_hot(idx, num_classes=self.latent.num_classes).float()
             z = z.view(z.shape[0], -1)
 
-        h = self.rssm(prev_state.h, z)
         return WorldModelState(h=h, z=z, prior_stats=prior, post_stats=None)
 
     def _ensure_state(self, s: Any) -> WorldModelState:
