@@ -11,8 +11,21 @@ class ValueHead(nn.Module):
     """
     Distributional value head in symlog space with two-hot targets.
 
-    NOTE: Uses the same bins as RewardHead via NetworkConfig,
-    so actor-critic update, imagination, and readout are all consistent.
+    IMPORTANT:
+    ---------
+    Dreamer‑V3 uses two‑hot value regression because it turns value prediction into a small classification problem.
+    Instead of regressing a single number, the critic predicts a distribution over value bins. The target is encoded
+    as a soft two‑hot vector, which:
+
+        • spreads probability mass across neighboring bins,
+        • stabilizes training under symlog scaling,
+        • reduces gradient noise,
+        • and makes long‑horizon value learning much easier.
+
+    The final value is the expectation under this predicted distribution.
+
+    NOTE: Uses the same bins as RewardHead via NetworkConfig, so actor-critic update, imagination, and readout are all
+    consistent.
     """
 
     def __init__(self, *, latent: LatentConfig, net: NetworkConfig):
