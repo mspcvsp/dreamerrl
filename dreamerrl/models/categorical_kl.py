@@ -22,7 +22,7 @@ def categorical_kl(
     q = q_probs.clamp_min(eps)
     p = p_probs.clamp_min(eps)
     kl = (q * (q.log() - p.log())).sum(dim=-1)  # sum over classes
-    return kl
+    return kl.sum(dim=-1)
 
 
 def apply_free_bits(
