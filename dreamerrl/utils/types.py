@@ -11,6 +11,28 @@ from .transforms import symexp
 # ---------------------------------------------------------
 @dataclass
 class WorldModelConfig:
+    # deter_size:
+    #   Size of the deterministic hidden state h_t in the RSSM.
+    #   Larger values improve model capacity but increase compute.
+    #
+    # stoch_size, num_classes:
+    #   Dreamer‑V3 uses a *factored discrete latent*:
+    #       z_t has stoch_size categorical factors,
+    #       each with num_classes categories.
+    #   This replaces the Gaussian latent used in Dreamer‑V2/Lite.
+    #   Tests MUST NOT assume Gaussian shapes or continuous z_t.
+    #
+    # hidden_size:
+    #   Shared MLP hidden size for RSSMCore, Prior, Posterior, Decoder.
+    #
+    # free_bits:
+    #   Minimum KL contribution (in nats) to prevent posterior collapse.
+    #   If KL < free_bits, the gradient is clamped.
+    #   Dreamer‑V3 typically uses a small positive value (e.g., 1.0).
+    #
+    # value_bins:
+    #   Number of symlog‑spaced bins used for distributional reward/value
+    #   prediction. Tests MUST NOT assume scalar reward/value outputs.
     reward_hidden: int = 256
     deter_size: int = 200
     stoch_size: int = 30
@@ -39,6 +61,12 @@ class ActorCriticConfig:
     actor_hidden: int = 256
     critic_hidden: int = 256
 
+    # discount:
+    #   Standard RL discount factor.
+    #
+    # lambda_:
+    #   GAE‑style smoothing factor used in Dreamer‑V3’s λ‑returns.
+    #   Tests MUST NOT assume V2‑style bootstrapping or TD(0).
     discount: float = 0.99
     lambda_: float = 0.95  # GAE-like smoothing for returns in Dreamer
 
@@ -48,6 +76,14 @@ class ActorCriticConfig:
 # ---------------------------------------------------------
 @dataclass
 class TrainingConfig:
+    # warmup_steps:
+    #   Number of steps for linear LR warmup before cosine decay.
+    #   Dreamer‑V3 is extremely sensitive to LR warmup; tests MUST NOT
+    #   assume constant LR from step 0.
+    #
+    # random_exploration_steps:
+    #   Number of steps where actions are sampled uniformly at random.
+    #   Tests MUST NOT assume the actor is used from step 0.
     batch_size: int = 50
     seq_len: int = 50
 
@@ -138,6 +174,11 @@ class LatentConfig:
     """
     Shared Dreamer-V3 latent configuration.
     Prevents silent shape bugs by centralizing latent geometry.
+
+    z_dim:
+       Flattened dimension of the discrete latent:
+           z_dim = stoch_size * num_classes
+       Tests MUST NOT assume Gaussian latent shapes (mean, std).
     """
 
     deter_size: int
@@ -154,6 +195,14 @@ class NetworkConfig:
     """
     Shared network configuration for Actor/Critic/Heads.
     Prevents accidental swapping of hidden_size, action_dim, value_bins.
+
+    value_bins:
+       Number of symlog‑spaced bins for distributional value/reward heads. Dreamer‑V3 predicts logits over bins, NOT
+       scalar values. Tests MUST NOT expect shape (B, 1) for reward/value predictions.
+
+    make_bins():
+        Produces symlog‑spaced bin centers, then applies symexp. These bins define the support of the distributional
+        heads.
     """
 
     hidden_size: int
@@ -170,6 +219,12 @@ class NetworkConfig:
 
 @dataclass(frozen=True)
 class LRScheduleConfig:
+    # Linear warmup + cosine decay schedule.
+    #
+    # Dreamer‑V3 requires a SINGLE shared LR schedule for world model,
+    # actor, and critic. Tests MUST NOT create separate LR schedules or
+    # assume constant LR. Warmup is essential for stability because the
+    # actor/critic depend on a partially‑trained world model early on.
     base_lr: float
     warmup_steps: int
     total_steps: int
