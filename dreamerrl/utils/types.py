@@ -166,3 +166,23 @@ class NetworkConfig:
         symlog_bins = torch.linspace(self.bin_min, self.bin_max, steps=self.value_bins)
         bins = symexp(symlog_bins)
         return bins if device is None else bins.to(device)
+
+
+@dataclass(frozen=True)
+class LRScheduleConfig:
+    base_lr: float
+    warmup_steps: int
+    total_steps: int
+
+    # lr_floor:
+    #   Fraction of base_lr to preserve during cosine decay.
+    #   Prevents the learning rate from collapsing to zero, which would
+    #   freeze the actor/critic/world model and halt improvement.
+    #
+    #   Dreamer‑V3 benefits from a small but non‑zero LR late in training:
+    #     • stabilizes long‑horizon value estimates,
+    #     • prevents the actor from becoming overconfident,
+    #     • avoids world‑model stagnation.
+    #
+    #   Typical values: 0.05–0.20 of base_lr.
+    lr_floor: float = 0.1
