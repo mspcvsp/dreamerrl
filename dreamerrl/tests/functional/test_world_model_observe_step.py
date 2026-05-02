@@ -16,7 +16,6 @@ def test_world_model_observe_step_keys_and_shapes():
 
     wm = WorldModel(
         obs_space=obs_space,
-        action_dim=action_dim,
         latent=latent,
         net=net,
         free_bits=0.0,

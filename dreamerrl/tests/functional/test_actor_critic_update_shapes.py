@@ -21,7 +21,6 @@ def test_actor_critic_update_shapes():
 
     wm = WorldModel(
         obs_space=Box(low=0.0, high=1.0, shape=(obs_dim,), dtype=np.float32),
-        action_dim=action_dim,
         latent=latent,
         net=net_world,
         free_bits=0.0,

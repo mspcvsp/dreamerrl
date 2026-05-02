@@ -57,7 +57,6 @@ class WorldModel(nn.Module):
         self,
         *,
         obs_space: gym.Space,
-        action_dim: int,
         latent: LatentConfig,
         net: NetworkConfig,
         free_bits: float = 0.0,

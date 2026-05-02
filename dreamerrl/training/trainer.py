@@ -90,7 +90,6 @@ class DreamerTrainer:
         # -----------------------------------------------------
         self.world = WorldModel(
             obs_space=obs_space,
-            action_dim=action_dim,
             latent=latent,
             net=net_world,
             free_bits=cfg.world.free_bits,
