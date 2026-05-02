@@ -57,5 +57,8 @@ class ValueHead(nn.Module):
         loss = -(target_twohot * log_probs).sum(dim=-1).mean()
         return loss
 
+    def loss(self, logits: torch.Tensor, target_returns_symlog: torch.Tensor) -> torch.Tensor:
+        return self.loss_from_logits(logits, target_returns_symlog)
+
     def readout(self, logits: torch.Tensor) -> torch.Tensor:
         return value_from_logits(logits, self.bins)

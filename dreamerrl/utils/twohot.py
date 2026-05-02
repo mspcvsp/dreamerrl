@@ -1,23 +1,32 @@
 import torch
 
 
-def twohot_encode(y: torch.Tensor, bins: torch.Tensor) -> torch.Tensor:
-    y = y.unsqueeze(-1)  # (..., 1)
-    diff = torch.abs(y - bins)  # (..., num_bins)
-    idx = torch.argmin(diff, dim=-1)  # (...)
+def twohot_encode(targets, bins):
+    # targets: (B,)
+    # bins: (V,)
+    B, V = targets.shape[0], bins.shape[0]
 
-    delta = torch.sign(y.squeeze(-1) - bins[idx])
-    idx2 = torch.clamp(idx + delta.to(torch.long), 0, bins.numel() - 1)
+    # Clamp targets to bin range
+    t = torch.clamp(targets, bins[0], bins[-1])
 
-    b1 = bins[idx]
-    b2 = bins[idx2]
-    denom = torch.clamp(torch.abs(b2 - b1), min=1e-8)
-    w2 = torch.abs(y.squeeze(-1) - b1) / denom
-    w1 = 1.0 - w2
+    # Find right bin
+    idx = torch.searchsorted(bins, t, right=True).clamp(1, V - 1)
 
-    out = torch.zeros(*idx.shape, bins.numel(), device=y.device)
-    out.scatter_(-1, idx.unsqueeze(-1), w1.unsqueeze(-1))
-    out.scatter_(-1, idx2.unsqueeze(-1), w2.unsqueeze(-1))
+    left = idx - 1
+    right = idx
+
+    left_bin = bins[left]
+    right_bin = bins[right]
+
+    # Linear interpolation weights
+    denom = (right_bin - left_bin).clamp(min=1e-8)
+    w_right = (t - left_bin) / denom
+    w_left = 1.0 - w_right
+
+    out = torch.zeros(B, V, device=targets.device)
+    out[torch.arange(B), left] = w_left
+    out[torch.arange(B), right] = w_right
+
     return out
 
 
