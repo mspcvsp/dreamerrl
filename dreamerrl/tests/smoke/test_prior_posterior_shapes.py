@@ -14,7 +14,10 @@ def test_prior_posterior_shapes():
     posterior = Posterior(latent=latent, net=net)
 
     h = torch.zeros(B, latent.deter_size)
-    embed = torch.zeros(B, 1024)
+
+    # Determine embed size dynamically from the Posterior module
+    embed_dim = posterior.fc1.in_features - latent.deter_size
+    embed = torch.zeros(B, embed_dim)
 
     prior_stats = prior(h)
     post_stats = posterior(h, embed)

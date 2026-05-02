@@ -13,8 +13,7 @@ def test_rssm_core_shapes():
     core = RSSMCore(latent=latent, net=net)
 
     h = torch.zeros(B, latent.deter_size)
-    z = torch.zeros(B, latent.z_dim)
     action = torch.zeros(B, net.action_dim)
 
-    h_next = core(h, z, action)
+    h_next = core(h, action)
     assert h_next.shape == (B, latent.deter_size)
