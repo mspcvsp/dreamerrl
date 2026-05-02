@@ -1,7 +1,7 @@
 import gymnasium as gym
 import torch
 from gymnasium.spaces import Discrete
-
+import numpy as np
 from dreamerrl.models.actor import Actor
 from dreamerrl.models.value_head import ValueHead
 from dreamerrl.models.world_model import WorldModel
@@ -51,7 +51,7 @@ def test_sanity_training_loop():
                 obs, _ = env.reset()
 
         batch = {
-            "state": torch.tensor(obs_list, dtype=torch.float32).unsqueeze(1),
+            "state": torch.from_numpy(np.array(obs_list, dtype=np.float32)).unsqueeze(1),
             "action": torch.nn.functional.one_hot(torch.tensor(action_list), num_classes=env.action_space.n)
             .float()
             .unsqueeze(1),
