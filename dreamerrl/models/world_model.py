@@ -65,7 +65,6 @@ class WorldModel(nn.Module):
     ):
         super().__init__()
 
-        build_device = torch.device("cpu")
         self.device = device or torch.device("cpu")
         self.latent = latent
         self.net_cfg = net
@@ -75,13 +74,13 @@ class WorldModel(nn.Module):
         self.flat_obs_dim = get_flat_obs_dim(obs_space)
         self.embed_size = net.hidden_size
 
-        self.encoder: ObsEncoder = build_obs_encoder(obs_space, embed_dim=self.embed_size).to(build_device)
-        self.rssm: RSSMCore = RSSMCore(latent=latent, net=net).to(build_device)
-        self.prior: Prior = Prior(latent=latent, net=net).to(build_device)
-        self.posterior: Posterior = Posterior(latent=latent, net=net).to(build_device)
-        self.decoder: ObsDecoder = ObsDecoder(latent=latent, net=net, output_dim=self.flat_obs_dim).to(build_device)
-        self.reward_head: RewardHead = RewardHead(latent=latent, net=net).to(build_device)
-        self.continue_head: ContinueHead = ContinueHead(latent=latent, net=net).to(build_device)
+        self.encoder: ObsEncoder = build_obs_encoder(obs_space, embed_dim=self.embed_size).to(self.device)
+        self.rssm: RSSMCore = RSSMCore(latent=latent, net=net).to(self.device)
+        self.prior: Prior = Prior(latent=latent, net=net).to(self.device)
+        self.posterior: Posterior = Posterior(latent=latent, net=net).to(self.device)
+        self.decoder: ObsDecoder = ObsDecoder(latent=latent, net=net, output_dim=self.flat_obs_dim).to(self.device)
+        self.reward_head: RewardHead = RewardHead(latent=latent, net=net).to(self.device)
+        self.continue_head: ContinueHead = ContinueHead(latent=latent, net=net).to(self.device)
 
     def init_state(self, batch_size: int) -> WorldModelState:
         device = next(self.parameters()).device
