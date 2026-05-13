@@ -14,7 +14,7 @@ from dreamerrl.utils.types import LatentConfig, NetworkConfig
 from .categorical_kl import structured_kl
 from .continue_head import ContinueHead
 from .decoder import ObsDecoder
-from .obs_encoder import build_obs_encoder, get_flat_obs_dim
+from .obs_encoder import ObsEncoder, build_obs_encoder, get_flat_obs_dim
 from .posterior import Posterior
 from .prior import Prior
 from .reward_head import RewardHead
@@ -75,13 +75,13 @@ class WorldModel(nn.Module):
         self.flat_obs_dim = get_flat_obs_dim(obs_space)
         self.embed_size = net.hidden_size
 
-        self.encoder = build_obs_encoder(obs_space, embed_dim=self.embed_size).to(build_device)
-        self.rssm = RSSMCore(latent=latent, net=net).to(build_device)
-        self.prior = Prior(latent=latent, net=net).to(build_device)
-        self.posterior = Posterior(latent=latent, net=net).to(build_device)
-        self.decoder = ObsDecoder(latent=latent, net=net, output_dim=self.flat_obs_dim).to(build_device)
-        self.reward_head = RewardHead(latent=latent, net=net).to(build_device)
-        self.continue_head = ContinueHead(latent=latent, net=net).to(build_device)
+        self.encoder: ObsEncoder = build_obs_encoder(obs_space, embed_dim=self.embed_size).to(build_device)
+        self.rssm: RSSMCore = RSSMCore(latent=latent, net=net).to(build_device)
+        self.prior: Prior = Prior(latent=latent, net=net).to(build_device)
+        self.posterior: Posterior = Posterior(latent=latent, net=net).to(build_device)
+        self.decoder: ObsDecoder = ObsDecoder(latent=latent, net=net, output_dim=self.flat_obs_dim).to(build_device)
+        self.reward_head: RewardHead = RewardHead(latent=latent, net=net).to(build_device)
+        self.continue_head: ContinueHead = ContinueHead(latent=latent, net=net).to(build_device)
 
     def init_state(self, batch_size: int) -> WorldModelState:
         device = next(self.parameters()).device

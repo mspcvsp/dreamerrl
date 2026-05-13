@@ -1,7 +1,8 @@
 import gymnasium as gym
+import numpy as np
 import torch
 from gymnasium.spaces import Discrete
-import numpy as np
+
 from dreamerrl.models.actor import Actor
 from dreamerrl.models.value_head import ValueHead
 from dreamerrl.models.world_model import WorldModel
