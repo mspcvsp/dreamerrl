@@ -62,8 +62,8 @@ def test_rssm_core_cpu_gpu_determinism():
     a_gpu = a_cpu.to("cuda")
 
     # RSSMCore is exposed as wm.core
-    core_cpu = cast(RSSMCore, wm_cpu.core)
-    core_gpu = cast(RSSMCore, wm_gpu.core)
+    core_cpu = cast(RSSMCore, wm_cpu.rssm)
+    core_gpu = cast(RSSMCore, wm_gpu.rssm)
 
     with torch.no_grad():
         h_next_cpu = core_cpu(h_cpu, a_cpu)
