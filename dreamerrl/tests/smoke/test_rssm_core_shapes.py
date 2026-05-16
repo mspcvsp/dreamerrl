@@ -1,9 +1,11 @@
+import pytest
 import torch
 
 from dreamerrl.models.world_model_core import RSSMCore
 from dreamerrl.utils.types import LatentConfig, NetworkConfig
 
 
+@pytest.mark.smoke
 def test_rssm_core_shapes():
     B = 8
     latent = LatentConfig(deter_size=200, stoch_size=30, num_classes=32)

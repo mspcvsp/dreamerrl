@@ -1,5 +1,6 @@
 # dreamerrl/tests/smoke/test_prior_posterior_shapes.py
 
+import pytest
 import torch
 
 from dreamerrl.models.posterior import Posterior
@@ -7,6 +8,7 @@ from dreamerrl.models.prior import Prior
 from dreamerrl.utils.types import LatentConfig, NetworkConfig
 
 
+@pytest.mark.smoke
 def test_prior_posterior_shapes():
     B = 8
     latent = LatentConfig(deter_size=200, stoch_size=30, num_classes=32)

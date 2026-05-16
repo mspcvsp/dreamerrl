@@ -1,5 +1,6 @@
 import gymnasium as gym
 import numpy as np
+import pytest
 import torch
 from gymnasium.spaces import Discrete
 
@@ -10,6 +11,7 @@ from dreamerrl.training.core.actor_critic_update import actor_critic_update
 from dreamerrl.utils.types import LatentConfig, NetworkConfig
 
 
+@pytest.mark.smoke
 def test_sanity_training_loop():
     env = gym.make("CartPole-v1")
     assert isinstance(env.action_space, Discrete), "This smoke test requires a discrete action space"
