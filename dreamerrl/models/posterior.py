@@ -11,7 +11,12 @@ from dreamerrl.utils.types import LatentConfig, NetworkConfig
 
 class Posterior(nn.Module):
     """
-    Factored discrete posterior q(z_t | h_{t-1}, embed_t).
+    Dreamer‑V3 factored discrete posterior q(z_t | h_{t-1}, embed_t).
+
+    Produces:
+        logits: (B, K, C)
+        probs:  (B, K, C)
+        z:      (B, K, C) one‑hot (hard or straight‑through)
     """
 
     def __init__(
@@ -23,8 +28,6 @@ class Posterior(nn.Module):
         temperature: float = 1.0,
     ):
         super().__init__()
-
-        torch.manual_seed(0)
 
         self.latent = latent
         self.net_cfg = net
@@ -55,8 +58,8 @@ class Posterior(nn.Module):
         probs = F.softmax(logits, dim=-1)
 
         if self.deterministic_latent_for_tests:
-            idx = probs.argmax(dim=-1)
-            z = F.one_hot(idx, num_classes=self.latent.num_classes).float()
+            idx = probs.argmax(dim=-1)  # (B, K)
+            z = F.one_hot(idx, num_classes=self.latent.num_classes).float()  # (B, K, C)
         else:
             g = -torch.log(-torch.log(torch.rand_like(probs)))
             y = F.softmax((logits + g) / self.temperature, dim=-1)

@@ -1,36 +1,53 @@
 import torch
 import torch.nn as nn
-
-from dreamerrl.utils.types import LatentConfig, NetworkConfig
+import torch.nn.functional as F
 
 
 class ObsDecoder(nn.Module):
-    def __init__(self, *, latent: LatentConfig, net: NetworkConfig, output_dim):
+    """
+    Dreamer‑V3 observation decoder.
+    Accepts:
+        h: (B, deter_size)
+        z: (B, K, C) factored discrete latent
+    """
+
+    def __init__(self, *, latent, net, output_dim: int):
         super().__init__()
 
-        if isinstance(output_dim, int):
-            self.obs_dim = output_dim
-        else:
-            self.obs_dim = int(torch.tensor(output_dim).prod())
+        self.latent = latent
+        self.net_cfg = net
+        self.output_dim = output_dim
 
-        input_dim = latent.deter_size + latent.z_dim
+        # Embed each categorical factor (C classes → embed_dim)
+        self.z_embed = nn.Linear(latent.num_classes, net.hidden_size)
 
+        # Embed deterministic state h
+        self.h_embed = nn.Linear(latent.deter_size, net.hidden_size)
+
+        # Final decoder MLP
         self.net = nn.Sequential(
-            nn.Linear(input_dim, net.hidden_size),
+            nn.Linear(net.hidden_size, net.hidden_size),
             nn.SiLU(),
             nn.Linear(net.hidden_size, net.hidden_size),
             nn.SiLU(),
-            nn.Linear(net.hidden_size, self.obs_dim),
+            nn.Linear(net.hidden_size, output_dim),
         )
 
-        self.apply(self._init_weights)
-
-    def _init_weights(self, m):
-        if isinstance(m, nn.Linear):
-            nn.init.xavier_uniform_(m.weight)
-            if m.bias is not None:
-                nn.init.zeros_(m.bias)
-
     def forward(self, h, z):
-        x = torch.cat([h, z], dim=-1)
-        return self.net(x)
+        """
+        h: (B, deter_size)
+        z: (B, K, C)
+        """
+        # Embed z per factor → (B, K, H)
+        z_e = self.z_embed(z)
+
+        # Sum over factors → (B, H)
+        z_sum = z_e.sum(dim=1)
+
+        # Embed h → (B, H)
+        h_e = self.h_embed(h)
+
+        # Fuse
+        features = h_e + z_sum
+
+        return self.net(features)

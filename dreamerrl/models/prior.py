@@ -11,7 +11,12 @@ from dreamerrl.utils.types import LatentConfig, NetworkConfig
 
 class Prior(nn.Module):
     """
-    Factored discrete prior p(z_t | h_{t-1}).
+    Dreamer‑V3 factored discrete prior p(z_t | h_{t-1}).
+
+    Produces:
+        logits: (B, K, C)
+        probs:  (B, K, C)
+        z:      (B, K, C) one‑hot (hard or straight‑through)
     """
 
     def __init__(
@@ -23,8 +28,6 @@ class Prior(nn.Module):
         temperature: float = 1.0,
     ):
         super().__init__()
-
-        torch.manual_seed(0)
 
         self.latent = latent
         self.net_cfg = net
@@ -46,7 +49,7 @@ class Prior(nn.Module):
         B = h.shape[0]
 
         x = F.silu(self.fc1(h))
-        logits = self.fc_logits(x)  # (B, z_dim)
+        logits = self.fc_logits(x)
         logits = logits.view(B, self.latent.stoch_size, self.latent.num_classes)
         probs = F.softmax(logits, dim=-1)
 

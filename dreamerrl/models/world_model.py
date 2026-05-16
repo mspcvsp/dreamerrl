@@ -23,6 +23,10 @@ from .world_model_core import RSSMCore
 
 @dataclass
 class WorldModelState:
+    """
+    Dreamer‑V3 RSSM state: (h, z), with z factored as (B, K, C).
+    """
+
     h: torch.Tensor
     z: torch.Tensor
     prior_stats: Optional[Dict[str, torch.Tensor]] = None
@@ -85,7 +89,7 @@ class WorldModel(nn.Module):
     def init_state(self, batch_size: int) -> WorldModelState:
         device = next(self.parameters()).device
         h0 = torch.zeros(batch_size, self.latent.deter_size, device=device)
-        z0 = torch.zeros(batch_size, self.latent.z_dim, device=device)
+        z0 = torch.zeros(batch_size, self.latent.stoch_size, self.latent.num_classes, device=device)
         return WorldModelState(h=h0, z=z0)
 
     def observe_step(
@@ -101,13 +105,11 @@ class WorldModel(nn.Module):
         prev_state = self._ensure_state(prev_state)
         embed = self.encoder(obs)
 
-        # Posterior and prior over z_t given h_t
         post_stats = self.posterior(prev_state.h, embed)
         prior_stats = self.prior(prev_state.h)
 
         z = post_stats["z"]
 
-        # Deterministic update uses action (Dreamer‑V3)
         h = self.rssm(prev_state.h, action)
 
         post_stats = {**post_stats, "h": h}
@@ -120,9 +122,6 @@ class WorldModel(nn.Module):
         reward_logits = self.reward_head(h, z)
         cont_logits = self.continue_head(h, z).squeeze(-1)
 
-        # Structured KL split:
-        #   KL_dyn = "Did my dynamics predict the right latent?"
-        #   KL_rep = "Did my encoder add extra information?"
         kl_dict = structured_kl(
             q_probs=post_stats["probs"],
             p_probs=prior_stats["probs"],
@@ -151,26 +150,7 @@ class WorldModel(nn.Module):
         actor: nn.Module,
         stochastic: bool = True,
     ) -> WorldModelState:
-        """
-        One Dreamer‑V3 imagination step:
-
-        1. Actor chooses action from previous state.
-        2. RSSMCore updates h using (h, action).
-        3. Prior over z from new h.
-        4. Sample (or take mode) for z.
-        """
         prev_state = self._ensure_state(prev)
-
-        # IMPORTANT:
-        # The actor produces *logits*, not actions. In Dreamer‑V3 the policy is a
-        # categorical distribution over discrete actions. Therefore:
-        #
-        #   logits = actor(h, z)
-        #   a = Categorical(logits).sample()        # discrete index
-        #   action = one_hot(a, action_dim)         # tensor fed to RSSMCore
-        #
-        # RSSMCore requires a full action vector of shape (B, action_dim). Passing
-        # logits or integer action IDs will silently break the latent dynamics.
 
         logits = actor(prev_state.h, prev_state.z)
         dist = Categorical(logits=logits)
@@ -178,25 +158,20 @@ class WorldModel(nn.Module):
         if stochastic:
             a = dist.sample()
         else:
-            # deterministic action
             a = logits.argmax(dim=-1)
 
         assert self.net_cfg.action_dim is not None, "action_dim must be specified in net config for imagine_step"
         action = F.one_hot(a, num_classes=self.net_cfg.action_dim).float()
 
-        # 2. Deterministic update
         h = self.rssm(prev_state.h, action)
 
-        # 3. Prior from new h
         prior = self.prior(h)
 
-        # 4. Sample or mode for z
         if stochastic:
             z = prior["z"]
         else:
-            idx = prior["probs"].argmax(dim=-1)  # (B, stoch_size)
+            idx = prior["probs"].argmax(dim=-1)
             z = F.one_hot(idx, num_classes=self.latent.num_classes).float()
-            z = z.view(z.shape[0], -1)
 
         return WorldModelState(h=h, z=z, prior_stats=prior, post_stats=None)
 

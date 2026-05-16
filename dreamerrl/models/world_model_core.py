@@ -2,30 +2,19 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from dreamerrl.utils.types import LatentConfig, NetworkConfig
-
 from .deterministic_layernorm import DeterministicLayerNorm
 
 
 class RSSMCore(nn.Module):
     """
-    IMPORTANT:
-    ---------
-    RSSMCore intentionally does NOT use a GRU. Dreamer‑V3 found that GRUs introduce instability (especially with
-    discrete latents), are nondeterministic across devices, and add unnecessary complexity. The deterministic
-    transition is a simple MLP with LayerNorm:
+    Dreamer‑V3 deterministic transition:
+        h_{t+1} = f(h_t, action_t)
 
-    h_{t+1} = f(h_t, action_t)
-
-    Recurrence comes from unrolling this function over time, not from a recurrent cell. This design is more stable,
-    more reproducible, and easier to train.
-
-    NOTE:
-    - z_t is *not* part of the deterministic update in Dreamer‑V3.
-    - z_t is handled entirely by Prior/Posterior.
+    No GRU. No z in the deterministic update.
+    Pure MLP + LayerNorm for stability and reproducibility.
     """
 
-    def __init__(self, *, latent: LatentConfig, net: NetworkConfig):
+    def __init__(self, *, latent, net):
         super().__init__()
 
         assert net.action_dim is not None, "RSSMCore requires action_dim"
@@ -33,7 +22,6 @@ class RSSMCore(nn.Module):
         self.latent = latent
         self.net_cfg = net
 
-        # Dreamer‑V3 input: [h, action]
         input_dim = latent.deter_size + net.action_dim
 
         self.fc1 = nn.Linear(input_dim, net.hidden_size)
@@ -48,38 +36,9 @@ class RSSMCore(nn.Module):
             if m.bias is not None:
                 nn.init.zeros_(m.bias)
 
-    def forward(self, h: torch.Tensor, action: torch.Tensor) -> torch.Tensor:
+    def forward(self, h, action):
         """
-        IMPORTANT:
-        ---------
-        RSSMCore consumes a *one‑hot* action vector, not logits and not a discrete action index. Dreamer‑V3 uses a
-        categorical policy:
-
-        logits = actor(h, z)
-        dist = Categorical(logits)
-        a = dist.sample()                     # integer action ID
-        action = F.one_hot(a, action_dim)     # (B, action_dim)
-
-        Only this one‑hot action vector should be passed to RSSMCore.forward(). Feeding logits or integer IDs will
-        silently corrupt the latent dynamics.
-
-        Dreamer‑V3 deterministic transition:
-        -----------------------------------
-        h_{t+1} = f(h_t, action_t)
-
-        ----------------------------
-        RSSM Determinism Invariants:
-        ----------------------------
-        Dreamer‑V3 requires the deterministic transition f(h, a) to be a *pure function*:
-
-        • Same (h, a) → same h' every call (no randomness, no dropout).
-        • No in‑place mutation of h or a (must preserve replay buffer correctness).
-        • CPU and GPU must produce identical outputs (bit‑for‑bit determinism).
-        • Batch‑size invariance: repeating a single (h, a) pair N times must
-        produce N identical outputs.
-
-        These invariants ensure that the world model is reproducible, stable, and safe for long‑horizon imagination.
-        Any violation here silently corrupts the actor/critic training.
+        action must be one‑hot (B, action_dim)
         """
         x = torch.cat([h, action], dim=-1)
         x = self.fc1(x)
