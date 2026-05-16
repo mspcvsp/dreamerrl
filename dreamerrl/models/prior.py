@@ -60,10 +60,4 @@ class Prior(nn.Module):
             z_hard = F.one_hot(idx, num_classes=self.latent.num_classes).float()
             z = z_hard + (y - y.detach())
 
-        z_flat = z.view(B, -1)
-
-        return {
-            "logits": logits,
-            "probs": probs,
-            "z": z_flat,
-        }
+        return {"logits": logits, "probs": probs, "z": z}
