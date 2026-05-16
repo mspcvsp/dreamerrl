@@ -140,3 +140,59 @@ def test_imagine_step_cpu_gpu_determinism_horizon() -> None:
 
     assert max_diff_h < 1e-5, f"h mismatch across devices: {max_diff_h}"
     assert max_diff_z < 1e-5, f"z mismatch across devices: {max_diff_z}"
+
+
+def test_stochastic_imagination_distributional_invariants():
+    torch.manual_seed(0)
+
+    wm_cpu = _build_world_model(device=torch.device("cpu"))
+    wm_gpu = _build_world_model(device=torch.device("cuda"))
+
+    wm_gpu.load_state_dict(wm_cpu.state_dict())
+
+    latent = wm_cpu.latent
+    net = wm_cpu.net_cfg
+    actor_cpu = DummyActor(latent=latent, net=net).to("cpu")
+    actor_gpu = DummyActor(latent=latent, net=net).to("cuda")
+    actor_gpu.load_state_dict(actor_cpu.state_dict())
+
+    B = 64
+    H = 10
+
+    # Collect samples
+    samples_cpu = []
+    samples_gpu = []
+
+    for _ in range(200):  # enough for stable statistics
+        s0_cpu = wm_cpu.init_state(batch_size=B)
+        s0_gpu = s0_cpu.to(torch.device("cuda"))
+
+        cur_cpu = s0_cpu
+        cur_gpu = s0_gpu
+
+        for _ in range(H):
+            cur_cpu = wm_cpu.imagine_step(cur_cpu, actor=actor_cpu, stochastic=True)
+            cur_gpu = wm_gpu.imagine_step(cur_gpu, actor=actor_gpu, stochastic=True)
+
+        samples_cpu.append(cur_cpu.h.detach().cpu())
+        samples_gpu.append(cur_gpu.h.detach().cpu())
+
+    cpu_stack = torch.stack(samples_cpu)  # (N, B, deter)
+    gpu_stack = torch.stack(samples_gpu)
+
+    # 1. Shapes match
+    assert cpu_stack.shape == gpu_stack.shape
+
+    # 2. Finiteness
+    assert torch.isfinite(cpu_stack).all()
+    assert torch.isfinite(gpu_stack).all()
+
+    # 3. Distributional similarity (mean/var)
+    mean_diff = (cpu_stack.mean() - gpu_stack.mean()).abs().item()
+    var_diff = (cpu_stack.var() - gpu_stack.var()).abs().item()
+
+    assert mean_diff < 1e-2
+    assert var_diff < 1e-2
+
+    # 4. Non-degeneracy: stochastic rollouts differ
+    assert not torch.allclose(cpu_stack[0], cpu_stack[1])
