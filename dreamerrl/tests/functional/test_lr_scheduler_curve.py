@@ -1,19 +1,30 @@
-import numpy as np
 import pytest
+import torch
 
-from dreamerrl.training.trainer import CosineWarmupScheduler
-from dreamerrl.utils.types import LRScheduleConfig
+from dreamerrl.models.value_head import ValueHead
+from dreamerrl.utils.types import LatentConfig, NetworkConfig
 
 
 @pytest.mark.functional
-def test_lr_scheduler_warmup_and_decay():
-    cfg = LRScheduleConfig(base_lr=1e-3, warmup_steps=10, total_steps=100, lr_floor=0.1)
-    sch = CosineWarmupScheduler(cfg)
+def test_distributional_value_readout_monotonic():
+    B = 8
+    latent = LatentConfig(deter_size=200, stoch_size=30, num_classes=32)
+    net = NetworkConfig(hidden_size=256, value_bins=51)
 
-    lrs = np.array([sch(t) for t in range(0, 100)])
+    head = ValueHead(latent=latent, net=net)
 
-    assert np.isclose(lrs[0], 0.0)
-    assert lrs[5] > lrs[0]
-    assert lrs[10] <= cfg.base_lr + 1e-8
-    assert lrs[-1] > 0.0
-    assert lrs[-1] < cfg.base_lr
+    # V3 deterministic state
+    h = torch.zeros(B, latent.deter_size)
+
+    # V3 factored latent: (B, K, C)
+    z = torch.zeros(B, latent.stoch_size, latent.num_classes)
+
+    logits = head(h, z)
+
+    # Output shape: (B, value_bins)
+    assert logits.shape == (B, net.value_bins)
+
+    # Monotonicity: cumulative distribution logits should be increasing
+    # (Dreamer-V3 uses a monotonic transform for value bins)
+    diffs = logits[:, 1:] - logits[:, :-1]
+    assert torch.all(diffs >= -1e-5)

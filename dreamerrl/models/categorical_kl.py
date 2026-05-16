@@ -7,13 +7,14 @@ from dreamerrl.utils.types import KLConfig
 
 def categorical_kl(q_probs, p_probs, eps=1e-8):
     """
-    KL(q || p) per factor.
+    KL(q || p) aggregated across factors.
     q_probs, p_probs: (B, K, C)
-    Returns: (B, K)
+    Returns: (B,)
     """
     q = q_probs.clamp_min(eps)
     p = p_probs.clamp_min(eps)
-    return (q * (q.log() - p.log())).sum(dim=-1)
+    kl_per_factor = (q * (q.log() - p.log())).sum(dim=-1)  # (B, K)
+    return kl_per_factor.sum(dim=-1)  # (B,)
 
 
 def apply_free_bits(kl, free_bits):
