@@ -4,7 +4,8 @@ import torch
 from gymnasium.spaces import Box
 
 from dreamerrl.models.world_model import WorldModel
-from dreamerrl.utils.types import KLConfig, LatentConfig, NetworkConfig
+from dreamerrl.utils.types import LatentConfig, NetworkConfig
+from dreamerrl.models.categorical_kl import KLConfig
 
 
 @pytest.mark.functional
@@ -51,11 +52,11 @@ def test_world_model_observe_step_keys_and_shapes():
     # V3 factored latent
     assert post.z.shape == (B, latent.stoch_size, latent.num_classes)
 
-    # Reward head is scalar in V3
+    # Reward head is scalar
     assert out["reward_logits"].shape == (B, 1)
 
-    # Continue head is scalar in V3
+    # Continue head is scalar
     assert out["cont_logits"].shape == (B, 1)
 
-    # KL is per-factor in V3
-    assert out["kl"].shape == (B, latent.stoch_size)
+    # KL is aggregated in V3 → shape (B,)
+    assert out["kl"].shape == (B,)
