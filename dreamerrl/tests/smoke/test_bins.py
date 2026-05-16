@@ -1,8 +1,10 @@
+import pytest
 import torch
 
 from dreamerrl.utils.types import NetworkConfig
 
 
+@pytest.mark.smoke
 def test_bins_monotonic():
     cfg = NetworkConfig(hidden_size=256, value_bins=41)
     bins = cfg.make_bins()
