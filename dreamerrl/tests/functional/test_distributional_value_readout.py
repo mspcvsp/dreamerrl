@@ -1,9 +1,11 @@
+import pytest
 import torch
 
 from dreamerrl.models.value_head import ValueHead, value_from_logits
 from dreamerrl.utils.types import LatentConfig, NetworkConfig
 
 
+@pytest.mark.functional
 def test_distributional_value_readout_monotonic():
     B = 8
     latent = LatentConfig(deter_size=200, stoch_size=30, num_classes=32)

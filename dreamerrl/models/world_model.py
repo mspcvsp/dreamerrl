@@ -9,7 +9,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torch.distributions import Categorical
 
-from dreamerrl.utils.types import LatentConfig, NetworkConfig
+from dreamerrl.utils.types import KLConfig, LatentConfig, NetworkConfig
 
 from .categorical_kl import structured_kl
 from .continue_head import ContinueHead
@@ -65,6 +65,7 @@ class WorldModel(nn.Module):
         latent: LatentConfig,
         net: NetworkConfig,
         free_bits: float = 0.0,
+        kl_cfg: Optional[KLConfig] = None,
         device: Optional[torch.device] = None,
     ):
         super().__init__()
@@ -73,6 +74,12 @@ class WorldModel(nn.Module):
         self.latent = latent
         self.net_cfg = net
         self.free_bits = free_bits
+
+        self.kl_cfg = kl_cfg or KLConfig(
+            max_kl=100.0,
+            min_kl=-1e-6,
+            require_nonzero=True,
+        )
 
         self.obs_space = obs_space
         self.flat_obs_dim = get_flat_obs_dim(obs_space)
@@ -126,6 +133,7 @@ class WorldModel(nn.Module):
             q_probs=post_stats["probs"],
             p_probs=prior_stats["probs"],
             free_bits=self.free_bits,
+            kl_cfg=self.kl_cfg,
         )
 
         for key in ["kl_dyn", "kl_rep", "kl_total"]:

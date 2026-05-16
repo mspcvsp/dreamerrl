@@ -1,8 +1,10 @@
+import pytest
 import torch
 
 from dreamerrl.utils.transforms import symexp, symlog
 
 
+@pytest.mark.functional
 def test_symlog_symexp_roundtrip():
     x = torch.linspace(-100, 100, steps=257)
     y = symexp(symlog(x))

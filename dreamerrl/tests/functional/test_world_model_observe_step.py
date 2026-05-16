@@ -1,11 +1,13 @@
 import numpy as np
+import pytest
 import torch
 from gymnasium.spaces import Box
 
 from dreamerrl.models.world_model import WorldModel
-from dreamerrl.utils.types import LatentConfig, NetworkConfig
+from dreamerrl.utils.types import KLConfig, LatentConfig, NetworkConfig
 
 
+@pytest.mark.functional
 def test_world_model_observe_step_keys_and_shapes():
     B = 4
     obs_space = Box(low=0.0, high=1.0, shape=(8,), dtype=np.float32)
@@ -19,6 +21,7 @@ def test_world_model_observe_step_keys_and_shapes():
         latent=latent,
         net=net,
         free_bits=0.0,
+        kl_cfg=KLConfig(require_nonzero=False),
         device=torch.device("cpu"),
     )
 
@@ -41,8 +44,18 @@ def test_world_model_observe_step_keys_and_shapes():
     )
 
     post = out["post"]
+
+    # V3 deterministic state
     assert post.h.shape == (B, latent.deter_size)
-    assert post.z.shape == (B, latent.z_dim)
-    assert out["reward_logits"].shape[-1] == net.value_bins
-    assert out["cont_logits"].shape == (B,)
-    assert out["kl"].shape == ()
+
+    # V3 factored latent
+    assert post.z.shape == (B, latent.stoch_size, latent.num_classes)
+
+    # Reward head is scalar in V3
+    assert out["reward_logits"].shape == (B, 1)
+
+    # Continue head is scalar in V3
+    assert out["cont_logits"].shape == (B, 1)
+
+    # KL is per-factor in V3
+    assert out["kl"].shape == (B, latent.stoch_size)

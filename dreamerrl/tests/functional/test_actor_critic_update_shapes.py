@@ -1,4 +1,5 @@
 import numpy as np
+import pytest
 import torch
 from gymnasium.spaces import Box
 
@@ -9,6 +10,7 @@ from dreamerrl.training.core import actor_critic_update
 from dreamerrl.utils.types import LatentConfig, NetworkConfig
 
 
+@pytest.mark.functional
 def test_actor_critic_update_shapes():
     B, T = 4, 5
     obs_dim = 8

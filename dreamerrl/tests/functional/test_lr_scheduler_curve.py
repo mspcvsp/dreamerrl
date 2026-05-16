@@ -1,9 +1,11 @@
 import numpy as np
+import pytest
 
 from dreamerrl.training.trainer import CosineWarmupScheduler
 from dreamerrl.utils.types import LRScheduleConfig
 
 
+@pytest.mark.functional
 def test_lr_scheduler_warmup_and_decay():
     cfg = LRScheduleConfig(base_lr=1e-3, warmup_steps=10, total_steps=100, lr_floor=0.1)
     sch = CosineWarmupScheduler(cfg)

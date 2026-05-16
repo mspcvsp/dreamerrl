@@ -1,8 +1,10 @@
+import pytest
 import torch
 
 from dreamerrl.models.categorical_kl import categorical_kl
 
 
+@pytest.mark.functional
 def test_categorical_kl_zero_when_equal():
     B, F, C = 4, 3, 5
     logits = torch.randn(B, F, C)

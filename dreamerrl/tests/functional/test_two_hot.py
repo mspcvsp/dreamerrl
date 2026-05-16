@@ -1,9 +1,11 @@
+import pytest
 import torch
 
 from dreamerrl.utils.twohot import twohot_encode
 from dreamerrl.utils.types import NetworkConfig
 
 
+@pytest.mark.functional
 def test_two_hot_basic_properties():
     cfg = NetworkConfig(hidden_size=256, value_bins=51)
     bins = cfg.make_bins()
