@@ -103,13 +103,8 @@ def structured_kl(
         if kl_cfg.require_nonzero and kl_tensor.mean() == 0:
             raise ValueError(f"{name} collapsed to zero")
 
-    # --- Now reduce to scalars ---
-    kl_dyn_mean = kl_dyn.mean()
-    kl_rep_mean = kl_rep.mean()
-    kl_total_mean = kl_dyn_mean + kl_rep_mean
-
     return {
-        "kl_dyn": kl_dyn_mean,
-        "kl_rep": kl_rep_mean,
-        "kl_total": kl_total_mean,
+        "kl_dyn": kl_dyn,
+        "kl_rep": kl_rep,
+        "kl_total": kl_dyn + kl_rep,
     }
