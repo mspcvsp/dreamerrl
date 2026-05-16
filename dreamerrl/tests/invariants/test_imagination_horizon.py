@@ -16,12 +16,15 @@ class DummyActor(torch.nn.Module):
     def __init__(self, latent: LatentConfig, net: NetworkConfig) -> None:
         super().__init__()
         assert net.action_dim is not None
-        self.fc = torch.nn.Linear(latent.deter_size + latent.z_dim, net.action_dim)
+        # input size = deter_size + stoch_size * num_classes
+        in_features = latent.deter_size + latent.stoch_size * latent.num_classes
+        self.fc = torch.nn.Linear(in_features, net.action_dim)
 
     def forward(self, h: torch.Tensor, z: torch.Tensor) -> torch.Tensor:
-        x = torch.cat([h, z], dim=-1)
-        logits = self.fc(x)
-        return logits
+        # Flatten z from (B, K, C) → (B, K*C)
+        z_flat = z.view(z.size(0), -1)
+        x = torch.cat([h, z_flat], dim=-1)
+        return self.fc(x)
 
 
 def _build_world_model(device: torch.device) -> WorldModel:
@@ -72,7 +75,7 @@ def test_imagine_step_horizon_consistency() -> None:
     assert len(states) == H + 1
     for s in states:
         assert s.h.shape == (B, latent.deter_size)
-        assert s.z.shape == (B, latent.z_dim)
+        assert s.z.shape == (B, latent.stoch_size, latent.num_classes)
         assert s.h.device == device
         assert s.z.device == device
 
