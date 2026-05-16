@@ -142,6 +142,7 @@ class WorldModel(nn.Module):
             "recon": recon,
             "reward_logits": reward_logits,
             "cont_logits": cont_logits,
+            "kl": post_stats["kl_total"],
         }
 
     def imagine_step(

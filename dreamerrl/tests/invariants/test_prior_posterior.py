@@ -23,8 +23,13 @@ def test_prior_posterior_prob_simplex():
     post = out["post_stats"]
     prior = out["prior_stats"]
 
-    assert torch.allclose(post["probs"].sum(-1), torch.ones(4))
-    assert torch.allclose(prior["probs"].sum(-1), torch.ones(4))
+    # V3: probs shape = (B, stoch_size, num_classes)
+    assert post["probs"].dim() == 3
+    assert prior["probs"].dim() == 3
+
+    # Each categorical distribution must sum to 1
+    assert torch.allclose(post["probs"].sum(-1), torch.ones_like(post["probs"].sum(-1)))
+    assert torch.allclose(prior["probs"].sum(-1), torch.ones_like(prior["probs"].sum(-1)))
 
 
 def test_kl_non_negative():
