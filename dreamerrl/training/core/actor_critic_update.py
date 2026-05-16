@@ -17,6 +17,7 @@ def actor_critic_update(
     discount: float,
     lam: float,
 ):
+    # Determine batch size
     if "state" in batch:
         B = batch["state"].shape[0]
     elif "obs" in batch:
@@ -24,8 +25,10 @@ def actor_critic_update(
     else:
         raise KeyError("Batch must contain 'state' or 'obs'")
 
+    # Start from zero state (smoke test)
     start_state = world_model.init_state(B)
 
+    # Imagination rollout
     traj = imagine_trajectory_for_training(
         world_model=world_model,
         actor=actor,
@@ -35,17 +38,26 @@ def actor_critic_update(
     )
 
     h = traj["h"]  # (T, B, deter)
-    z = traj["z"]  # (T, B, z_dim)
+    z = traj["z"]  # (T, B, K, C)  <-- V3 factored latent
     reward = traj["reward"]  # (T, B)
     action = traj["action"]  # (T, B)
 
     T, B = reward.shape
+    _, _, K, C = z.shape
 
+    # ---------------------------------------------------------
+    # Compute returns in symlog space
+    # ---------------------------------------------------------
     def compute_returns_symlog():
         with torch.no_grad():
-            critic_logits = critic(h.reshape(T * B, -1), z.reshape(T * B, -1))
+            # Flatten time & batch, preserve factored z
+            h_tb = h.reshape(T * B, -1)
+            z_tb = z.reshape(T * B, K, C)
+
+            critic_logits = critic(h_tb, z_tb)
             values = critic.readout(critic_logits).reshape(T, B)
 
+            # Bootstrap from final state
             bootstrap_logits = critic(h[-1], z[-1])
             bootstrap_value = critic.readout(bootstrap_logits)
 
@@ -58,25 +70,41 @@ def actor_critic_update(
 
     returns_symlog = compute_returns_symlog()
 
+    # ---------------------------------------------------------
+    # Critic loss
+    # ---------------------------------------------------------
     def compute_critic_loss():
-        critic_logits = critic(h.reshape(T * B, -1), z.reshape(T * B, -1)).reshape(T, B, -1)
+        h_tb = h.reshape(T * B, -1)
+        z_tb = z.reshape(T * B, K, C)
+
+        critic_logits = critic(h_tb, z_tb).reshape(T, B, -1)
         return critic.loss(critic_logits, returns_symlog)
 
     critic_loss = compute_critic_loss()
 
+    # ---------------------------------------------------------
+    # Actor loss
+    # ---------------------------------------------------------
     def compute_actor_loss():
         with torch.no_grad():
-            critic_logits = critic(h.reshape(T * B, -1), z.reshape(T * B, -1))
+            h_tb = h.reshape(T * B, -1)
+            z_tb = z.reshape(T * B, K, C)
+
+            critic_logits = critic(h_tb, z_tb)
             value_pred = critic.readout(critic_logits).reshape(T, B)
+
             adv = returns_symlog - symlog(value_pred)
 
+            # Normalize advantage
             flat = adv.reshape(-1)
             p5, p95 = torch.quantile(flat, torch.tensor([0.05, 0.95], device=flat.device))
             scale = torch.clamp(p95 - p5, min=1.0)
             adv_norm = adv / scale
 
-        logits = actor(h.reshape(T * B, -1), z.reshape(T * B, -1)).reshape(T, B, -1)
+        # Actor forward pass (V3: factored z)
+        logits = actor(h.reshape(T * B, -1), z.reshape(T * B, K, C)).reshape(T, B, -1)
         dist = Categorical(logits=logits)
+
         logp = dist.log_prob(action)
         entropy = dist.entropy()
 

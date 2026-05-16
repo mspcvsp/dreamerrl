@@ -1,3 +1,5 @@
+# dreamerrl/tests/smoke/test_prior_posterior_shapes.py
+
 import torch
 
 from dreamerrl.models.posterior import Posterior
@@ -24,5 +26,7 @@ def test_prior_posterior_shapes():
 
     assert prior_stats["logits"].shape == (B, latent.stoch_size, latent.num_classes)
     assert post_stats["logits"].shape == (B, latent.stoch_size, latent.num_classes)
-    assert prior_stats["z"].shape == (B, latent.z_dim)
-    assert post_stats["z"].shape == (B, latent.z_dim)
+
+    # Dreamer‑V3: z is factored (B, K, C)
+    assert prior_stats["z"].shape == (B, latent.stoch_size, latent.num_classes)
+    assert post_stats["z"].shape == (B, latent.stoch_size, latent.num_classes)
