@@ -1,3 +1,4 @@
+import pytest
 import torch
 
 from dreamerrl.models.world_model_core import RSSMCore
@@ -10,6 +11,7 @@ def _rssm():
     return RSSMCore(latent=latent, net=net)
 
 
+@pytest.mark.rssm
 def test_rssm_deterministic_transition():
     torch.manual_seed(0)
     rssm = _rssm()

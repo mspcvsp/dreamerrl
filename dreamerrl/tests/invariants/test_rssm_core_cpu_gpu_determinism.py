@@ -10,6 +10,7 @@ from dreamerrl.models.world_model_core import RSSMCore
 from dreamerrl.utils.types import LatentConfig, NetworkConfig
 
 
+@pytest.mark.rssm
 @pytest.mark.skipif(not torch.cuda.is_available(), reason="CUDA not available")
 def test_rssm_core_cpu_gpu_determinism():
     """

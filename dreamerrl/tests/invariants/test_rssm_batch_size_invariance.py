@@ -1,9 +1,11 @@
+import pytest
 import torch
 import torch.nn.functional as F
 
 from dreamerrl.models.world_model_core import RSSMCore
 
 
+@pytest.mark.rssm
 def test_rssm_batch_size_invariance(latent, net):
     rssm = RSSMCore(latent=latent, net=net)
 

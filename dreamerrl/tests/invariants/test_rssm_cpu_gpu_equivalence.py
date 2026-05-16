@@ -1,9 +1,11 @@
+import pytest
 import torch
 import torch.nn.functional as F
 
 from dreamerrl.models.world_model_core import RSSMCore
 
 
+@pytest.mark.rssm
 def test_rssm_cpu_gpu_equivalence(latent, net):
     if not torch.cuda.is_available():
         return
