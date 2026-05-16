@@ -36,6 +36,7 @@ def _build_world_model(device: torch.device) -> WorldModel:
     return WorldModel(obs_space=obs_space, latent=latent, net=net, device=device)
 
 
+@pytest.mark.invariants
 def test_imagine_step_horizon_consistency() -> None:
     """
     Unrolling imagine_step H times must produce exactly H states, with consistent
@@ -84,6 +85,7 @@ def test_imagine_step_horizon_consistency() -> None:
     assert torch.allclose(states[-1].z, cur2.z, atol=1e-6)
 
 
+@pytest.mark.invariants
 @pytest.mark.skipif(not torch.cuda.is_available(), reason="CUDA not available")
 def test_imagine_step_cpu_gpu_determinism_horizon() -> None:
     """
@@ -142,6 +144,7 @@ def test_imagine_step_cpu_gpu_determinism_horizon() -> None:
     assert max_diff_z < 1e-5, f"z mismatch across devices: {max_diff_z}"
 
 
+@pytest.mark.invariants
 def test_stochastic_imagination_distributional_invariants():
     torch.manual_seed(0)
 

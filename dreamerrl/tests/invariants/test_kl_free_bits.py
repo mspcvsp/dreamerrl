@@ -12,6 +12,7 @@ from dreamerrl.models.prior import Prior
 from dreamerrl.utils.types import LatentConfig, NetworkConfig
 
 
+@pytest.mark.invariants
 @pytest.mark.parametrize("free_bits", [0.0, 0.1, 1.0])
 def test_structured_kl_free_bits_invariants(free_bits: float) -> None:
     """
@@ -58,6 +59,7 @@ def test_structured_kl_free_bits_invariants(free_bits: float) -> None:
     assert diff < 1e-5, f"kl_total != kl_dyn + kl_rep (max diff {diff})"
 
 
+@pytest.mark.invariants
 def test_structured_kl_free_bits_effect():
     """
     Free bits should modify the effective KL unless the raw KL is already above

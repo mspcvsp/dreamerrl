@@ -1,5 +1,6 @@
 import gymnasium as gym
 import numpy as np
+import pytest
 import torch
 
 from dreamerrl.models.world_model import WorldModel
@@ -13,6 +14,7 @@ def _wm():
     return WorldModel(obs_space=obs, latent=latent, net=net)
 
 
+@pytest.mark.invariants
 def test_observe_step_no_mutation():
     wm = _wm()
     state = wm.init_state(batch_size=4)
@@ -27,6 +29,7 @@ def test_observe_step_no_mutation():
     assert torch.allclose(state.z, state_clone.z)
 
 
+@pytest.mark.invariants
 def test_observe_step_deterministic():
     wm = _wm()
     state = wm.init_state(batch_size=4)

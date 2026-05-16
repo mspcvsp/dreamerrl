@@ -1,5 +1,6 @@
 import gymnasium as gym
 import numpy as np
+import pytest
 import torch
 
 from dreamerrl.models.world_model import WorldModel
@@ -13,6 +14,7 @@ def _wm(device="cpu"):
     return WorldModel(obs_space=obs, latent=latent, net=net, device=torch.device(device))
 
 
+@pytest.mark.invariants
 def test_prior_posterior_prob_simplex():
     wm = _wm()
     state = wm.init_state(batch_size=4)
@@ -32,6 +34,7 @@ def test_prior_posterior_prob_simplex():
     assert torch.allclose(prior["probs"].sum(-1), torch.ones_like(prior["probs"].sum(-1)))
 
 
+@pytest.mark.invariants
 def test_kl_non_negative():
     wm = _wm()
     state = wm.init_state(batch_size=4)

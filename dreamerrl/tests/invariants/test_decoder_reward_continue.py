@@ -1,5 +1,6 @@
 import gymnasium as gym
 import numpy as np
+import pytest
 import torch
 
 from dreamerrl.models.world_model import WorldModel
@@ -13,6 +14,7 @@ def _wm():
     return WorldModel(obs_space=obs, latent=latent, net=net)
 
 
+@pytest.mark.invariants
 def test_decoder_deterministic():
     wm = _wm()
     h = torch.randn(4, wm.latent.deter_size)
@@ -24,6 +26,7 @@ def test_decoder_deterministic():
     assert torch.allclose(out1, out2)
 
 
+@pytest.mark.invariants
 def test_reward_continue_finite():
     wm = _wm()
     h = torch.randn(4, wm.latent.deter_size)

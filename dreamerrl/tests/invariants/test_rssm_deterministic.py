@@ -5,6 +5,7 @@ import torch.nn.functional as F
 from dreamerrl.models.world_model_core import RSSMCore
 
 
+@pytest.mark.invariants
 @pytest.mark.rssm
 def test_rssm_deterministic(latent, net):
     rssm = RSSMCore(latent=latent, net=net)

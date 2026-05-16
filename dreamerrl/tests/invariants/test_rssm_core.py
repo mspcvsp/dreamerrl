@@ -11,6 +11,7 @@ def _rssm():
     return RSSMCore(latent=latent, net=net)
 
 
+@pytest.mark.invariants
 @pytest.mark.rssm
 def test_rssm_deterministic_transition():
     torch.manual_seed(0)
@@ -25,6 +26,7 @@ def test_rssm_deterministic_transition():
     assert torch.allclose(out1, out2)
 
 
+@pytest.mark.invariants
 def test_rssm_cpu_gpu_equivalence():
     if not torch.cuda.is_available():
         return

@@ -6,6 +6,7 @@ from dreamerrl.models.world_model_core import RSSMCore
 
 
 @pytest.mark.rssm
+@pytest.mark.invariants
 def test_rssm_batch_size_invariance(latent, net):
     rssm = RSSMCore(latent=latent, net=net)
 
