@@ -127,7 +127,7 @@ class WorldModel(nn.Module):
 
         recon = self.decoder(h, z)
         reward_logits = self.reward_head(h, z)
-        cont_logits = self.continue_head(h, z).squeeze(-1)
+        cont_logits = self.continue_head(h, z)
 
         kl_dict = structured_kl(
             q_probs=post_stats["probs"],
