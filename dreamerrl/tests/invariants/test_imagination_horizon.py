@@ -6,25 +6,7 @@ import torch
 from dreamerrl.models.world_model import WorldModel, WorldModelState
 from dreamerrl.utils.types import LatentConfig, NetworkConfig
 
-
-class DummyActor(torch.nn.Module):
-    """
-    Minimal actor that returns stable logits from (h, z).
-    Shape: (B, action_dim)
-    """
-
-    def __init__(self, latent: LatentConfig, net: NetworkConfig) -> None:
-        super().__init__()
-        assert net.action_dim is not None
-        # input size = deter_size + stoch_size * num_classes
-        in_features = latent.deter_size + latent.stoch_size * latent.num_classes
-        self.fc = torch.nn.Linear(in_features, net.action_dim)
-
-    def forward(self, h: torch.Tensor, z: torch.Tensor) -> torch.Tensor:
-        # Flatten z from (B, K, C) → (B, K*C)
-        z_flat = z.view(z.size(0), -1)
-        x = torch.cat([h, z_flat], dim=-1)
-        return self.fc(x)
+from .conftest import DummyActor
 
 
 def _build_world_model(device: torch.device) -> WorldModel:
@@ -148,7 +130,7 @@ def test_imagine_step_cpu_gpu_determinism_horizon() -> None:
 
 
 @pytest.mark.invariants
-def test_stochastic_imagination_distributional_invariants():
+def test_stochastic_imagination_distributional_invariants() -> None:
     torch.manual_seed(0)
 
     wm_cpu = _build_world_model(device=torch.device("cpu"))
@@ -158,6 +140,8 @@ def test_stochastic_imagination_distributional_invariants():
 
     latent = wm_cpu.latent
     net = wm_cpu.net_cfg
+    assert net.action_dim is not None
+
     actor_cpu = DummyActor(latent=latent, net=net).to("cpu")
     actor_gpu = DummyActor(latent=latent, net=net).to("cuda")
     actor_gpu.load_state_dict(actor_cpu.state_dict())

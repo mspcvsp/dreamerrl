@@ -73,3 +73,22 @@ def net():
         action_dim=5,  # match your dummy_batch
         value_bins=41,
     )
+
+
+class DummyActor(torch.nn.Module):
+    """
+    Minimal actor for invariants tests.
+    Consumes V3 latents (B, K, C) and returns logits (B, action_dim).
+    """
+
+    def __init__(self, latent: LatentConfig, net: NetworkConfig) -> None:
+        super().__init__()
+        assert net.action_dim is not None
+        in_features = latent.deter_size + latent.stoch_size * latent.num_classes
+        self.fc = torch.nn.Linear(in_features, net.action_dim)
+
+    def forward(self, h: torch.Tensor, z: torch.Tensor) -> torch.Tensor:
+        # Flatten z from (B, K, C) → (B, K*C)
+        z_flat = z.view(z.size(0), -1)
+        x = torch.cat([h, z_flat], dim=-1)
+        return self.fc(x)
