@@ -170,6 +170,13 @@ def make_default_config() -> DreamerConfig:
 
 
 @dataclass(frozen=True)
+class KLConfig:
+    max_kl: float = 100.0
+    min_kl: float = -1e-6
+    require_nonzero: bool = True
+
+
+@dataclass(frozen=True)
 class LatentConfig:
     """
     Shared Dreamer-V3 latent configuration.

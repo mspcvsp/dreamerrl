@@ -55,7 +55,7 @@ def world_model_training_step(
     recon_target = symlog(obs)
     recon_loss = F.mse_loss(recon, recon_target)
 
-    reward_loss = world_model.reward_head.loss(reward_logits, reward)
+    reward_loss = world_model.reward_head.loss_from_logits(reward_logits, reward)
     cont_loss = F.binary_cross_entropy_with_logits(cont_logits, cont)
 
     L_pred = recon_loss + reward_loss + cont_loss

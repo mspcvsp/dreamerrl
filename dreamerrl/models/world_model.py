@@ -120,11 +120,19 @@ class WorldModel(nn.Module):
         reward_logits = self.reward_head(h, z)
         cont_logits = self.continue_head(h, z).squeeze(-1)
 
+        # Structured KL split:
+        #   KL_dyn = "Did my dynamics predict the right latent?"
+        #   KL_rep = "Did my encoder add extra information?"
         kl_dict = structured_kl(
             q_probs=post_stats["probs"],
             p_probs=prior_stats["probs"],
             free_bits=self.free_bits,
         )
+
+        for key in ["kl_dyn", "kl_rep", "kl_total"]:
+            if not torch.isfinite(kl_dict[key]).all():
+                raise ValueError(f"KL divergence {key} is not finite: {kl_dict[key]}")
+            post_stats[key] = kl_dict[key]
 
         return {
             "post": post,
@@ -134,9 +142,6 @@ class WorldModel(nn.Module):
             "recon": recon,
             "reward_logits": reward_logits,
             "cont_logits": cont_logits,
-            "kl": kl_dict["kl_total"],
-            "kl_dyn": kl_dict["kl_dyn"],
-            "kl_rep": kl_dict["kl_rep"],
         }
 
     def imagine_step(
