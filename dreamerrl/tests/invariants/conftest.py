@@ -55,3 +55,21 @@ def world_model():
     )
 
     return wm
+
+
+@pytest.fixture
+def latent():
+    return LatentConfig(
+        deter_size=200,
+        stoch_size=30,
+        num_classes=32,
+    )
+
+
+@pytest.fixture
+def net():
+    return NetworkConfig(
+        hidden_size=256,
+        action_dim=5,  # match your dummy_batch
+        value_bins=41,
+    )

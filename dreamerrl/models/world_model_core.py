@@ -66,6 +66,20 @@ class RSSMCore(nn.Module):
         Dreamer‑V3 deterministic transition:
         -----------------------------------
         h_{t+1} = f(h_t, action_t)
+
+        ----------------------------
+        RSSM Determinism Invariants:
+        ----------------------------
+        Dreamer‑V3 requires the deterministic transition f(h, a) to be a *pure function*:
+
+        • Same (h, a) → same h' every call (no randomness, no dropout).
+        • No in‑place mutation of h or a (must preserve replay buffer correctness).
+        • CPU and GPU must produce identical outputs (bit‑for‑bit determinism).
+        • Batch‑size invariance: repeating a single (h, a) pair N times must
+        produce N identical outputs.
+
+        These invariants ensure that the world model is reproducible, stable, and safe for long‑horizon imagination.
+        Any violation here silently corrupts the actor/critic training.
         """
         x = torch.cat([h, action], dim=-1)
         x = self.fc1(x)
