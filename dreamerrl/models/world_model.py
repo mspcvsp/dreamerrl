@@ -168,7 +168,12 @@ class WorldModel(nn.Module):
 
         logits = actor(prev_state.h, prev_state.z)
         dist = Categorical(logits=logits)
-        a = dist.sample()  # (B,)
+
+        if stochastic:
+            a = dist.sample()
+        else:
+            # deterministic action
+            a = logits.argmax(dim=-1)
 
         assert self.net_cfg.action_dim is not None, "action_dim must be specified in net config for imagine_step"
         action = F.one_hot(a, num_classes=self.net_cfg.action_dim).float()
