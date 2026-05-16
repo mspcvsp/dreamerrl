@@ -70,3 +70,9 @@ def test_actor_logits_cpu_gpu_determinism():
 
     h_gpu = h_cpu.to("cuda")
     z_gpu = z_cpu.to("cuda")
+
+    with torch.no_grad():
+        logits_cpu = actor_cpu(h_cpu, z_cpu)
+        logits_gpu = actor_gpu(h_gpu, z_gpu).to("cpu")
+
+    assert torch.allclose(logits_cpu, logits_gpu, atol=1e-5)
