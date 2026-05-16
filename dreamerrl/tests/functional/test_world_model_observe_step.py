@@ -3,9 +3,9 @@ import pytest
 import torch
 from gymnasium.spaces import Box
 
+from dreamerrl.models.categorical_kl import KLConfig
 from dreamerrl.models.world_model import WorldModel
 from dreamerrl.utils.types import LatentConfig, NetworkConfig
-from dreamerrl.models.categorical_kl import KLConfig
 
 
 @pytest.mark.functional
