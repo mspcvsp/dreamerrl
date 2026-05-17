@@ -56,7 +56,7 @@ def test_world_model_observe_step_keys_and_shapes():
     assert out["reward_logits"].shape == (B, net.value_bins)
 
     # Continue head is binary categorical in V3
-    assert out["cont_logits"].shape == (B, 1)
+    assert out["cont_logits"].shape == (B, 2)
 
     # KL is aggregated in V3 → shape (B,)
     assert out["kl"].shape == (B,)
