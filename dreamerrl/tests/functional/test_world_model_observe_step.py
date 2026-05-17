@@ -52,10 +52,10 @@ def test_world_model_observe_step_keys_and_shapes():
     # V3 factored latent
     assert post.z.shape == (B, latent.stoch_size, latent.num_classes)
 
-    # Reward head is scalar
-    assert out["reward_logits"].shape == (B, 1)
+    # Reward head is distributional in V3
+    assert out["reward_logits"].shape == (B, net.value_bins)
 
-    # Continue head is scalar
+    # Continue head is binary categorical in V3
     assert out["cont_logits"].shape == (B, 1)
 
     # KL is aggregated in V3 → shape (B,)
