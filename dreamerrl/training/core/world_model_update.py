@@ -48,9 +48,12 @@ def world_model_training_step(
     h = torch.stack([s["h"] for s in posts], dim=1)
     z = torch.stack([s["z"] for s in posts], dim=1)
 
-    recon = world_model.decoder(h.reshape(B * L, -1), z.reshape(B * L, -1)).reshape(B, L, -1)
-    reward_logits = world_model.reward_head(h.reshape(B * L, -1), z.reshape(B * L, -1)).reshape(B, L, -1)
-    cont_logits = world_model.continue_head(h.reshape(B * L, -1), z.reshape(B * L, -1)).reshape(B, L)
+    # V3-correct reshaping
+    z_factored = z.reshape(B * L, world_model.latent.stoch_size, world_model.latent.num_classes)
+
+    recon = world_model.decoder(h.reshape(B * L, -1), z_factored).reshape(B, L, -1)
+    reward_logits = world_model.reward_head(h.reshape(B * L, -1), z_factored).reshape(B, L, -1)
+    cont_logits = world_model.continue_head(h.reshape(B * L, -1), z_factored).reshape(B, L)
 
     recon_target = symlog(obs)
     recon_loss = F.mse_loss(recon, recon_target)
