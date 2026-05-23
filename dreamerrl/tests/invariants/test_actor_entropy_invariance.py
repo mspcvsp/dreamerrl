@@ -1,11 +1,10 @@
-import pytest
 import torch
+from torch.distributions import Categorical
 
 from dreamerrl.models.actor import Actor
 from dreamerrl.utils.types import LatentConfig, NetworkConfig
 
 
-@pytest.mark.invariants
 def test_actor_entropy_invariance():
     latent = LatentConfig(deter_size=200, stoch_size=30, num_classes=32)
     net = NetworkConfig(hidden_size=256, action_dim=5)
@@ -15,7 +14,8 @@ def test_actor_entropy_invariance():
     h = torch.randn(B, latent.deter_size)
     z = torch.randn(B, latent.stoch_size, latent.num_classes)
 
-    dist = actor(h, z)
+    logits = actor(h, z)
+    dist = Categorical(logits=logits)
     entropy = dist.entropy()
 
     assert torch.isfinite(entropy).all()
