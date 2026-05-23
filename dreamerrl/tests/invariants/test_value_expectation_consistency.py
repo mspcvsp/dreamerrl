@@ -1,3 +1,4 @@
+import pytest
 import torch
 
 from dreamerrl.models.value_head import ValueHead
@@ -5,6 +6,7 @@ from dreamerrl.utils.transforms import symexp
 from dreamerrl.utils.types import LatentConfig, NetworkConfig
 
 
+@pytest.mark.invariants
 def test_value_expectation_consistency():
     latent = LatentConfig(deter_size=200, stoch_size=30, num_classes=32)
     net = NetworkConfig(hidden_size=256, value_bins=41)

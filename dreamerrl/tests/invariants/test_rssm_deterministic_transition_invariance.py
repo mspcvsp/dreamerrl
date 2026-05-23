@@ -1,6 +1,9 @@
+import pytest
 import torch
 
 
+@pytest.mark.invariants
+@pytest.mark.rssm
 def test_rssm_deterministic_transition_invariance(world_model, dummy_actor):
     """
     RSSMCore is purely deterministic: same inputs → same outputs.

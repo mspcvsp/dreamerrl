@@ -1,6 +1,8 @@
+import pytest
 import torch
 
 
+@pytest.mark.invariants
 def test_rssm_zero_latent_stability(world_model, dummy_actor):
     """
     Zero latent + zero action should not produce NaNs or infs.

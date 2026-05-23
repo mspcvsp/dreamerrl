@@ -1,6 +1,9 @@
+import pytest
+
 from dreamerrl.utils.types import NetworkConfig
 
 
+@pytest.mark.invariants
 def test_bin_center_monotonicity():
     cfg = NetworkConfig(hidden_size=256, value_bins=41)
     bins = cfg.make_bins()

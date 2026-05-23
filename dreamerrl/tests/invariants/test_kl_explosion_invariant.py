@@ -1,8 +1,10 @@
+import pytest
 import torch
 
 from dreamerrl.models.categorical_kl import categorical_kl
 
 
+@pytest.mark.invariants
 def test_kl_explosion_invariant():
     B, K, C = 4, 30, 32
     logits_p = torch.randn(B, K, C) * 50

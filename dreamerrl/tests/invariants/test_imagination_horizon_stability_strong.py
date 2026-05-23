@@ -1,6 +1,8 @@
+import pytest
 import torch
 
 
+@pytest.mark.invariants
 def test_imagination_horizon_stability_strong(world_model, dummy_actor):
     """
     Long-horizon imagination should remain numerically stable.
