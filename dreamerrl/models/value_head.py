@@ -1,49 +1,43 @@
 import torch
 import torch.nn as nn
-
-from dreamerrl.utils.twohot import twohot_encode, value_from_logits
+import torch.nn.functional as F
 
 
 class ValueHead(nn.Module):
     """
-    Dreamer‑V3 distributional value head.
-    Consumes factored z (B, K, C) and deterministic h (B, deter_size).
-    Produces logits over value bins.
+    Dreamer‑V3 value model.
+    Consumes factored z and deterministic h.
+    Outputs categorical logits over value bins.
     """
 
     def __init__(self, *, latent, net):
         super().__init__()
 
-        assert net.value_bins is not None, "ValueHead requires value_bins"
-
         self.latent = latent
         self.net_cfg = net
-        self.bins = net.make_bins()
 
-        # Embed each categorical factor
         self.z_embed = nn.Linear(latent.num_classes, net.hidden_size)
-
-        # Embed deterministic state
         self.h_embed = nn.Linear(latent.deter_size, net.hidden_size)
 
-        # Final critic network
         self.net = nn.Sequential(
             nn.Linear(net.hidden_size, net.hidden_size),
             nn.SiLU(),
-            nn.Linear(net.hidden_size, net.hidden_size),
-            nn.SiLU(),
-            nn.Linear(net.hidden_size, net.value_bins),
+            nn.Linear(net.hidden_size, net.value_bins),  # distribution over value bins
         )
+
+        self.value_bins = net.value_bins
+        # symmetric bin centers in symlog space
+        self.bin_values = torch.linspace(-1.0, 1.0, self.value_bins)
 
         self.apply(self._init_weights)
 
-    def _init_weights(self, m):
+    def _init_weights(self, m: nn.Module) -> None:
         if isinstance(m, nn.Linear):
             nn.init.xavier_uniform_(m.weight)
             if m.bias is not None:
                 nn.init.zeros_(m.bias)
 
-    def forward(self, h, z):
+    def forward(self, h: torch.Tensor, z: torch.Tensor) -> torch.Tensor:
         """
         h: (B, deter_size)
         z: (B, K, C)
@@ -51,18 +45,30 @@ class ValueHead(nn.Module):
         z_e = self.z_embed(z)  # (B, K, H)
         z_sum = z_e.sum(dim=1)  # (B, H)
         h_e = self.h_embed(h)  # (B, H)
-
         features = h_e + z_sum
-        return self.net(features)  # (B, num_bins)
+        return self.net(features)  # (B, value_bins)
 
-    def loss(self, logits, target_returns_symlog):
+    def readout(self, logits: torch.Tensor) -> torch.Tensor:
         """
-        logits: (T, B, num_bins)
-        target_returns_symlog: (T, B)
+        Turn categorical logits into scalar value by expectation over bin centers.
         """
-        target_twohot = twohot_encode(target_returns_symlog, self.bins)
-        log_probs = torch.log_softmax(logits, dim=-1)
-        return -(target_twohot * log_probs).sum(dim=-1).mean()
+        probs = torch.softmax(logits, dim=-1)
+        return (probs * self.bin_values.to(logits.device)).sum(dim=-1)  # (B,)
 
-    def readout(self, logits):
-        return value_from_logits(logits, self.bins)
+    def loss(self, logits: torch.Tensor, returns: torch.Tensor) -> torch.Tensor:
+        """
+        Distributional cross‑entropy loss for symlog‑transformed returns.
+        """
+        target = torch.sign(returns) * torch.log1p(torch.abs(returns))
+        with torch.no_grad():
+            bin_idx = torch.argmin(
+                torch.abs(target.unsqueeze(-1) - self.bin_values.to(target.device)),
+                dim=-1,
+            )
+        return F.cross_entropy(
+            logits.view(-1, self.value_bins),
+            bin_idx.view(-1),
+        )
+
+    def loss_from_logits(self, logits: torch.Tensor, returns: torch.Tensor) -> torch.Tensor:
+        return self.loss(logits, returns)

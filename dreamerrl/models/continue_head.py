@@ -10,7 +10,7 @@ class ContinueHead(nn.Module):
         self.net = nn.Sequential(
             nn.Linear(net.hidden_size, net.hidden_size),
             nn.SiLU(),
-            nn.Linear(net.hidden_size, 2),  # categorical binary logits
+            nn.Linear(net.hidden_size, net.value_bins),  # categorical binary logits
         )
 
     def forward(self, h, z):

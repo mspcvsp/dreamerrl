@@ -96,6 +96,7 @@ def run_once(cfg, steps=10):
 
 def assert_same(a, b, name):
     """Recursively verify equality."""
+
     if isinstance(a, torch.Tensor):
         if not torch.allclose(a, b, atol=1e-6, rtol=1e-6):
             print(f"\n❌ Divergence in {name}")

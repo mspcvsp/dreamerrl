@@ -15,6 +15,9 @@ def world_model_training_step(
 ) -> torch.Tensor:
     device = next(world_model.parameters()).device
 
+    # -------------------------------------------------------------
+    # Extract batch
+    # -------------------------------------------------------------
     if "obs" in batch:
         obs = batch["obs"].to(device)
     elif "state" in batch:
@@ -24,12 +27,16 @@ def world_model_training_step(
 
     reward = batch["reward"].to(device)
     is_terminal = batch["is_terminal"].to(device)
-    cont = 1.0 - is_terminal.float()
+    cont_target = 1.0 - is_terminal.float()  # continuation target
 
     B, L, _ = obs.shape
 
+    # -------------------------------------------------------------
+    # Roll out RSSM over sequence
+    # -------------------------------------------------------------
     state = world_model.init_state(B)
-    posts, priors = [], []
+    posts = []
+    priors = []
 
     for t in range(L):
         out = world_model.observe_step(
@@ -45,30 +52,45 @@ def world_model_training_step(
         posts.append(out["post"].post_stats)
         priors.append(out["prior"].prior_stats)
 
+    # (B, L, deter), (B, L, K, C)
     h = torch.stack([s["h"] for s in posts], dim=1)
     z = torch.stack([s["z"] for s in posts], dim=1)
 
-    # V3-correct reshaping
-    z_factored = z.reshape(B * L, world_model.latent.stoch_size, world_model.latent.num_classes)
+    # -------------------------------------------------------------
+    # Flatten for heads
+    # -------------------------------------------------------------
+    z_factored = z.reshape(
+        B * L,
+        world_model.latent.stoch_size,
+        world_model.latent.num_classes,
+    )
+    h_flat = h.reshape(B * L, -1)
 
-    recon = world_model.decoder(h.reshape(B * L, -1), z_factored).reshape(B, L, -1)
-    reward_logits = world_model.reward_head(h.reshape(B * L, -1), z_factored).reshape(B, L, -1)
-    cont_logits = world_model.continue_head(h.reshape(B * L, -1), z_factored).reshape(B, L)
+    # -------------------------------------------------------------
+    # Predictions
+    # -------------------------------------------------------------
+    recon = world_model.decoder(h_flat, z_factored).reshape(B, L, -1)
 
+    reward_logits = world_model.reward_head(h_flat, z_factored).reshape(B, L, world_model.net.value_bins)
+
+    cont_logits = world_model.continue_head(h_flat, z_factored).reshape(B, L, world_model.net.value_bins)
+
+    # -------------------------------------------------------------
+    # Losses
+    # -------------------------------------------------------------
     recon_target = symlog(obs)
     recon_loss = F.mse_loss(recon, recon_target)
 
     reward_loss = world_model.reward_head.loss_from_logits(reward_logits, reward)
-    cont_loss = F.binary_cross_entropy_with_logits(cont_logits, cont)
+
+    cont_loss = world_model.continue_head.loss_from_logits(cont_logits, cont_target)
 
     L_pred = recon_loss + reward_loss + cont_loss
 
-    # Use KL terms already computed in observe_step via structured_kl
-    kl_dyn = torch.stack([p["kl_dyn"] for p in posts], dim=1)  # (B, L)
-    kl_rep = torch.stack([p["kl_rep"] for p in posts], dim=1)  # (B, L)
+    # -------------------------------------------------------------
+    # KL losses (already computed in observe_step)
+    # -------------------------------------------------------------
+    kl_dyn = torch.stack([p["kl_dyn"] for p in posts], dim=1).mean()
+    kl_rep = torch.stack([p["kl_rep"] for p in posts], dim=1).mean()
 
-    L_dyn = kl_dyn.mean()
-    L_rep = kl_rep.mean()
-
-    loss = L_pred + kl_scale * (L_dyn + L_rep)
-    return loss
+    return L_pred + kl_scale * (kl_dyn + kl_rep)

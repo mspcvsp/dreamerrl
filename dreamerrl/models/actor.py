@@ -1,4 +1,6 @@
+import torch
 import torch.nn as nn
+import torch.nn.functional as F
 
 
 class Actor(nn.Module):
@@ -34,3 +36,31 @@ class Actor(nn.Module):
 
         features = h_e + z_sum
         return self.net(features)  # logits over actions
+
+    @torch.no_grad()
+    def act(self, state, deterministic: bool = False):
+        """
+        Sample an action from the policy.
+
+        state: RSSMState with fields:
+            - h: (B, deter_size)
+            - z: (B, K, C)
+
+        Returns:
+            actions: (B,) int64
+            logits:  (B, action_dim)
+        """
+        h = state.h
+        z = state.z
+
+        logits = self.forward(h, z)  # (B, action_dim)
+
+        if deterministic:
+            # Greedy action (used in evaluation or reproducibility tests)
+            actions = torch.argmax(logits, dim=-1)
+        else:
+            # Categorical sampling
+            probs = F.softmax(logits, dim=-1)
+            actions = torch.multinomial(probs, num_samples=1).squeeze(-1)
+
+        return actions, logits
