@@ -27,6 +27,15 @@ class RewardHead(nn.Module):
         self.apply(self._init_weights)
 
         self.value_bins = net.value_bins
+
+        # Bins span [-1, +1] in symlog space because symlog compresses magnitudes into a bounded, approximately linear
+        # region around 0. Large raw values map to small symlog values, so a fixed symmetric range [-1, +1] covers
+        # almost all realistic rewards/returns after symlog, making distributional classification stable and
+        # domain‑agnostic.
+        #
+        # smymg: symlog is defined as sign(x) * log(1 + abs(x)), so bin centers in symlog space correspond to nonlinear
+        # bin edges in raw reward space. For example, with 5 bins, the centers are at [-1, -0.5, 0, 0.5, 1] in symlog
+        # space, which correspond to approximately [-0.63, -0.20, 0, 0.20, 0.63] in raw reward space.
         self.bin_values = torch.linspace(-1, 1, self.value_bins)
 
     def _init_weights(self, m):

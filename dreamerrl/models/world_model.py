@@ -1,3 +1,19 @@
+"""
+symlog(x) = sign(x) * log(1 + |x|) compresses large magnitudes into a stable, bounded region around 0. This prevents
+huge gradients, keeps losses balanced, and makes the world model behave consistently across domains with wildly
+different reward/observation scales.
+
+In Dreamer‑V3, we apply symlog to rewards and returns, and train the reward head to predict distributional logits over
+a fixed range of symlog‑transformed values. This keeps reward prediction stable and domain‑agnostic, and prevents large
+reward magnitudes from destabilizing training. The continue head is trained similarly with a binary categorical target
+based on whether the episode continues or terminates, which is more stable than a single‑logit binary head.
+
+Categorical latents make the RSSM represent the world as a set of discrete micro-decisions (K factors × C classes).
+symlog ensures the decoder and reward/value heads see inputs in a compressed, well-behaved range, so each categorical
+factor can specialize cleanly without being dominated by large raw magnitudes. Together they give stable, mode-seeking
+dynamics.
+"""
+
 from __future__ import annotations
 
 from dataclasses import dataclass
