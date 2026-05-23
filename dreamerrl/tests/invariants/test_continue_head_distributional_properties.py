@@ -1,6 +1,8 @@
+import pytest
 import torch
 
 
+@pytest.mark.invariants
 def test_continue_head_distributional_properties(world_model):
     B = 6
     h = torch.randn(B, world_model.latent.deter_size)

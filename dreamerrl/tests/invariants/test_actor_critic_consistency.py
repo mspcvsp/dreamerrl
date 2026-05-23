@@ -1,6 +1,8 @@
+import pytest
 import torch
 
 
+@pytest.mark.invariants
 def test_actor_critic_consistency(world_model, dummy_actor):
     """
     Higher reward should produce higher value targets.

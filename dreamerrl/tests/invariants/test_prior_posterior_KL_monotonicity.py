@@ -1,6 +1,8 @@
+import pytest
 import torch
 
 
+@pytest.mark.invariants
 def test_prior_posterior_KL_monotonicity(world_model):
     """
     KL divergence must be non-negative and finite.

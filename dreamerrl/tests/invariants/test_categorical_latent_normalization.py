@@ -1,6 +1,8 @@
+import pytest
 import torch
 
 
+@pytest.mark.invariants
 def test_categorical_latent_normalization(world_model):
     B = 4
     h = torch.randn(B, world_model.latent.deter_size)

@@ -1,6 +1,8 @@
+import pytest
 import torch
 
 
+@pytest.mark.invariants
 def test_prior_posterior_shape_contract(world_model):
     B = 4
     h = torch.randn(B, world_model.latent.deter_size)
