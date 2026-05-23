@@ -70,8 +70,10 @@ def latent():
 def net():
     return NetworkConfig(
         hidden_size=256,
-        action_dim=5,  # match your dummy_batch
+        action_dim=5,
         value_bins=41,
+        bin_min=-20.0,
+        bin_max=20.0,
     )
 
 
