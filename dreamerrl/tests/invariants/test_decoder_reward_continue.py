@@ -45,7 +45,7 @@ def test_reward_continue_finite():
     reward = wm.reward_head(h, z)
     cont = wm.continue_head(h, z)
 
-    assert reward.shape == (4, 1)
-    assert cont.shape == (4, 1)
+    assert reward.shape == (4, wm.net_cfg.value_bins)
+    assert cont.shape == (4, wm.net_cfg.value_bins)
     assert torch.isfinite(reward).all()
     assert torch.isfinite(cont).all()

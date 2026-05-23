@@ -71,9 +71,9 @@ def world_model_training_step(
     # -------------------------------------------------------------
     recon = world_model.decoder(h_flat, z_factored).reshape(B, L, -1)
 
-    reward_logits = world_model.reward_head(h_flat, z_factored).reshape(B, L, world_model.net.value_bins)
+    reward_logits = world_model.reward_head(h_flat, z_factored).reshape(B, L, world_model.net_cfg.value_bins)
 
-    cont_logits = world_model.continue_head(h_flat, z_factored).reshape(B, L, world_model.net.value_bins)
+    cont_logits = world_model.continue_head(h_flat, z_factored).reshape(B, L, world_model.net_cfg.value_bins)
 
     # -------------------------------------------------------------
     # Losses
