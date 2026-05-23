@@ -4,9 +4,8 @@ import pytest
 import torch
 
 from dreamerrl.models.world_model import WorldModel, WorldModelState
+from dreamerrl.tests.conftest import DummyActor
 from dreamerrl.utils.types import LatentConfig, NetworkConfig
-
-from .conftest import DummyActor
 
 
 def _build_world_model(device: torch.device) -> WorldModel:
