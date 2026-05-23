@@ -92,3 +92,8 @@ class DummyActor(torch.nn.Module):
         z_flat = z.view(z.size(0), -1)
         x = torch.cat([h, z_flat], dim=-1)
         return self.fc(x)
+
+
+@pytest.fixture
+def dummy_actor(latent, net):
+    return DummyActor(latent, net)
