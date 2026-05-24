@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from dataclasses import dataclass, field
 from typing import Optional
 
@@ -11,46 +13,39 @@ from .transforms import symexp
 # ---------------------------------------------------------
 @dataclass
 class WorldModelConfig:
-    # deter_size:
-    #   Size of the deterministic hidden state h_t in the RSSM.
-    #   Larger values improve model capacity but increase compute.
-    #
-    # stoch_size, num_classes:
-    #   Dreamer‑V3 uses a *factored discrete latent*:
-    #       z_t has stoch_size categorical factors,
-    #       each with num_classes categories.
-    #   This replaces the Gaussian latent used in Dreamer‑V2/Lite.
-    #   Tests MUST NOT assume Gaussian shapes or continuous z_t.
-    #
-    # hidden_size:
-    #   Shared MLP hidden size for RSSMCore, Prior, Posterior, Decoder.
-    #
-    # free_bits:
-    #   Minimum KL contribution (in nats) to prevent posterior collapse.
-    #   If KL < free_bits, the gradient is clamped.
-    #   Dreamer‑V3 typically uses a small positive value (e.g., 1.0).
-    #
-    # value_bins:
-    #   Number of symlog‑spaced bins used for distributional reward/value
-    #   prediction. Tests MUST NOT assume scalar reward/value outputs.
-    reward_hidden: int = 256
+    """
+    Configuration for the Dreamer‑V3 world model.
+
+    Maps directly to:
+      • RSSMCore (deter_size, stoch_size, num_classes)
+      • Prior / Posterior categorical distributions
+      • ObsEncoder / Decoder MLP widths
+      • Distributional reward/value heads (value_bins)
+    """
+
+    # Hidden sizes for RSSMCore, Prior, Posterior, Decoder.
     deter_size: int = 200
     stoch_size: int = 30
+    num_classes: int = 32
     hidden_size: int = 200
 
+    # Reward head hidden size.
+    reward_hidden: int = 256
+
+    # KL regularization.
     kl_scale: float = 1.0
     free_nats: float = 3.0
     kl_balance: float = 0.8
 
-    # Dreamer-Lite uses a simpler encoder/decoder
+    # Encoder/decoder MLP widths.
     encoder_hidden: int = 256
     decoder_hidden: int = 256
 
+    # Imagination horizon for actor/critic rollout.
     imagination_horizon: int = 15
 
-    num_classes: int = 32
+    # Distributional value/reward bins.
     value_bins: int = 41
-    free_bits: float = 0.0
 
 
 # ---------------------------------------------------------
@@ -58,17 +53,21 @@ class WorldModelConfig:
 # ---------------------------------------------------------
 @dataclass
 class ActorCriticConfig:
+    """
+    Configuration for Dreamer‑V3 actor and critic networks.
+
+    Maps directly to:
+      • Actor MLP (actor_hidden)
+      • Critic MLP (critic_hidden)
+      • λ‑return computation (lambda_)
+      • Discount factor for value targets
+    """
+
     actor_hidden: int = 256
     critic_hidden: int = 256
 
-    # discount:
-    #   Standard RL discount factor.
-    #
-    # lambda_:
-    #   GAE‑style smoothing factor used in Dreamer‑V3’s λ‑returns.
-    #   Tests MUST NOT assume V2‑style bootstrapping or TD(0).
     discount: float = 0.99
-    lambda_: float = 0.95  # GAE-like smoothing for returns in Dreamer
+    lambda_: float = 0.95  # λ‑return smoothing
 
 
 # ---------------------------------------------------------
@@ -76,27 +75,40 @@ class ActorCriticConfig:
 # ---------------------------------------------------------
 @dataclass
 class TrainingConfig:
-    # warmup_steps:
-    #   Number of steps for linear LR warmup before cosine decay.
-    #   Dreamer‑V3 is extremely sensitive to LR warmup; tests MUST NOT
-    #   assume constant LR from step 0.
-    #
-    # random_exploration_steps:
-    #   Number of steps where actions are sampled uniformly at random.
-    #   Tests MUST NOT assume the actor is used from step 0.
-    batch_size: int = 50
-    seq_len: int = 50
+    """
+    Training hyperparameters for Dreamer‑V3.
 
+    Maps directly to:
+      • ReplayBuffer (replay_capacity, seq_len)
+      • Trainer.update() batch sizes
+      • LR warmup + cosine decay
+      • Random exploration schedule
+      • Gradient clipping
+    """
+
+    # Replay buffer + sequence sampling.
+    replay_capacity: int = 200_000
+    seq_len: int = 50
+    batch_size: int = 64
+
+    # Learning rates for world model, actor, critic.
     model_lr: float = 3e-4
     actor_lr: float = 3e-4
     critic_lr: float = 3e-4
 
+    # Gradient clipping.
     grad_clip: float = 100.0
-    updates_per_step: int = 1
-    warmup_steps: int = 1000
-    random_exploration_steps: int = 2500
-    replay_capacity: int = 10000
 
+    # Number of world‑model + actor/critic updates per environment step.
+    updates_per_step: int = 1
+
+    # Warmup for LR schedule.
+    warmup_steps: int = 2_000
+
+    # Random exploration before actor is used.
+    random_exploration_steps: int = 2_500
+
+    # Device + seed.
     cuda: bool = True
     seed: int = 0
 
@@ -106,7 +118,16 @@ class TrainingConfig:
 # ---------------------------------------------------------
 @dataclass
 class EnvironmentConfig:
-    env_id: str = "popgym-RepeatPreviousEasy-v0"
+    """
+    Environment configuration.
+
+    Maps directly to:
+      • PopGymVecWrapper
+      • Trainer rollout loop
+      • Curriculum scheduler
+    """
+
+    env_id: str = "PopGym-RepeatPreviousEasy-v0"
     num_envs: int = 64
     max_episode_steps: Optional[int] = None
 
@@ -116,6 +137,14 @@ class EnvironmentConfig:
 # ---------------------------------------------------------
 @dataclass
 class LoggingConfig:
+    """
+    Logging + checkpoint configuration.
+
+    Maps directly to:
+      • TensorBoard logger
+      • Checkpoint saving in Trainer
+    """
+
     tb_logdir: str = "./tb_logs"
     checkpoint_dir: str = "./checkpoints"
     run_name: str = ""
@@ -126,14 +155,15 @@ class LoggingConfig:
 # ---------------------------------------------------------
 @dataclass
 class DreamerConfig:
-    mode: str = "lite"
+    """
+    Top‑level Dreamer‑V3 configuration.
 
-    # Feature toggles
-    use_stochastic_latent: bool = False
-    use_kl_balance: bool = False
-    use_free_nats: bool = False
-    use_overshooting: bool = False
-    use_value_bootstrap: bool = False
+    This object is passed into:
+      • Trainer
+      • ReplayBuffer
+      • WorldModel / Actor / Critic constructors
+      • Environment wrappers
+    """
 
     world: WorldModelConfig = field(default_factory=WorldModelConfig)
     ac: ActorCriticConfig = field(default_factory=ActorCriticConfig)
@@ -147,21 +177,6 @@ class DreamerConfig:
         ts = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
         self.log.run_name = f"{self.env.env_id}__dreamer__{ts}"
 
-    def __post_init__(self):
-        if self.mode == "lite":
-            self.use_stochastic_latent = False
-            self.use_kl_balance = False
-            self.use_free_nats = False
-            self.use_overshooting = False
-            self.use_value_bootstrap = False
-
-        elif self.mode == "full":
-            self.use_stochastic_latent = True
-            self.use_kl_balance = True
-            self.use_free_nats = True
-            self.use_overshooting = True
-            self.use_value_bootstrap = True
-
 
 def make_default_config() -> DreamerConfig:
     cfg = DreamerConfig()
@@ -169,6 +184,9 @@ def make_default_config() -> DreamerConfig:
     return cfg
 
 
+# ---------------------------------------------------------
+# 7. KL Config (used in invariants + world model update)
+# ---------------------------------------------------------
 @dataclass(frozen=True)
 class KLConfig:
     max_kl: float = 100.0
@@ -176,16 +194,18 @@ class KLConfig:
     require_nonzero: bool = True
 
 
+# ---------------------------------------------------------
+# 8. LatentConfig (shared latent geometry)
+# ---------------------------------------------------------
 @dataclass(frozen=True)
 class LatentConfig:
     """
-    Shared Dreamer-V3 latent configuration.
-    Prevents silent shape bugs by centralizing latent geometry.
+    Shared Dreamer‑V3 latent configuration.
 
-    z_dim:
-       Flattened dimension of the discrete latent:
-           z_dim = stoch_size * num_classes
-       Tests MUST NOT assume Gaussian latent shapes (mean, std).
+    Maps directly to:
+      • RSSMCore latent shapes
+      • Prior/Posterior categorical distributions
+      • Actor/Critic input shapes (h_t, z_t)
     """
 
     deter_size: int
@@ -197,19 +217,18 @@ class LatentConfig:
         return self.stoch_size * self.num_classes
 
 
+# ---------------------------------------------------------
+# 9. NetworkConfig (shared MLP geometry)
+# ---------------------------------------------------------
 @dataclass(frozen=True)
 class NetworkConfig:
     """
     Shared network configuration for Actor/Critic/Heads.
-    Prevents accidental swapping of hidden_size, action_dim, value_bins.
 
-    value_bins:
-       Number of symlog‑spaced bins for distributional value/reward heads. Dreamer‑V3 predicts logits over bins, NOT
-       scalar values. Tests MUST NOT expect shape (B, 1) for reward/value predictions.
-
-    make_bins():
-        Produces symlog‑spaced bin centers, then applies symexp. These bins define the support of the distributional
-        heads.
+    Maps directly to:
+      • Actor hidden size
+      • Critic hidden size
+      • Distributional reward/value bin supports
     """
 
     hidden_size: int
@@ -217,10 +236,8 @@ class NetworkConfig:
     bin_min: float = -10.0
     bin_max: float = 10.0
 
-    # NOTE:
-    # action_dim must be set for Actor and RSSMCore.
-    # It may be None for Critic/ValueHead networks.
-    action_dim: int | None = None  # Only None for critic/value networks
+    # Action dimension is required for Actor, optional for Critic.
+    action_dim: int | None = None
 
     def make_bins(self, device=None):
         symlog_bins = torch.linspace(self.bin_min, self.bin_max, steps=self.value_bins)
@@ -228,27 +245,20 @@ class NetworkConfig:
         return bins if device is None else bins.to(device)
 
 
+# ---------------------------------------------------------
+# 10. LR Schedule Config (shared LR schedule)
+# ---------------------------------------------------------
 @dataclass(frozen=True)
 class LRScheduleConfig:
-    # Linear warmup + cosine decay schedule.
-    #
-    # Dreamer‑V3 requires a SINGLE shared LR schedule for world model,
-    # actor, and critic. Tests MUST NOT create separate LR schedules or
-    # assume constant LR. Warmup is essential for stability because the
-    # actor/critic depend on a partially‑trained world model early on.
+    """
+    Linear warmup + cosine decay schedule.
+
+    Maps directly to:
+      • Trainer LR scheduler
+      • World model / actor / critic optimizers
+    """
+
     base_lr: float
     warmup_steps: int
     total_steps: int
-
-    # lr_floor:
-    #   Fraction of base_lr to preserve during cosine decay.
-    #   Prevents the learning rate from collapsing to zero, which would
-    #   freeze the actor/critic/world model and halt improvement.
-    #
-    #   Dreamer‑V3 benefits from a small but non‑zero LR late in training:
-    #     • stabilizes long‑horizon value estimates,
-    #     • prevents the actor from becoming overconfident,
-    #     • avoids world‑model stagnation.
-    #
-    #   Typical values: 0.05–0.20 of base_lr.
     lr_floor: float = 0.1

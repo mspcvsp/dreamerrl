@@ -25,7 +25,6 @@ def test_actor_critic_update_shapes():
         obs_space=Box(low=0.0, high=1.0, shape=(obs_dim,), dtype=np.float32),
         latent=latent,
         net=net_world,
-        free_bits=0.0,
         device=torch.device("cpu"),
     )
 

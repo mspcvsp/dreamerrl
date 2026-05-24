@@ -80,7 +80,7 @@ class WorldModel(nn.Module):
         obs_space: gym.Space,
         latent: LatentConfig,
         net: NetworkConfig,
-        free_bits: float = 0.0,
+        free_nats: float = 3.0,
         kl_cfg: Optional[KLConfig] = None,
         device: Optional[torch.device] = None,
     ):
@@ -89,7 +89,7 @@ class WorldModel(nn.Module):
         self.device = device or torch.device("cpu")
         self.latent = latent
         self.net_cfg = net
-        self.free_bits = free_bits
+        self.free_nats = free_nats
 
         self.kl_cfg = kl_cfg or KLConfig(
             max_kl=100.0,
@@ -148,7 +148,7 @@ class WorldModel(nn.Module):
         kl_dict = structured_kl(
             q_probs=post_stats["probs"],
             p_probs=prior_stats["probs"],
-            free_bits=self.free_bits,
+            free_nats=self.free_nats,
             kl_cfg=self.kl_cfg,
         )
 

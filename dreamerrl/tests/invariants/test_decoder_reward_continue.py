@@ -16,7 +16,6 @@ def _wm():
         obs_space=obs_space,
         latent=latent,
         net=net,
-        free_bits=0.0,
         kl_cfg=KLConfig(require_nonzero=False),
         device=torch.device("cpu"),
     )

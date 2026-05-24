@@ -1,6 +1,5 @@
-#!/usr/bin/env python3
 """
-End‑to‑end reproducibility check for Dreamer.
+End‑to‑end reproducibility check for Dreamer‑V3.
 
 Runs two short Dreamer training runs with the same seed and verifies that:
   • world model losses match
@@ -9,8 +8,6 @@ Runs two short Dreamer training runs with the same seed and verifies that:
   • replay sampling matches
   • latent transitions match
   • action sampling matches
-
-If anything diverges, the script prints a diff and exits with code 1.
 """
 
 import copy
@@ -19,10 +16,11 @@ import torch
 
 from dreamerrl.training.trainer import DreamerTrainer
 from dreamerrl.utils.seed import set_global_seeds
+from dreamerrl.utils.types import make_default_config
 
 
-def run_once(cfg, steps=10):
-    """Run a short deterministic Dreamer loop and record metrics."""
+def run_once(cfg, steps: int = 10):
+    """Run a short deterministic Dreamer‑V3 loop and record metrics."""
     set_global_seeds(cfg.train.seed)
 
     trainer = DreamerTrainer(cfg)
@@ -37,29 +35,18 @@ def run_once(cfg, steps=10):
     }
 
     for update_idx in range(steps):
-        # deterministic environment interaction
         trainer.collect_env_steps()
 
-        # deterministic replay sampling
-        batch = trainer.replay.sample(
-            batch_size=cfg.train.batch_size,
-            seq_len=cfg.train.seq_len,
-            device=trainer.device,
-        )
+        batch = trainer.replay.sample(batch_size=cfg.train.batch_size)
         logs["replay_samples"].append(copy.deepcopy(batch))
 
-        # world model update
         wm_loss = trainer.update_world_model(batch, update_idx)
         logs["wm_loss"].append(wm_loss)
 
-        # actor‑critic update
         actor_loss, critic_loss = trainer.update_actor_critic(batch, update_idx)
         logs["actor_loss"].append(actor_loss)
         logs["critic_loss"].append(critic_loss)
 
-        # latent transition (RSSM observe_step)
-        # use the current world_state and a dummy env step
-        # this gives deterministic latent evolution
         with torch.no_grad():
             dummy = {
                 "state": trainer.env_state["state"],
@@ -71,22 +58,29 @@ def run_once(cfg, steps=10):
             }
 
             action_dim = trainer.world.net_cfg.action_dim
-            assert action_dim is not None, "action_dim must be specified in config for reproducibility check"
+            assert action_dim is not None
 
             action = torch.zeros(
                 (trainer.world_state.h.shape[0], action_dim),
                 device=trainer.device,
             )
 
-            latent_out = trainer.world.observe_step(trainer.world_state, dummy["state"], action=action)
+            latent_out = trainer.world.observe_step(
+                prev_state=trainer.world_state,
+                obs=dummy["state"],
+                action=action,
+                reward=dummy["reward"],
+                is_first=dummy["is_first"],
+                is_last=dummy["is_last"],
+                is_terminal=dummy["is_terminal"],
+            )
             logs["latent_states"].append(
                 {
-                    "h": latent_out["state"]["h"].detach().cpu(),
-                    "z": latent_out["state"]["z"].detach().cpu(),
+                    "h": latent_out["post"]["h"].detach().cpu(),
+                    "z": latent_out["post"]["z"].detach().cpu(),
                 }
             )
 
-        # deterministic action sampling
         with torch.no_grad():
             actions, _ = trainer.actor.act(trainer.world_state)
             logs["actions"].append(actions.cpu())
@@ -94,9 +88,7 @@ def run_once(cfg, steps=10):
     return logs
 
 
-def assert_same(a, b, name):
-    """Recursively verify equality."""
-
+def assert_same(a, b, name: str):
     if isinstance(a, torch.Tensor):
         if not torch.allclose(a, b, atol=1e-6, rtol=1e-6):
             print(f"\n❌ Divergence in {name}")
@@ -116,8 +108,6 @@ def assert_same(a, b, name):
 
 
 def main():
-    from dreamerrl.utils.types import make_default_config
-
     cfg = make_default_config()
     cfg.train.seed = 123
     cfg.train.batch_size = 4
@@ -137,7 +127,7 @@ def main():
     assert_same(logs1["latent_states"], logs2["latent_states"], "latent_states")
     assert_same(logs1["actions"], logs2["actions"], "actions")
 
-    print("\n✅ Dreamer reproducibility verified.")
+    print("\n✅ Dreamer‑V3 reproducibility verified.")
 
 
 if __name__ == "__main__":

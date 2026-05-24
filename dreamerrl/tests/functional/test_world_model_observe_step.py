@@ -21,7 +21,6 @@ def test_world_model_observe_step_keys_and_shapes():
         obs_space=obs_space,
         latent=latent,
         net=net,
-        free_bits=0.0,
         kl_cfg=KLConfig(require_nonzero=False),
         device=torch.device("cpu"),
     )
