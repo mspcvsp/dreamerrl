@@ -5,6 +5,7 @@ import time
 from typing import Any, Dict
 
 import torch
+import torch.nn.functional as F
 import wandb
 from gymnasium.spaces import Discrete
 
@@ -15,15 +16,12 @@ from dreamerrl.models.world_model import WorldModel
 from dreamerrl.replay_buffer.replay_buffer import ReplayBuffer
 from dreamerrl.training.core import actor_critic_update, world_model_training_step
 from dreamerrl.utils.seed import set_global_seeds
-from dreamerrl.utils.types import (
-    DreamerConfig,
-    LatentConfig,
-    LRScheduleConfig,
-    NetworkConfig,
-)
+from dreamerrl.utils.types import DreamerConfig, LatentConfig, LRScheduleConfig, NetworkConfig
 
 
 class CosineWarmupScheduler:
+    """Single shared LR schedule for world, actor, critic (Dreamer‑V3 requirement)."""
+
     def __init__(self, cfg: LRScheduleConfig):
         self.cfg = cfg
 
@@ -39,6 +37,16 @@ class CosineWarmupScheduler:
 
 
 class DreamerTrainer:
+    """
+    Dreamer‑V3 trainer.
+
+    Wiring summary:
+      • WorldModel: factored discrete latent RSSM + symlog reward/continue heads
+      • Actor: policy over discrete actions from (h, z)
+      • Critic: distributional value head over symlog bins
+      • ReplayBuffer: stores raw env transitions, samples (B, L, ·) sequences
+    """
+
     def __init__(self, cfg: DreamerConfig):
         self.cfg = cfg
         self.device = torch.device("cuda" if cfg.train.cuda and torch.cuda.is_available() else "cpu")
@@ -48,6 +56,7 @@ class DreamerTrainer:
         # -----------------------------------------------------
         self.env = PopGymVecEnv(cfg.env.env_id, cfg.env.num_envs, device=self.device)
         obs_space = self.env.venv.single_observation_space
+
         action_space = self.env.venv.single_action_space
         assert isinstance(action_space, Discrete)
         self.action_dim: int = int(action_space.n)
@@ -78,7 +87,6 @@ class DreamerTrainer:
             device=self.device,
         )
         self.world_state = self.world.init_state(self.env.batch_size)
-        self.obs_dim: int = self.world.flat_obs_dim
 
         # -----------------------------------------------------
         # Actor + Critic
@@ -87,6 +95,7 @@ class DreamerTrainer:
             hidden_size=cfg.ac.actor_hidden,
             action_dim=self.action_dim,
         )
+
         net_critic = NetworkConfig(
             hidden_size=cfg.ac.critic_hidden,
             value_bins=cfg.world.value_bins,
@@ -98,12 +107,13 @@ class DreamerTrainer:
         # -----------------------------------------------------
         # Replay Buffer
         # -----------------------------------------------------
+        flat_obs_dim = self.world.flat_obs_dim
         self.replay = ReplayBuffer(
-            capacity=self.cfg.train.replay_capacity,
-            obs_dim=self.obs_dim,
+            capacity=cfg.train.replay_capacity,
+            obs_dim=flat_obs_dim,
             action_dim=self.action_dim,
             device=self.device,
-            seq_len=self.cfg.train.seq_len,
+            seq_len=cfg.train.seq_len,
         )
 
         # -----------------------------------------------------
@@ -116,7 +126,7 @@ class DreamerTrainer:
         # -----------------------------------------------------
         # Logging
         # -----------------------------------------------------
-        wandb.init(project="dreamer_v3", config={"env_id": cfg.env.env_id})
+        wandb.init(project="dreamer_v3", config=cfg.__dict__)
 
         # -----------------------------------------------------
         # Seeding
@@ -144,8 +154,8 @@ class DreamerTrainer:
 
         for update_idx in range(total_updates):
             t0 = time.time()
-            lr = lr_schedule(update_idx)
 
+            lr = lr_schedule(update_idx)
             for pg in self.model_opt.param_groups:
                 pg["lr"] = lr
             for pg in self.actor_opt.param_groups:
@@ -174,22 +184,28 @@ class DreamerTrainer:
     # Collect steps from environment
     # -------------------------------------------------------------
     def collect_env_steps(self) -> None:
+        # 1. Choose discrete action
         if self.global_step < self.cfg.train.random_exploration_steps:
-            actions = torch.randint(
+            actions_discrete = torch.randint(
                 low=0,
-                high=self.env.action_dim,
+                high=self.action_dim,
                 size=(self.env.batch_size,),
                 device=self.device,
             )
         else:
-            actions, _ = self.actor.act(self.world_state)
+            actions_discrete, _ = self.actor.act(self.world_state)
 
-        env_out = self.env.step(actions)
+        # 2. Step environment with discrete actions
+        env_out = self.env.step(actions_discrete)
 
+        # 3. One‑hot encode actions for RSSMCore
+        actions_one_hot = F.one_hot(actions_discrete, num_classes=self.action_dim).float()
+
+        # 4. Update latent state using observation + one‑hot action
         wm_out = self.world.observe_step(
             prev_state=self.world_state,
             obs=env_out["state"],
-            action=actions,
+            action=actions_one_hot,
             reward=env_out["reward"],
             is_first=env_out["is_first"],
             is_last=env_out["is_last"],
@@ -197,11 +213,12 @@ class DreamerTrainer:
         )
         self.world_state = wm_out["post"]
 
-        done = env_out["is_last"].to(torch.float32)
+        # 5. Store raw env transition in replay
+        done = env_out["is_last"].float()
 
         self.replay.add(
             obs=env_out["state"],
-            action=actions,
+            action=actions_discrete,
             reward=env_out["reward"],
             done=done,
         )
@@ -230,7 +247,7 @@ class DreamerTrainer:
     # -------------------------------------------------------------
     # Actor + Critic Update
     # -------------------------------------------------------------
-    def update_actor_critic(self, batch: Dict[str, torch.Tensor], update_idx: int) -> tuple[float, float]:
+    def update_actor_critic(self, batch: Dict[str, torch.Tensor], update_idx: int):
         actor_loss, critic_loss = actor_critic_update(
             world_model=self.world,
             actor=self.actor,

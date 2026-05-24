@@ -8,10 +8,14 @@ from .deterministic_layernorm import DeterministicLayerNorm
 class RSSMCore(nn.Module):
     """
     Dreamer‑V3 deterministic transition:
-        h_{t+1} = f(h_t, action_t)
 
-    No GRU. No z in the deterministic update.
-    Pure MLP + LayerNorm for stability and reproducibility.
+        h_{t+1} = f(h_t, a_t)
+
+    where a_t is a one‑hot discrete action.
+
+    No GRU, no z in the deterministic update:
+      • Pure MLP + LayerNorm for stability and reproducibility
+      • DeterministicLayerNorm ensures CPU/GPU equivalence in tests
     """
 
     def __init__(self, *, latent, net):
@@ -30,18 +34,25 @@ class RSSMCore(nn.Module):
 
         self.apply(self._init_weights)
 
-    def _init_weights(self, m):
+    @staticmethod
+    def _init_weights(m: nn.Module) -> None:
         if isinstance(m, nn.Linear):
             nn.init.xavier_uniform_(m.weight)
             if m.bias is not None:
                 nn.init.zeros_(m.bias)
 
-    def forward(self, h, action):
+    def forward(self, h: torch.Tensor, action: torch.Tensor) -> torch.Tensor:
         """
-        action must be one‑hot (B, action_dim)
+        Args:
+            h:      (B, deter_size)
+            action: (B, action_dim) one‑hot
+
+        Returns:
+            h_next: (B, deter_size)
         """
         x = torch.cat([h, action], dim=-1)
         x = self.fc1(x)
         x = self.ln1(x)
         x = F.silu(x)
-        return self.fc2(x)
+        h_next = self.fc2(x)
+        return h_next

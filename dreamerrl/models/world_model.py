@@ -1,19 +1,3 @@
-"""
-symlog(x) = sign(x) * log(1 + |x|) compresses large magnitudes into a stable, bounded region around 0. This prevents
-huge gradients, keeps losses balanced, and makes the world model behave consistently across domains with wildly
-different reward/observation scales.
-
-In Dreamer‑V3, we apply symlog to rewards and returns, and train the reward head to predict distributional logits over
-a fixed range of symlog‑transformed values. This keeps reward prediction stable and domain‑agnostic, and prevents large
-reward magnitudes from destabilizing training. The continue head is trained similarly with a binary categorical target
-based on whether the episode continues or terminates, which is more stable than a single‑logit binary head.
-
-Categorical latents make the RSSM represent the world as a set of discrete micro-decisions (K factors × C classes).
-symlog ensures the decoder and reward/value heads see inputs in a compressed, well-behaved range, so each categorical
-factor can specialize cleanly without being dominated by large raw magnitudes. Together they give stable, mode-seeking
-dynamics.
-"""
-
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -40,7 +24,10 @@ from .world_model_core import RSSMCore
 @dataclass
 class WorldModelState:
     """
-    Dreamer‑V3 RSSM state: (h, z), with z factored as (B, K, C).
+    Dreamer‑V3 RSSM state:
+
+        h_t: deterministic state (B, deter_size)
+        z_t: factored discrete latent (B, K, C)
     """
 
     h: torch.Tensor
@@ -74,6 +61,18 @@ class WorldModelState:
 
 
 class WorldModel(nn.Module):
+    """
+    Dreamer‑V3 world model:
+
+      • ObsEncoder: symlog‑MLP encoder
+      • RSSMCore: deterministic transition h_{t+1} = f(h_t, a_t)
+      • Prior / Posterior: factored discrete latents over K×C
+      • ObsDecoder: reconstructs observations from (h, z)
+      • RewardHead: distributional symlog reward
+      • ContinueHead: distributional continuation (episode continues vs terminates)
+      • KL: structured KL_dyn / KL_rep with per‑factor free‑nats
+    """
+
     def __init__(
         self,
         *,
@@ -125,6 +124,16 @@ class WorldModel(nn.Module):
         is_last: Optional[torch.Tensor] = None,
         is_terminal: Optional[torch.Tensor] = None,
     ) -> Dict[str, Any]:
+        """
+        One environment step:
+
+          • encode obs_t
+          • posterior q(z_t | h_{t-1}, embed_t)
+          • prior    p(z_t | h_{t-1})
+          • deterministic transition h_t = f(h_{t-1}, a_{t-1})
+          • decode obs_t, reward_t, continue_t
+          • compute structured KL with free‑nats
+        """
         prev_state = self._ensure_state(prev_state)
         embed = self.encoder(obs)
 
@@ -132,7 +141,6 @@ class WorldModel(nn.Module):
         prior_stats = self.prior(prev_state.h)
 
         z = post_stats["z"]
-
         h = self.rssm(prev_state.h, action)
 
         post_stats = {**post_stats, "h": h}
@@ -174,6 +182,15 @@ class WorldModel(nn.Module):
         actor: nn.Module,
         stochastic: bool = True,
     ) -> WorldModelState:
+        """
+        Imagination step in latent space:
+
+          • actor(h, z) → logits over actions
+          • sample or argmax action
+          • one‑hot encode action
+          • RSSMCore transition h_{t+1}
+          • prior p(z_{t+1} | h_{t+1})
+        """
         prev_state = self._ensure_state(prev)
 
         logits = actor(prev_state.h, prev_state.z)
@@ -188,7 +205,6 @@ class WorldModel(nn.Module):
         action = F.one_hot(a, num_classes=self.net_cfg.action_dim).float()
 
         h = self.rssm(prev_state.h, action)
-
         prior = self.prior(h)
 
         if stochastic:
