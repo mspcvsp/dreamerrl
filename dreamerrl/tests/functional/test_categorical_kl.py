@@ -8,14 +8,14 @@ from dreamerrl.models.categorical_kl import categorical_kl
 def test_categorical_kl_zero_when_equal():
     B, F, C = 4, 3, 5
 
-    # Random logits → softmax → valid categorical distributions
     logits = torch.randn(B, F, C)
-    p = torch.log_softmax(logits, dim=-1)
+    p = torch.softmax(logits, dim=-1)
     q = p.clone()
 
-    # KL(q || p) should be exactly zero when q == p
     kl = categorical_kl(q, p)
 
-    # V3: categorical_kl returns (B,) aggregated across factors
-    assert kl.shape == (B,)
-    assert torch.allclose(kl, torch.zeros(B), atol=1e-6)
+    # V3: categorical_kl returns per-factor KL: (B, F)
+    assert kl.shape == (B, F)
+
+    # Aggregated KL must be zero
+    assert torch.allclose(kl.sum(dim=-1), torch.zeros(B))
