@@ -26,8 +26,8 @@ def world_model_training_step(
         raise KeyError("Batch must contain 'obs' or 'state'")
 
     reward = batch["reward"].to(device)
-    is_terminal = batch["is_terminal"].to(device)
-    cont_target = 1.0 - is_terminal.float()  # continuation target
+    done = batch["done"].to(device)
+    cont_target = 1.0 - done  # continuation target
 
     B, L, _ = obs.shape
 
@@ -44,9 +44,6 @@ def world_model_training_step(
             obs=obs[:, t],
             action=batch["action"][:, t],
             reward=batch["reward"][:, t],
-            is_first=batch["is_first"][:, t],
-            is_last=batch["is_last"][:, t],
-            is_terminal=batch["is_terminal"][:, t],
         )
         state = out["post"]
         posts.append(out["post"].post_stats)
@@ -82,7 +79,6 @@ def world_model_training_step(
     recon_loss = F.mse_loss(recon, recon_target)
 
     reward_loss = world_model.reward_head.loss_from_logits(reward_logits, reward)
-
     cont_loss = world_model.continue_head.loss_from_logits(cont_logits, cont_target)
 
     L_pred = recon_loss + reward_loss + cont_loss
