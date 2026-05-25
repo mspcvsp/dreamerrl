@@ -39,12 +39,17 @@ def world_model_training_step(
     priors = []
 
     for t in range(L):
+        # Convert discrete action IDs → one-hot
+        action_t = batch["action"][:, t]  # (B,)
+        action_one_hot = F.one_hot(action_t, num_classes=world_model.net_cfg.action_dim).float()  # (B, action_dim)
+
         out = world_model.observe_step(
             prev_state=state,
             obs=obs[:, t],
-            action=batch["action"][:, t],
+            action=action_one_hot,
             reward=batch["reward"][:, t],
         )
+
         state = out["post"]
         posts.append(out["post"].post_stats)
         priors.append(out["prior"].prior_stats)
