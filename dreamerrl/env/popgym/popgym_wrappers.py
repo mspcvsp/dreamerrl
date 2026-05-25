@@ -5,7 +5,9 @@ import torch
 from gymnasium.spaces import Discrete
 from gymnasium.vector import SyncVectorEnv
 
+import popgym  # noqa: F401  # ensures PopGym registers its environments
 from dreamerrl.env.env import EnvInterface
+from dreamerrl.utils.types import EnvironmentConfig
 
 from .popgym_preprocessing import flatten_obs
 
@@ -25,11 +27,11 @@ class PopGymVecEnv(EnvInterface):
       - seed fix: pass `seed` as int|None directly to SyncVectorEnv.reset()
     """
 
-    def __init__(self, env_id: str, batch_size: int, device: torch.device):
-        self._batch_size = batch_size
+    def __init__(self, env_cfg: EnvironmentConfig, device: torch.device):
+        self._batch_size = env_cfg.num_envs
         self.device = device
 
-        self.venv = SyncVectorEnv([make_env(env_id) for _ in range(batch_size)])
+        self.venv = SyncVectorEnv([make_env(env_cfg.env_id) for _ in range(self._batch_size)])
 
         # Observation dimension (flattened)
         self._obs_dim = int(torch.tensor(self.venv.single_observation_space.shape).prod())

@@ -54,7 +54,7 @@ class DreamerTrainer:
         # -----------------------------------------------------
         # Environment
         # -----------------------------------------------------
-        self.env = PopGymVecEnv(cfg.env.env_id, cfg.env.num_envs, device=self.device)
+        self.env = PopGymVecEnv(cfg.env, device=self.device)
         obs_space = self.env.venv.single_observation_space
 
         action_space = self.env.venv.single_action_space

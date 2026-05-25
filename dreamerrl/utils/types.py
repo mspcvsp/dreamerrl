@@ -127,7 +127,7 @@ class EnvironmentConfig:
       • Curriculum scheduler
     """
 
-    env_id: str = "PopGym-RepeatPreviousEasy-v0"
+    env_id: str = "popgym-RepeatPreviousEasy-v0"
     num_envs: int = 64
     max_episode_steps: Optional[int] = None
 
