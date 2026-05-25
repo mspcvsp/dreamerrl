@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from typing import Dict, List
 
-import numpy as np
 import torch
 
 
@@ -93,13 +92,6 @@ class ReplayBuffer:
             self.size -= removed["obs"].shape[0]
 
     def sample(self, batch_size: int) -> Dict[str, torch.Tensor]:
-        """
-        Returns a batch of sequences:
-          obs:    (B, T, obs_dim)
-          action: (B, T)
-          reward: (B, T)
-          done:   (B, T)
-        """
         assert len(self.episodes) > 0, "Replay buffer is empty"
 
         obs_batch = []
@@ -108,7 +100,7 @@ class ReplayBuffer:
         done_batch = []
 
         for _ in range(batch_size):
-            idx = np.random.randint(0, len(self.episodes))
+            idx = int(torch.randint(0, len(self.episodes), (1,), device=self.device))
             ep = self.episodes[idx]
 
             length = ep["obs"].shape[0]
@@ -116,7 +108,7 @@ class ReplayBuffer:
             if length <= self.seq_len:
                 start = 0
             else:
-                start = np.random.randint(0, length - self.seq_len)
+                start = int(torch.randint(0, length - self.seq_len, (1,), device=self.device))
 
             end = start + self.seq_len
 
