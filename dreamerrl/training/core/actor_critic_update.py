@@ -37,10 +37,18 @@ def actor_critic_update(
         horizon=imagination_horizon,
     )
 
-    h = traj["h"]  # (T, B, deter)
-    z = traj["z"]  # (T, B, K, C)  <-- V3 factored latent
-    reward = traj["reward"]  # (T, B)
-    action = traj["action"]  # (T, B)
+    # After imagination rollout
+    h = traj["h"]
+    z = traj["z"]
+    reward = traj["reward"]
+    action = traj["action"]
+
+    # ---------------------------------------------------------
+    # Detach imagination for critic update
+    # ---------------------------------------------------------
+    h_det = h.detach()
+    z_det = z.detach()
+    reward_det = reward.detach()
 
     T, B = reward.shape
     _, _, K, C = z.shape
@@ -65,7 +73,7 @@ def actor_critic_update(
             value_seq[1:] = values
             value_seq[-1] = bootstrap_value
 
-            returns = lambda_return(reward, value_seq, discount, lam)
+            returns = lambda_return(reward_det, value_seq, discount, lam)
             return symlog(returns)
 
     returns_symlog = compute_returns_symlog()
@@ -74,8 +82,8 @@ def actor_critic_update(
     # Critic loss
     # ---------------------------------------------------------
     def compute_critic_loss():
-        h_tb = h.reshape(T * B, -1)
-        z_tb = z.reshape(T * B, K, C)
+        h_tb = h_det.reshape(T * B, -1)
+        z_tb = z_det.reshape(T * B, K, C)
 
         critic_logits = critic(h_tb, z_tb).reshape(T, B, -1)
         return critic.loss(critic_logits, returns_symlog)
@@ -86,6 +94,7 @@ def actor_critic_update(
     # Actor loss
     # ---------------------------------------------------------
     def compute_actor_loss():
+        # Critic must NOT backprop into actor
         with torch.no_grad():
             h_tb = h.reshape(T * B, -1)
             z_tb = z.reshape(T * B, K, C)
@@ -95,13 +104,11 @@ def actor_critic_update(
 
             adv = returns_symlog - symlog(value_pred)
 
-            # Normalize advantage
             flat = adv.reshape(-1)
             p5, p95 = torch.quantile(flat, torch.tensor([0.05, 0.95], device=flat.device))
             scale = torch.clamp(p95 - p5, min=1.0)
             adv_norm = adv / scale
 
-        # Actor forward pass (V3: factored z)
         logits = actor(h.reshape(T * B, -1), z.reshape(T * B, K, C)).reshape(T, B, -1)
         dist = Categorical(logits=logits)
 
