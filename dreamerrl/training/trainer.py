@@ -77,14 +77,6 @@ class DreamerTrainer:
         self.env = PopGymVecEnv(cfg.env, device=self.device)
         obs_space = self.env.venv.single_observation_space
 
-        self.device = torch.device("cuda" if cfg.train.cuda and torch.cuda.is_available() else "cpu")
-
-        # -----------------------------------------------------
-        # Environment
-        # -----------------------------------------------------
-        self.env = PopGymVecEnv(cfg.env, device=self.device)
-        obs_space = self.env.venv.single_observation_space
-
         action_space = self.env.venv.single_action_space
         assert isinstance(action_space, Discrete)
         self.action_dim: int = int(action_space.n)
