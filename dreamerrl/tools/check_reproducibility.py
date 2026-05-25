@@ -76,8 +76,8 @@ def run_once(cfg, steps: int = 10):
             )
             logs["latent_states"].append(
                 {
-                    "h": latent_out["post"]["h"].detach().cpu(),
-                    "z": latent_out["post"]["z"].detach().cpu(),
+                    "h": latent_out["post"].h.detach().cpu(),
+                    "z": latent_out["post"].z.detach().cpu(),
                 }
             )
 
