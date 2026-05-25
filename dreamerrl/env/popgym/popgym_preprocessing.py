@@ -46,7 +46,7 @@ def flatten_obs(obs, space: gym.Space) -> np.ndarray:
 
     # Discrete space: vector env gives shape (B,), make it (B, 1)
     elif isinstance(space, gym.spaces.Discrete):
-        obs_arr = np.asarray(obs)
+        obs_arr = np.asarray(obs, dtype=np.float32)
         return obs_arr.reshape(obs_arr.shape[0], 1)
 
     # FINAL FALLBACK: already a flat numpy array
