@@ -4,6 +4,7 @@ import gymnasium as gym
 import torch
 from gymnasium.spaces import Discrete
 from gymnasium.vector import SyncVectorEnv
+from gymnasium.wrappers import TimeLimit
 
 import popgym  # noqa: F401  # ensures PopGym registers its environments
 from dreamerrl.env.env import EnvInterface
@@ -14,7 +15,9 @@ from .popgym_preprocessing import flatten_obs
 
 def make_env(env_cfg: EnvironmentConfig) -> Callable[[], gym.Env]:
     def thunk():
-        return gym.make(env_cfg.env_id, max_episode_steps=env_cfg.max_episode_steps)
+        env = gym.make(env_cfg.env_id)
+        env = TimeLimit(env, max_episode_steps=env_cfg.max_episode_steps)
+        return env
 
     return thunk
 

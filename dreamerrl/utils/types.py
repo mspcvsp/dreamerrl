@@ -89,6 +89,7 @@ class TrainingConfig:
     replay_capacity: int = 200_000
     seq_len: int = 50
     batch_size: int = 64
+    collect_steps: int = 50
 
     # Learning rates for world model, actor, critic.
     model_lr: float = 3e-4

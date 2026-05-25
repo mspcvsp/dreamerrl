@@ -49,6 +49,24 @@ class DreamerTrainer:
 
     def __init__(self, cfg: DreamerConfig):
         self.cfg = cfg
+
+        if self.cfg.train.collect_steps < self.cfg.env.max_episode_steps:
+            print(
+                f"[Warning] collect_steps ({self.cfg.train.collect_steps}) is smaller than "
+                f"max_episode_steps ({self.cfg.env.max_episode_steps}). "
+                "Episodes will not finish inside a single rollout. "
+                "Replay buffer will remain empty unless collect_env_steps() "
+                "is called multiple times before sampling."
+            )
+
+        self.device = torch.device("cuda" if cfg.train.cuda and torch.cuda.is_available() else "cpu")
+
+        # -----------------------------------------------------
+        # Environment
+        # -----------------------------------------------------
+        self.env = PopGymVecEnv(cfg.env, device=self.device)
+        obs_space = self.env.venv.single_observation_space
+
         self.device = torch.device("cuda" if cfg.train.cuda and torch.cuda.is_available() else "cpu")
 
         # -----------------------------------------------------
@@ -184,48 +202,54 @@ class DreamerTrainer:
     # Collect steps from environment
     # -------------------------------------------------------------
     def collect_env_steps(self) -> None:
-        print("STEP CALLED")
-        # 1. Choose discrete action
-        if self.global_step < self.cfg.train.random_exploration_steps:
-            actions_discrete = torch.randint(
-                low=0,
-                high=self.action_dim,
-                size=(self.env.batch_size,),
-                device=self.device,
+        """
+        Collect multiple environment steps per call.
+        Dreamer-V3 requires enough steps to finish episodes so the replay buffer
+        can finalize and store them.
+        """
+        for _ in range(self.cfg.train.collect_steps):
+            # 1. Choose discrete action
+            if self.global_step < self.cfg.train.random_exploration_steps:
+                actions_discrete = torch.randint(
+                    low=0,
+                    high=self.action_dim,
+                    size=(self.env.batch_size,),
+                    device=self.device,
+                )
+            else:
+                actions_discrete, _ = self.actor.act(self.world_state)
+
+            # 2. Step environment
+            env_out = self.env.step(actions_discrete)
+
+            # 3. One-hot encode actions for RSSMCore
+            actions_one_hot = F.one_hot(actions_discrete, num_classes=self.action_dim).float()
+
+            # 4. Update latent state
+            wm_out = self.world.observe_step(
+                prev_state=self.world_state,
+                obs=env_out["state"],
+                action=actions_one_hot,
+                reward=env_out["reward"],
+                is_first=env_out["is_first"],
+                is_last=env_out["is_last"],
+                is_terminal=env_out["is_terminal"],
             )
-        else:
-            actions_discrete, _ = self.actor.act(self.world_state)
+            self.world_state = wm_out["post"]
 
-        # 2. Step environment with discrete actions
-        env_out = self.env.step(actions_discrete)
+            # 5. Store raw transition in replay buffer
+            done = env_out["is_last"].float()
 
-        # 3. One‑hot encode actions for RSSMCore
-        actions_one_hot = F.one_hot(actions_discrete, num_classes=self.action_dim).float()
+            self.replay.add(
+                obs=env_out["state"],
+                action=actions_discrete,
+                reward=env_out["reward"],
+                done=done,
+            )
 
-        # 4. Update latent state using observation + one‑hot action
-        wm_out = self.world.observe_step(
-            prev_state=self.world_state,
-            obs=env_out["state"],
-            action=actions_one_hot,
-            reward=env_out["reward"],
-            is_first=env_out["is_first"],
-            is_last=env_out["is_last"],
-            is_terminal=env_out["is_terminal"],
-        )
-        self.world_state = wm_out["post"]
-
-        # 5. Store raw env transition in replay
-        done = env_out["is_last"].float()
-
-        self.replay.add(
-            obs=env_out["state"],
-            action=actions_discrete,
-            reward=env_out["reward"],
-            done=done,
-        )
-
-        self.env_state = env_out
-        self.total_env_steps += self.env.batch_size
+            # 6. Update counters
+            self.env_state = env_out
+            self.total_env_steps += self.env.batch_size
 
     # -------------------------------------------------------------
     # World Model Update
