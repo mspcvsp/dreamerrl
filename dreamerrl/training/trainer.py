@@ -6,9 +6,9 @@ from typing import Any, Dict
 
 import torch
 import torch.nn.functional as F
-import wandb
 from gymnasium.spaces import Discrete
 
+import wandb
 from dreamerrl.env.popgym.popgym_wrappers import PopGymVecEnv
 from dreamerrl.models.actor import Actor
 from dreamerrl.models.value_head import ValueHead
@@ -184,6 +184,7 @@ class DreamerTrainer:
     # Collect steps from environment
     # -------------------------------------------------------------
     def collect_env_steps(self) -> None:
+        print("STEP CALLED")
         # 1. Choose discrete action
         if self.global_step < self.cfg.train.random_exploration_steps:
             actions_discrete = torch.randint(

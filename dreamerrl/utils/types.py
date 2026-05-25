@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Optional
 
 import torch
 
@@ -129,7 +128,7 @@ class EnvironmentConfig:
 
     env_id: str = "popgym-RepeatPreviousEasy-v0"
     num_envs: int = 64
-    max_episode_steps: Optional[int] = None
+    max_episode_steps: int = 10
 
 
 # ---------------------------------------------------------

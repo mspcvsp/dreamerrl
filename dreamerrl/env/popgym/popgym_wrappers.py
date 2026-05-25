@@ -1,4 +1,4 @@
-from typing import Any, Dict, Optional
+from typing import Any, Callable, Dict, Optional
 
 import gymnasium as gym
 import torch
@@ -12,9 +12,9 @@ from dreamerrl.utils.types import EnvironmentConfig
 from .popgym_preprocessing import flatten_obs
 
 
-def make_env(env_id: str):
+def make_env(env_cfg: EnvironmentConfig) -> Callable[[], gym.Env]:
     def thunk():
-        return gym.make(env_id)
+        return gym.make(env_cfg.env_id, max_episode_steps=env_cfg.max_episode_steps)
 
     return thunk
 
@@ -31,7 +31,7 @@ class PopGymVecEnv(EnvInterface):
         self._batch_size = env_cfg.num_envs
         self.device = device
 
-        self.venv = SyncVectorEnv([make_env(env_cfg.env_id) for _ in range(self._batch_size)])
+        self.venv = SyncVectorEnv([make_env(env_cfg) for _ in range(self._batch_size)])
 
         # Observation dimension (flattened)
         self._obs_dim = int(torch.tensor(self.venv.single_observation_space.shape).prod())
@@ -64,9 +64,6 @@ class PopGymVecEnv(EnvInterface):
           (https://deepwiki.com/burchim/DreamerV3-PyTorch/5.1-environment-wrappers-and-interface)
         """
         obs, info = self.venv.reset(seed=seed)
-
-        print("OBS TYPE:", type(obs))
-        print("SPACE:", self.venv.single_observation_space)
 
         obs = flatten_obs(obs, self.venv.single_observation_space)
         state = torch.as_tensor(obs, dtype=torch.float32, device=self.device)

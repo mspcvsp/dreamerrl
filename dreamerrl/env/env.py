@@ -86,3 +86,55 @@ class EnvInterface(ABC):
 
     def get_episode_stats(self) -> Dict[str, Any]:
         return {}
+
+
+class DreamerVecWrapper(EnvInterface):
+    def __init__(self, venv):
+        self.venv = venv
+        self._batch_size = venv.num_envs
+
+        # Infer dimensions
+        obs_space = venv.single_observation_space
+        act_space = venv.single_action_space
+
+        self._obs_dim = obs_space.n if hasattr(obs_space, "n") else obs_space.shape[0]
+        self._action_dim = act_space.n
+
+    @property
+    def obs_dim(self) -> int:
+        return self._obs_dim
+
+    @property
+    def action_dim(self) -> int:
+        return self._action_dim
+
+    @property
+    def batch_size(self) -> int:
+        return self._batch_size
+
+    def reset(self, seed=None):
+        obs, info = self.venv.reset(seed=seed)
+
+        return {
+            "state": torch.tensor(obs, dtype=torch.float32),
+            "reward": torch.zeros(self.batch_size),
+            "is_first": torch.ones(self.batch_size, dtype=torch.bool),
+            "is_last": torch.zeros(self.batch_size, dtype=torch.bool),
+            "is_terminal": torch.zeros(self.batch_size, dtype=torch.bool),
+            "info": info,
+        }
+
+    def step(self, actions):
+        obs, reward, terminated, truncated, info = self.venv.step(actions.cpu().numpy())
+
+        is_last = torch.tensor(terminated | truncated, dtype=torch.bool)
+        is_terminal = torch.tensor(terminated, dtype=torch.bool)
+
+        return {
+            "state": torch.tensor(obs, dtype=torch.float32),
+            "reward": torch.tensor(reward, dtype=torch.float32),
+            "is_first": torch.zeros(self.batch_size, dtype=torch.bool),
+            "is_last": is_last,
+            "is_terminal": is_terminal,
+            "info": info,
+        }
