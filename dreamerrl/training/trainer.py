@@ -50,6 +50,16 @@ class DreamerTrainer:
     def __init__(self, cfg: DreamerConfig):
         self.cfg = cfg
 
+        # -----------------------------------------------------
+        # Seeding (must be first for reproducibility)
+        # -----------------------------------------------------
+        set_global_seeds(cfg.train.seed)
+
+        # Ensure bit-for-bit reproducibility across PyTorch versions and hardware.
+        torch.use_deterministic_algorithms(True)
+        torch.backends.cudnn.benchmark = False
+        torch.backends.cudnn.deterministic = True
+
         if self.cfg.train.collect_steps < self.cfg.env.max_episode_steps:
             print(
                 f"[Warning] collect_steps ({self.cfg.train.collect_steps}) is smaller than "
