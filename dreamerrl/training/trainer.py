@@ -156,11 +156,6 @@ class DreamerTrainer:
         # -----------------------------------------------------
         wandb.init(project="dreamer_v3", config=cfg.__dict__)
 
-        # -----------------------------------------------------
-        # Seeding
-        # -----------------------------------------------------
-        set_global_seeds(cfg.train.seed)
-
         self.env_state: Dict[str, Any] = self.env.reset()
         self.total_env_steps: int = 0
 
