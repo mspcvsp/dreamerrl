@@ -89,7 +89,7 @@ class TrainingConfig:
     replay_capacity: int = 200_000
     seq_len: int = 50
     batch_size: int = 64
-    collect_steps: int = 50
+    collect_steps: int = 100
 
     # Learning rates for world model, actor, critic.
     model_lr: float = 3e-4
@@ -129,7 +129,7 @@ class EnvironmentConfig:
 
     env_id: str = "popgym-RepeatPreviousEasy-v0"
     num_envs: int = 64
-    max_episode_steps: int = 10
+    max_episode_steps: int = 50
 
 
 # ---------------------------------------------------------
