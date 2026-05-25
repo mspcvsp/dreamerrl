@@ -154,7 +154,8 @@ class DreamerTrainer:
         # -----------------------------------------------------
         # Logging
         # -----------------------------------------------------
-        wandb.init(project="dreamer_v3", config=cfg.__dict__)
+        if cfg.train.enable_wandb:
+            wandb.init(project="dreamer_v3", config=cfg.__dict__)
 
         self.env_state: Dict[str, Any] = self.env.reset()
         self.total_env_steps: int = 0

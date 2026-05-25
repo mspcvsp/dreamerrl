@@ -112,6 +112,8 @@ def main():
     cfg.train.seed = 123
     cfg.train.batch_size = 4
     cfg.train.seq_len = 16
+    cfg.train.cuda = False  # <- force CPU for reproducibility check
+    cfg.train.enable_wandb = False  # <- disable W&B for reproducibility check
 
     print("Running reproducibility check...\n")
 
