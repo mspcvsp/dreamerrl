@@ -65,6 +65,9 @@ class PopGymVecEnv(EnvInterface):
         """
         obs, info = self.venv.reset(seed=seed)
 
+        print("OBS TYPE:", type(obs))
+        print("SPACE:", self.venv.single_observation_space)
+
         obs = flatten_obs(obs, self.venv.single_observation_space)
         state = torch.as_tensor(obs, dtype=torch.float32, device=self.device)
 
