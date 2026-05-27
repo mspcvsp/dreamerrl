@@ -71,10 +71,10 @@ class ReplayBuffer:
 
         for i in range(num_envs):
             self.current_eps[i].add(
-                obs[i].detach(),
-                action[i].detach(),
-                reward[i].detach(),
-                done[i].detach(),
+                obs[i].detach().to(self.device),
+                action[i].detach().to(self.device),
+                reward[i].detach().to(self.device),
+                done[i].detach().to(self.device),
             )
 
             if done[i].item() == 1.0:
