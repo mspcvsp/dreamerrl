@@ -196,8 +196,7 @@ class WorldModel(nn.Module):
         logits = actor(prev_state.h, prev_state.z)
 
         if stochastic:
-            # Deterministic sampling: move logits to CPU for Categorical.sample
-            dist = Categorical(logits=logits.cpu())
+            dist = Categorical(logits=logits)
             a = dist.sample().to(logits.device)
         else:
             a = logits.argmax(dim=-1)
