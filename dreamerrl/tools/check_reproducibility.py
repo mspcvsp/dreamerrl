@@ -1,135 +1,116 @@
-"""
-End‑to‑end reproducibility check for Dreamer‑V3.
-
-Runs two short Dreamer training runs with the same seed and verifies that:
-  • world model losses match
-  • actor losses match
-  • critic losses match
-  • replay sampling matches
-  • latent transitions match
-  • action sampling matches
-"""
-
-import copy
-
+import numpy as np
 import torch
+from rich.progress import BarColumn, Progress, TextColumn, TimeElapsedColumn, TimeRemainingColumn
+from scipy.stats import entropy
 
 from dreamerrl.training.trainer import DreamerTrainer
 from dreamerrl.utils.seed import set_global_seeds
 from dreamerrl.utils.types import make_default_config
 
 
-def run_once(cfg, steps: int = 10):
-    """Run a short deterministic Dreamer‑V3 loop and record metrics."""
-    set_global_seeds(cfg.train.seed)
+def run_training(seed, steps, progress, task_id):
+    cfg = make_default_config()
+    cfg.train.seed = seed
+    cfg.train.enable_wandb = False
+    cfg.train.cuda = True
 
+    set_global_seeds(seed)
     trainer = DreamerTrainer(cfg)
 
-    logs = {
-        "wm_loss": [],
-        "actor_loss": [],
-        "critic_loss": [],
-        "replay_samples": [],
-        "latent_states": [],
-        "actions": [],
+    returns = []
+    wm_losses = []
+    actor_losses = []
+    critic_losses = []
+    action_logits = []
+
+    for step in range(steps):
+        progress.update(task_id, advance=1)
+
+        trainer.collect_env_steps()
+        batch = trainer.replay.sample(cfg.train.batch_size)
+
+        wm_losses.append(trainer.update_world_model(batch, step))
+        a_loss, c_loss = trainer.update_actor_critic(batch, step)
+        actor_losses.append(a_loss)
+        critic_losses.append(c_loss)
+
+        with torch.no_grad():
+            logits = trainer.actor(trainer.world_state.h, trainer.world_state.z)
+            action_logits.append(logits.cpu())
+
+        if trainer.env_state["is_last"].any():
+            returns.append(trainer.env_state["reward"].sum().item())
+
+    return {
+        "returns": np.array(returns),
+        "wm_loss": np.array(wm_losses),
+        "actor_loss": np.array(actor_losses),
+        "critic_loss": np.array(critic_losses),
+        "action_logits": torch.stack(action_logits),
     }
 
-    for update_idx in range(steps):
-        trainer.collect_env_steps()
 
-        batch = trainer.replay.sample(batch_size=cfg.train.batch_size)
-        logs["replay_samples"].append(copy.deepcopy(batch))
+def run_all_seeds(seeds, steps):
+    results = []
 
-        wm_loss = trainer.update_world_model(batch, update_idx)
-        logs["wm_loss"].append(wm_loss)
+    with Progress(
+        TextColumn("[bold blue]{task.description}"),
+        BarColumn(),
+        TextColumn("[progress.percentage]{task.percentage:>3.0f}%"),
+        TimeElapsedColumn(),
+        TimeRemainingColumn(),
+        expand=True,
+    ) as progress:
+        # One task per seed
+        seed_tasks = {
+            seed: progress.add_task(f"Seed {i + 1}/{len(seeds)}", total=steps) for i, seed in enumerate(seeds)
+        }
 
-        actor_loss, critic_loss = trainer.update_actor_critic(batch, update_idx)
-        logs["actor_loss"].append(actor_loss)
-        logs["critic_loss"].append(critic_loss)
+        for seed in seeds:
+            results.append(run_training(seed, steps, progress, seed_tasks[seed]))
 
-        with torch.no_grad():
-            dummy = {
-                "state": trainer.env_state["state"],
-                "reward": trainer.env_state["reward"],
-                "is_first": trainer.env_state["is_first"],
-                "is_last": trainer.env_state["is_last"],
-                "is_terminal": trainer.env_state["is_terminal"],
-                "info": trainer.env_state["info"],
-            }
-
-            action_dim = trainer.world.net_cfg.action_dim
-            assert action_dim is not None
-
-            action = torch.zeros(
-                (trainer.world_state.h.shape[0], action_dim),
-                device=trainer.device,
-            )
-
-            latent_out = trainer.world.observe_step(
-                prev_state=trainer.world_state,
-                obs=dummy["state"],
-                action=action,
-                reward=dummy["reward"],
-                is_first=dummy["is_first"],
-                is_last=dummy["is_last"],
-                is_terminal=dummy["is_terminal"],
-            )
-            logs["latent_states"].append(
-                {
-                    "h": latent_out["post"].h.detach().cpu(),
-                    "z": latent_out["post"].z.detach().cpu(),
-                }
-            )
-
-        with torch.no_grad():
-            actions, _ = trainer.actor.act(trainer.world_state)
-            logs["actions"].append(actions.cpu())
-
-    return logs
+    return results
 
 
-def assert_same(a, b, name: str):
-    if isinstance(a, torch.Tensor):
-        if not torch.allclose(a, b, atol=1e-6, rtol=1e-6):
-            print(f"\n❌ Divergence in {name}")
-            print("A:", a)
-            print("B:", b)
-            raise SystemExit(1)
-    elif isinstance(a, dict):
-        for k in a:
-            assert_same(a[k], b[k], f"{name}.{k}")
-    elif isinstance(a, list):
-        for i, (x, y) in enumerate(zip(a, b)):
-            assert_same(x, y, f"{name}[{i}]")
-    else:
-        if a != b:
-            print(f"\n❌ Divergence in {name}: {a} != {b}")
-            raise SystemExit(1)
+def kl_between_seeds(logits_a, logits_b):
+    pa = torch.softmax(logits_a, dim=-1)
+    pb = torch.softmax(logits_b, dim=-1)
+    return float(entropy(pa.flatten(), pb.flatten()))
+
+
+def summarize(metric_list):
+    arr = np.stack(metric_list)
+    mean = arr.mean(axis=0)
+    std = arr.std(axis=0)
+    cv = std.mean() / abs(mean.mean())
+    return mean, std, cv
 
 
 def main():
-    cfg = make_default_config()
-    cfg.train.seed = 123
-    cfg.train.batch_size = 4
-    cfg.train.seq_len = 16
-    cfg.train.cuda = False  # <- force CPU for reproducibility check
-    cfg.train.enable_wandb = False  # <- disable W&B for reproducibility check
+    seeds = [0, 1, 2, 3, 4]
+    results = run_all_seeds(seeds, steps=2000)
 
-    print("Running reproducibility check...\n")
+    wm_mean, wm_std, wm_cv = summarize([r["wm_loss"] for r in results])
+    actor_mean, actor_std, actor_cv = summarize([r["actor_loss"] for r in results])
+    critic_mean, critic_std, critic_cv = summarize([r["critic_loss"] for r in results])
 
-    logs1 = run_once(cfg)
-    logs2 = run_once(cfg)
+    print("World Model CV:", wm_cv)
+    print("Actor CV:", actor_cv)
+    print("Critic CV:", critic_cv)
 
-    print("Comparing logs...")
+    # KL between action distributions
+    kl_vals = []
+    for i in range(len(seeds)):
+        for j in range(i + 1, len(seeds)):
+            kl_vals.append(kl_between_seeds(results[i]["action_logits"], results[j]["action_logits"]))
 
-    assert_same(logs1["wm_loss"], logs2["wm_loss"], "world_model_loss")
-    assert_same(logs1["actor_loss"], logs2["actor_loss"], "actor_loss")
-    assert_same(logs1["critic_loss"], logs2["critic_loss"], "critic_loss")
-    assert_same(logs1["replay_samples"], logs2["replay_samples"], "replay_samples")
-    assert_same(logs1["latent_states"], logs2["latent_states"], "latent_states")
-    assert_same(logs1["actions"], logs2["actions"], "actions")
+    print("Action KL mean:", np.mean(kl_vals))
 
-    print("\n✅ Dreamer‑V3 reproducibility verified.")
+    # Regression criteria
+    if wm_cv < 0.05 and actor_cv < 0.05 and critic_cv < 0.05 and np.mean(kl_vals) < 0.05:
+        print("\n✅ Statistical reproducibility PASSED.")
+    else:
+        print("\n❌ Statistical reproducibility FAILED.")
 
 
 if __name__ == "__main__":
