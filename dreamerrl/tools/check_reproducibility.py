@@ -132,7 +132,7 @@ def run_all_seeds(seeds, steps):
         table.add_column("Metric")
         table.add_column("Value")
 
-        with Live(table, refresh_per_second=4):
+        with Live(table, refresh_per_second=4) as live:
             for seed in seeds:
                 res = run_training(seed, steps, progress, seed_tasks[seed])
                 progress.stop_task(seed_tasks[seed])
@@ -142,13 +142,18 @@ def run_all_seeds(seeds, steps):
                 util = gpu_utilization()
                 t = res["timing"]
 
-                table.rows = []
-                table.add_row("GPU Utilization (%)", f"{util:5.1f}")
-                table.add_row("Env Time (s)", f"{t['env']:.3f}")
-                table.add_row("Replay Time (s)", f"{t['replay']:.3f}")
-                table.add_row("World Model Time (s)", f"{t['world']:.3f}")
-                table.add_row("Actor Time (s)", f"{t['actor']:.3f}")
-                table.add_row("Critic Time (s)", f"{t['critic']:.3f}")
+                new_table = Table(title="Dreamer‑V3 Reproducibility Dashboard")
+                new_table.add_column("Metric")
+                new_table.add_column("Value")
+
+                new_table.add_row("GPU Utilization (%)", f"{util:5.1f}")
+                new_table.add_row("Env Time (s)", f"{t['env']:.3f}")
+                new_table.add_row("Replay Time (s)", f"{t['replay']:.3f}")
+                new_table.add_row("World Model Time (s)", f"{t['world']:.3f}")
+                new_table.add_row("Actor Time (s)", f"{t['actor']:.3f}")
+                new_table.add_row("Critic Time (s)", f"{t['critic']:.3f}")
+
+                live.update(new_table)
 
     return results
 
