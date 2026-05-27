@@ -107,6 +107,7 @@ class DreamerTrainer:
             device=self.device,
         )
         self.world_state = self.world.init_state(self.env.batch_size)
+        self.world_state = self.world_state.to(self.device)
 
         # -----------------------------------------------------
         # Actor + Critic
@@ -220,6 +221,11 @@ class DreamerTrainer:
             # 2. Step environment
             env_out = self.env.step(actions_discrete)
 
+            # Move env outputs to CUDA
+            for k, v in env_out.items():
+                if torch.is_tensor(v):
+                    env_out[k] = v.to(self.device)
+
             # 3. One-hot encode actions for RSSMCore
             actions_one_hot = F.one_hot(actions_discrete, num_classes=self.action_dim).float()
 
@@ -233,7 +239,8 @@ class DreamerTrainer:
                 is_last=env_out["is_last"],
                 is_terminal=env_out["is_terminal"],
             )
-            self.world_state = wm_out["post"]
+
+            self.world_state = wm_out["post"].to(self.device)
 
             # 5. Store raw transition in replay buffer
             done = env_out["is_last"].float()
@@ -242,7 +249,7 @@ class DreamerTrainer:
                 obs=env_out["state"],
                 action=actions_discrete,
                 reward=env_out["reward"],
-                done=done,
+                done=env_out["is_last"].float().to(self.device),
             )
 
             # 6. Update counters
