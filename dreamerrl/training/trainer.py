@@ -243,8 +243,6 @@ class DreamerTrainer:
             self.world_state = wm_out["post"].to(self.device)
 
             # 5. Store raw transition in replay buffer
-            done = env_out["is_last"].float()
-
             self.replay.add(
                 obs=env_out["state"],
                 action=actions_discrete,
