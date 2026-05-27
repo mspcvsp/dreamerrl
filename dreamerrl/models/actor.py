@@ -61,8 +61,6 @@ class Actor(nn.Module):
         else:
             # Categorical sampling
             probs = F.softmax(logits, dim=-1)
-
-            # Force sampling to occur on CPU, where multinomial is deterministic.
-            actions = torch.multinomial(probs.cpu(), num_samples=1).squeeze(-1).to(logits.device)
+            actions = torch.multinomial(probs, num_samples=1).squeeze(-1).to(logits.device)
 
         return actions, logits

@@ -27,7 +27,7 @@ def imagine_trajectory_for_training(
         r = world_model.reward_head.readout(reward_logits)
 
         logits = actor(s.h, s.z)
-        dist = Categorical(logits=logits.cpu())
+        dist = Categorical(logits=logits)
         a = dist.sample().to(logits.device)
 
         rewards.append(r)
