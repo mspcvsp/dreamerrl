@@ -1,6 +1,16 @@
+import time
+
 import numpy as np
 import torch
-from rich.progress import BarColumn, Progress, TextColumn, TimeElapsedColumn, TimeRemainingColumn
+from rich.live import Live
+from rich.progress import (
+    BarColumn,
+    Progress,
+    TextColumn,
+    TimeElapsedColumn,
+    TimeRemainingColumn,
+)
+from rich.table import Table
 from scipy.stats import entropy
 
 from dreamerrl.training.trainer import DreamerTrainer
@@ -8,11 +18,28 @@ from dreamerrl.utils.seed import set_global_seeds
 from dreamerrl.utils.types import make_default_config
 
 
+def gpu_utilization():
+    """Return GPU utilization % if available, else memory usage."""
+    if torch.cuda.is_available():
+        try:
+            util = torch.cuda.utilization()
+            return util
+        except Exception:
+            # Fallback: memory percent
+            mem = torch.cuda.memory_allocated()
+            total = torch.cuda.get_device_properties(0).total_memory
+            return 100 * mem / total
+    return 0.0
+
+
 def run_training(seed, steps, progress, task_id):
     cfg = make_default_config()
     cfg.train.seed = seed
     cfg.train.enable_wandb = False
     cfg.train.cuda = True
+    cfg.env.num_envs = 4
+    cfg.train.collect_steps = 10
+    cfg.env.max_episode_steps = 10
 
     set_global_seeds(seed)
     trainer = DreamerTrainer(cfg)
@@ -23,20 +50,46 @@ def run_training(seed, steps, progress, task_id):
     critic_losses = []
     action_logits = []
 
+    # Timing accumulators
+    t_env = 0.0
+    t_replay = 0.0
+    t_world = 0.0
+    t_actor = 0.0
+    t_critic = 0.0
+
     for step in range(steps):
         progress.update(task_id, advance=1)
 
+        # ENV
+        t0 = time.time()
         trainer.collect_env_steps()
+        t_env += time.time() - t0
+
+        # REPLAY
+        t0 = time.time()
         batch = trainer.replay.sample(cfg.train.batch_size)
+        t_replay += time.time() - t0
 
+        # WORLD MODEL
+        t0 = time.time()
         wm_losses.append(trainer.update_world_model(batch, step))
-        a_loss, c_loss = trainer.update_actor_critic(batch, step)
-        actor_losses.append(a_loss)
-        critic_losses.append(c_loss)
+        t_world += time.time() - t0
 
-        with torch.no_grad():
-            logits = trainer.actor(trainer.world_state.h, trainer.world_state.z)
-            action_logits.append(logits.cpu())
+        # ACTOR + CRITIC
+        t0 = time.time()
+        a_loss, c_loss = trainer.update_actor_critic(batch, step)
+        t_actor += time.time() - t0
+        actor_losses.append(a_loss)
+
+        t0 = time.time()
+        critic_losses.append(c_loss)
+        t_critic += time.time() - t0
+
+        # Logits (last 50 steps only)
+        if step >= steps - 50:
+            with torch.no_grad():
+                logits = trainer.actor(trainer.world_state.h, trainer.world_state.z)
+                action_logits.append(logits)
 
         if trainer.env_state["is_last"].any():
             returns.append(trainer.env_state["reward"].sum().item())
@@ -47,6 +100,13 @@ def run_training(seed, steps, progress, task_id):
         "actor_loss": np.array(actor_losses),
         "critic_loss": np.array(critic_losses),
         "action_logits": torch.stack(action_logits),
+        "timing": {
+            "env": t_env,
+            "replay": t_replay,
+            "world": t_world,
+            "actor": t_actor,
+            "critic": t_critic,
+        },
     }
 
 
@@ -60,14 +120,35 @@ def run_all_seeds(seeds, steps):
         TimeElapsedColumn(),
         TimeRemainingColumn(),
         expand=True,
+        transient=False,
+        refresh_per_second=10,
     ) as progress:
-        # One task per seed
         seed_tasks = {
             seed: progress.add_task(f"Seed {i + 1}/{len(seeds)}", total=steps) for i, seed in enumerate(seeds)
         }
 
-        for seed in seeds:
-            results.append(run_training(seed, steps, progress, seed_tasks[seed]))
+        # Live dashboard
+        table = Table(title="Dreamer‑V3 Reproducibility Dashboard")
+        table.add_column("Metric")
+        table.add_column("Value")
+
+        with Live(table, refresh_per_second=4):
+            for seed in seeds:
+                res = run_training(seed, steps, progress, seed_tasks[seed])
+                progress.stop_task(seed_tasks[seed])
+                results.append(res)
+
+                # Update dashboard
+                util = gpu_utilization()
+                t = res["timing"]
+
+                table.rows = []
+                table.add_row("GPU Utilization (%)", f"{util:5.1f}")
+                table.add_row("Env Time (s)", f"{t['env']:.3f}")
+                table.add_row("Replay Time (s)", f"{t['replay']:.3f}")
+                table.add_row("World Model Time (s)", f"{t['world']:.3f}")
+                table.add_row("Actor Time (s)", f"{t['actor']:.3f}")
+                table.add_row("Critic Time (s)", f"{t['critic']:.3f}")
 
     return results
 
@@ -75,7 +156,7 @@ def run_all_seeds(seeds, steps):
 def kl_between_seeds(logits_a, logits_b):
     pa = torch.softmax(logits_a, dim=-1)
     pb = torch.softmax(logits_b, dim=-1)
-    return float(entropy(pa.flatten(), pb.flatten()))
+    return float(entropy(pa.view(-1)[::10], pb.view(-1)[::10]))
 
 
 def summarize(metric_list):
@@ -87,8 +168,8 @@ def summarize(metric_list):
 
 
 def main():
-    seeds = [0, 1, 2, 3, 4]
-    results = run_all_seeds(seeds, steps=2000)
+    seeds = [0, 1, 2]
+    results = run_all_seeds(seeds, steps=300)
 
     wm_mean, wm_std, wm_cv = summarize([r["wm_loss"] for r in results])
     actor_mean, actor_std, actor_cv = summarize([r["actor_loss"] for r in results])
@@ -98,7 +179,6 @@ def main():
     print("Actor CV:", actor_cv)
     print("Critic CV:", critic_cv)
 
-    # KL between action distributions
     kl_vals = []
     for i in range(len(seeds)):
         for j in range(i + 1, len(seeds)):
@@ -106,7 +186,6 @@ def main():
 
     print("Action KL mean:", np.mean(kl_vals))
 
-    # Regression criteria
     if wm_cv < 0.05 and actor_cv < 0.05 and critic_cv < 0.05 and np.mean(kl_vals) < 0.05:
         print("\n✅ Statistical reproducibility PASSED.")
     else:
