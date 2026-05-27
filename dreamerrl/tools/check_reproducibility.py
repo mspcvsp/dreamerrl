@@ -161,7 +161,11 @@ def run_all_seeds(seeds, steps):
 def kl_between_seeds(logits_a, logits_b):
     pa = torch.softmax(logits_a, dim=-1)
     pb = torch.softmax(logits_b, dim=-1)
-    return float(entropy(pa.view(-1)[::10], pb.view(-1)[::10]))
+
+    pa_np = pa.view(-1)[::10].detach().cpu().numpy()
+    pb_np = pb.view(-1)[::10].detach().cpu().numpy()
+
+    return float(entropy(pa_np, pb_np))
 
 
 def summarize(metric_list):
