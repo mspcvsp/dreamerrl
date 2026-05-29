@@ -16,6 +16,7 @@ def imagine_trajectory_for_training(
     critic: ValueHead,
     state: WorldModelState,
     horizon: int,
+    deterministic_imagination: bool = False,
 ) -> Dict[str, Any]:
     device = next(world_model.parameters()).device
     s = state.to(device)
@@ -33,7 +34,7 @@ def imagine_trajectory_for_training(
         rewards.append(r)
         actions.append(a)
 
-        s = world_model.imagine_step(s, actor)
+        s = world_model.imagine_step(s, actor, deterministic_imagination=deterministic_imagination)
 
         hs.append(s.h)
         zs.append(s.z)

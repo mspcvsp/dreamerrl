@@ -180,7 +180,7 @@ class WorldModel(nn.Module):
         self,
         prev: Any,
         actor: nn.Module,
-        stochastic: bool = True,
+        deterministic_imagination: bool = False,
     ) -> WorldModelState:
         """
         Imagination step in latent space:
@@ -195,11 +195,11 @@ class WorldModel(nn.Module):
 
         logits = actor(prev_state.h, prev_state.z)
 
-        if stochastic:
+        if deterministic_imagination:
+            a = logits.argmax(dim=-1)
+        else:
             dist = Categorical(logits=logits)
             a = dist.sample().to(logits.device)
-        else:
-            a = logits.argmax(dim=-1)
 
         assert self.net_cfg.action_dim is not None, "action_dim must be specified in net config for imagine_step"
         action = F.one_hot(a, num_classes=self.net_cfg.action_dim).float()
@@ -207,11 +207,11 @@ class WorldModel(nn.Module):
         h = self.rssm(prev_state.h, action)
         prior = self.prior(h)
 
-        if stochastic:
-            z = prior["z"]
-        else:
+        if deterministic_imagination:
             idx = prior["probs"].argmax(dim=-1)
             z = F.one_hot(idx, num_classes=self.latent.num_classes).float()
+        else:
+            z = prior["z"]
 
         return WorldModelState(h=h, z=z, prior_stats=prior, post_stats=None)
 
@@ -222,10 +222,10 @@ class WorldModel(nn.Module):
             return s["state"]
         raise TypeError("State must be WorldModelState or dict with 'state'")
 
-    def imagine_trajectory_for_training(self, actor, critic, start_state, horizon):
+    def imagine_trajectory_for_training(self, actor, critic, start_state, horizon, deterministic_imagination=False):
         from dreamerrl.training.core.imagination import imagine_trajectory_for_training
 
-        return imagine_trajectory_for_training(self, actor, critic, start_state, horizon)
+        return imagine_trajectory_for_training(self, actor, critic, start_state, horizon, deterministic_imagination)
 
     def imagine_trajectory_for_testing(self, actor, start_state, horizon):
         from dreamerrl.training.core.imagination import imagine_trajectory_for_testing

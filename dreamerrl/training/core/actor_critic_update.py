@@ -16,6 +16,7 @@ def actor_critic_update(
     imagination_horizon: int,
     discount: float,
     lam: float,
+    deterministic_imagination: bool = False,
 ):
     # Determine batch size
     if "state" in batch:
@@ -35,6 +36,7 @@ def actor_critic_update(
         critic=critic,
         state=start_state,
         horizon=imagination_horizon,
+        deterministic_imagination=deterministic_imagination,
     )
 
     # After imagination rollout

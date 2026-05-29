@@ -108,6 +108,9 @@ class TrainingConfig:
     # Random exploration before actor is used.
     random_exploration_steps: int = 2_500
 
+    # Whether to use deterministic imagination (argmax) or sample from the prior.
+    deterministic_imagination = False
+
     # Device + seed.
     cuda: bool = True
     seed: int = 0

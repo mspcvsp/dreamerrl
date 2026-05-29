@@ -284,6 +284,7 @@ class DreamerTrainer:
             imagination_horizon=self.cfg.world.imagination_horizon,
             discount=self.cfg.ac.discount,
             lam=self.cfg.ac.lambda_,
+            deterministic_imagination=self.cfg.train.deterministic_imagination,
         )
 
         self.actor_opt.zero_grad()
