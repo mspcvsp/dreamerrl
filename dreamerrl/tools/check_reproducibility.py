@@ -42,6 +42,8 @@ def run_training(seed, steps, progress, task_id):
     cfg.env.num_envs = 4
     cfg.train.collect_steps = 10
     cfg.env.max_episode_steps = 10
+    cfg.env.deterministic = True
+    cfg.env.seed = seed
 
     set_global_seeds(seed)
     trainer = DreamerTrainer(cfg)

@@ -13,10 +13,15 @@ from dreamerrl.utils.types import EnvironmentConfig
 from .popgym_preprocessing import flatten_obs
 
 
-def make_env(env_cfg: EnvironmentConfig) -> Callable[[], gym.Env]:
+def make_env(env_cfg: EnvironmentConfig, idx: int) -> Callable[[], gym.Env]:
     def thunk():
         env = gym.make(env_cfg.env_id)
         env = TimeLimit(env, max_episode_steps=env_cfg.max_episode_steps)
+
+        # Deterministic seeding per environment
+        if getattr(env_cfg, "deterministic", False):
+            env.reset(seed=env_cfg.seed + idx)
+
         return env
 
     return thunk
@@ -34,7 +39,7 @@ class PopGymVecEnv(EnvInterface):
         self._batch_size = env_cfg.num_envs
         self.device = device
 
-        self.venv = SyncVectorEnv([make_env(env_cfg) for _ in range(self._batch_size)])
+        self.venv = SyncVectorEnv([make_env(env_cfg, idx) for idx in range(self._batch_size)])
 
         # Observation dimension (flattened)
         self._obs_dim = int(torch.tensor(self.venv.single_observation_space.shape).prod())

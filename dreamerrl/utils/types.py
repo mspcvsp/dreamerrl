@@ -147,6 +147,8 @@ class EnvironmentConfig:
     env_id: str = "popgym-RepeatPreviousEasy-v0"
     num_envs: int = 4
     max_episode_steps: int = 50
+    deterministic: bool = False
+    seed: int = 0
 
 
 # ---------------------------------------------------------
