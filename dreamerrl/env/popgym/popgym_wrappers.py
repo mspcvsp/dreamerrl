@@ -38,6 +38,8 @@ class PopGymVecEnv(EnvInterface):
     def __init__(self, env_cfg: EnvironmentConfig, device: torch.device):
         self._batch_size = env_cfg.num_envs
         self.device = device
+        self.deterministic = env_cfg.deterministic
+        self.base_seed = env_cfg.seed
 
         self.venv = SyncVectorEnv([make_env(env_cfg, idx) for idx in range(self._batch_size)])
 
@@ -113,14 +115,22 @@ class PopGymVecEnv(EnvInterface):
         # Auto-reset ended envs and stitch reset obs into returned `state`
         # This yields a continuous stream of transitions for fixed-horizon sampling.
         if bool(is_last.any()):
-            reset_obs, reset_info = self.venv.reset()
+            if self.deterministic:
+                # Only reset envs where is_last[i] is True
+                seeds: list[int | None] = [
+                    (self.base_seed + i) if is_last[i].item() else None for i in range(self._batch_size)
+                ]
+                reset_obs, _ = self.venv.reset(seed=seeds)
+            else:
+                reset_obs, _ = self.venv.reset()
+
             reset_obs = flatten_obs(reset_obs, self.venv.single_observation_space)
             reset_state = torch.as_tensor(reset_obs, dtype=torch.float32, device=self.device)
 
-            # Replace the returned state for finished envs with reset state
+            # Replace only the finished envs
             state = torch.where(is_last[:, None], reset_state, state)
 
-            # Mark those envs as first on the *next* emitted transition
+            # Mark those envs as first on the next transition
             self._needs_first = is_last.clone()
         else:
             self._needs_first.zero_()
