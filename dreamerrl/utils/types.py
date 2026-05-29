@@ -109,7 +109,18 @@ class TrainingConfig:
     random_exploration_steps: int = 2_500
 
     # Whether to use deterministic imagination (argmax) or sample from the prior.
-    deterministic_imagination = False
+    deterministic_imagination: bool = False
+
+    # Deterministic env stepping (for reproducibility tests only).
+    #
+    # If True:
+    #   • disables random exploration
+    #   • disables stochastic policy sampling
+    #   • uses argmax actions instead of sampled actions
+    #   • ensures identical env trajectories across seeds
+    #
+    # Normal training behavior is unchanged.
+    deterministic_env: bool = False
 
     # Device + seed.
     cuda: bool = True

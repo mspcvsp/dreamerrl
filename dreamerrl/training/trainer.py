@@ -208,15 +208,20 @@ class DreamerTrainer:
         """
         for _ in range(self.cfg.train.collect_steps):
             # 1. Choose discrete action
-            if self.global_step < self.cfg.train.random_exploration_steps:
-                actions_discrete = torch.randint(
-                    low=0,
-                    high=self.action_dim,
-                    size=(self.env.batch_size,),
-                    device=self.device,
-                )
+            if self.cfg.train.deterministic_env:
+                # Fully deterministic for reproducibility tests
+                actions_discrete = self.actor(self.world_state.h, self.world_state.z).argmax(dim=-1)
             else:
-                actions_discrete, _ = self.actor.act(self.world_state)
+                # Normal Dreamer training behavior
+                if self.global_step < self.cfg.train.random_exploration_steps:
+                    actions_discrete = torch.randint(
+                        low=0,
+                        high=self.action_dim,
+                        size=(self.env.batch_size,),
+                        device=self.device,
+                    )
+                else:
+                    actions_discrete, _ = self.actor.act(self.world_state)
 
             # 2. Step environment
             env_out = self.env.step(actions_discrete)

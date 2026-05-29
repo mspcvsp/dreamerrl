@@ -38,6 +38,7 @@ def run_training(seed, steps, progress, task_id):
     cfg.train.enable_wandb = False
     cfg.train.cuda = True
     cfg.train.deterministic_imagination = True
+    cfg.train.deterministic_env = True
     cfg.env.num_envs = 4
     cfg.train.collect_steps = 10
     cfg.env.max_episode_steps = 10
