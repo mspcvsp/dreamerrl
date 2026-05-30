@@ -5,6 +5,7 @@ import torch
 from gymnasium.spaces import Box
 
 from dreamerrl.models.world_model import WorldModel
+from dreamerrl.models.world_model_core import RSSMCore as RSSM
 from dreamerrl.utils.types import LatentConfig, NetworkConfig
 
 
@@ -102,6 +103,11 @@ def dummy_actor(latent, net):
     return DummyActor(latent, net)
 
 
+@pytest.fixture
+def actor(dummy_actor):
+    return dummy_actor
+
+
 class DummyObsSpace(Box):
     """
     A minimal Box-like observation space for testing DreamerV3.
@@ -118,3 +124,118 @@ class DummyObsSpace(Box):
     def sample(self):
         # Pylance wants explicit ints, not a tuple
         return torch.randn(self.shape[0], dtype=torch.float32)
+
+
+# ---------------------------------------------------------------------------
+# Deterministic global setup
+# ---------------------------------------------------------------------------
+@pytest.fixture(scope="session", autouse=True)
+def _set_determinism():
+    torch.manual_seed(0)
+    torch.use_deterministic_algorithms(True)
+
+
+# ---------------------------------------------------------------------------
+# RSSM fixture (matches your WorldModel latent config)
+# ---------------------------------------------------------------------------
+@pytest.fixture(scope="session")
+def rssm(latent, net):
+    """
+    Minimal RSSM instance matching the latent + network config.
+    """
+    return RSSM(latent=latent, net=net).eval()
+
+
+# ---------------------------------------------------------------------------
+# Actor input fixtures
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture
+def dummy_h(latent):
+    """
+    Deterministic RSSM deterministic state (B, deter_size).
+    """
+    return torch.randn(8, latent.deter_size)
+
+
+@pytest.fixture
+def dummy_z_actor(latent):
+    """
+    Stochastic latent z for actor (B, K, C).
+    """
+    return torch.randn(8, latent.num_classes, latent.stoch_size)
+
+
+# ---------------------------------------------------------------------------
+# Posterior invariance fixtures
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture
+def dummy_obs():
+    """
+    Observations for posterior invariance tests.
+    """
+    return torch.randn(8, 8)  # matches obs_dim=8 in your world_model fixture
+
+
+@pytest.fixture
+def dummy_action():
+    """
+    One-hot actions for posterior invariance tests.
+    """
+    A = 5
+    return torch.nn.functional.one_hot(torch.randint(0, A, (8,)), num_classes=A).float()
+
+
+@pytest.fixture
+def dummy_reward():
+    """
+    Reward tensor for posterior invariance tests.
+    """
+    return torch.randn(8, 1)
+
+
+# ---------------------------------------------------------------------------
+# KL test logits
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture
+def kl_logits(latent):
+    """
+    Random logits for KL free-bits monotonicity tests.
+    """
+    B = 32
+    K = latent.num_classes
+    return (
+        torch.randn(B, K),  # logits_p
+        torch.randn(B, K),  # logits_q
+    )
+
+
+# ---------------------------------------------------------------------------
+# Symlog/symexp round-trip obs
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture
+def roundtrip_obs():
+    """
+    Observations for symlog/symexp round-trip tests.
+    """
+    return torch.randn(8, 8)  # matches obs_dim=8
+
+
+# ---------------------------------------------------------------------------
+# CPU/GPU determinism helpers
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture
+def cpu_gpu_available():
+    """
+    Skip GPU determinism tests if CUDA is not available.
+    """
+    return torch.cuda.is_available()
