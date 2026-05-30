@@ -17,7 +17,7 @@ def test_distributional_value_readout_monotonic():
     h = torch.zeros(B, latent.deter_size)
 
     # V3 factored latent (B, K, C)
-    z = torch.zeros(B, latent.stoch_size, latent.num_classes)
+    z = torch.zeros(B, latent.num_classes, latent.stoch_size)
 
     logits = head(h, z)
 

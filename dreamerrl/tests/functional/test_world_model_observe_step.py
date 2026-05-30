@@ -49,7 +49,7 @@ def test_world_model_observe_step_keys_and_shapes():
     assert post.h.shape == (B, latent.deter_size)
 
     # V3 factored latent
-    assert post.z.shape == (B, latent.stoch_size, latent.num_classes)
+    assert post.z.shape == (B, latent.num_classes, latent.stoch_size)
 
     # Reward head is distributional in V3
     assert out["reward_logits"].shape == (B, net.value_bins)
