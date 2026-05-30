@@ -1,4 +1,5 @@
-# dreamerrl/tests/invariants/test_actor_cpu_gpu_determinism.py
+import copy
+
 import pytest
 import torch
 
@@ -11,8 +12,8 @@ def test_actor_cpu_gpu_determinism(actor, dummy_h, dummy_z_actor):
     Actor forward pass must be deterministic across CPU and GPU.
     """
 
-    actor_cpu = actor.cpu()
-    actor_gpu = actor.cuda()
+    actor_cpu = copy.deepcopy(actor).cpu()
+    actor_gpu = copy.deepcopy(actor).cuda()
 
     h_cpu = dummy_h.cpu()
     z_cpu = dummy_z_actor.cpu()
