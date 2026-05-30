@@ -72,8 +72,8 @@ def world_model_training_step(
     # -------------------------------------------------------------
     z_factored = z.reshape(
         B * L,
-        world_model.latent.stoch_size,
         world_model.latent.num_classes,
+        world_model.latent.stoch_size,
     )
     h_flat = h.reshape(B * L, -1)
 
