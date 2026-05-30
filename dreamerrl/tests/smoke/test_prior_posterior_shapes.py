@@ -26,9 +26,9 @@ def test_prior_posterior_shapes():
     prior_stats = prior(h)
     post_stats = posterior(h, embed)
 
-    assert prior_stats["logits"].shape == (B, latent.stoch_size, latent.num_classes)
-    assert post_stats["logits"].shape == (B, latent.stoch_size, latent.num_classes)
+    assert prior_stats["logits"].shape == (B, latent.num_classes, latent.stoch_size)
+    assert post_stats["logits"].shape == (B, latent.num_classes, latent.stoch_size)
 
     # Dreamer‑V3: z is factored (B, K, C)
-    assert prior_stats["z"].shape == (B, latent.stoch_size, latent.num_classes)
-    assert post_stats["z"].shape == (B, latent.stoch_size, latent.num_classes)
+    assert prior_stats["z"].shape == (B, latent.num_classes, latent.stoch_size)
+    assert post_stats["z"].shape == (B, latent.num_classes, latent.stoch_size)
