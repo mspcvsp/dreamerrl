@@ -22,6 +22,10 @@ def test_replay_buffer_determinism():
         seq_len=seq_len,
     )
 
+    # Seed BEFORE filling the buffer
+    torch.manual_seed(0)
+    np.random.seed(0)
+
     # --- Fill with deterministic episodes ---
     # Two episodes of length 10 each
     for _ in range(2):
