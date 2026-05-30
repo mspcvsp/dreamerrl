@@ -111,7 +111,8 @@ class WorldModel(nn.Module):
     def init_state(self, batch_size: int) -> WorldModelState:
         device = next(self.parameters()).device
         h0 = torch.zeros(batch_size, self.latent.deter_size, device=device)
-        z0 = torch.zeros(batch_size, self.latent.stoch_size, self.latent.num_classes, device=device)
+        z0 = torch.zeros(batch_size, self.latent.num_classes, self.latent.stoch_size, device=device)
+
         return WorldModelState(h=h0, z=z0)
 
     def observe_step(

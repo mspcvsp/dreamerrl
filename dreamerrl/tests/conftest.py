@@ -2,7 +2,7 @@ import gymnasium as gym
 import numpy as np
 import pytest
 import torch
-from gymnasium.spaces import Space
+from gymnasium.spaces import Box
 
 from dreamerrl.models.world_model import WorldModel
 from dreamerrl.utils.types import LatentConfig, NetworkConfig
@@ -102,31 +102,19 @@ def dummy_actor(latent, net):
     return DummyActor(latent, net)
 
 
-class DummyObsSpace(Space):
+class DummyObsSpace(Box):
     """
-    Minimal stand‑in for gymnasium.spaces.Box that:
-      • satisfies Pylance type checking
-      • satisfies WorldModel requirements
-      • avoids assigning to read‑only properties
-      • avoids randn(tuple) type errors
+    A minimal Box-like observation space for testing DreamerV3.
+    Fully compatible with get_flat_obs_dim and ObsEncoder.
     """
 
     def __init__(self, obs_dim: int):
-        # Call parent constructor with correct dtype + shape
-        super().__init__(shape=(obs_dim,), dtype=np.float32)
+        # low/high must be arrays, not scalars
+        low = -np.inf * np.ones((obs_dim,), dtype=np.float32)
+        high = np.inf * np.ones((obs_dim,), dtype=np.float32)
 
-        # Store shape as a normal attribute (NOT overriding the property)
-        self._shape = (obs_dim,)
-        self._dtype = np.float32
-
-    @property
-    def shape(self):
-        return self._shape
-
-    @property
-    def dtype(self):
-        return self._dtype
+        super().__init__(low=low, high=high, dtype=np.float32)
 
     def sample(self):
         # Pylance wants explicit ints, not a tuple
-        return torch.randn(*self._shape, dtype=torch.float32)
+        return torch.randn(self.shape[0], dtype=torch.float32)
