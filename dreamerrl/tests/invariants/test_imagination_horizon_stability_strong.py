@@ -3,6 +3,7 @@ import torch
 
 
 @pytest.mark.invariants
+@pytest.mark.imagination_invariants
 def test_imagination_horizon_stability_strong(world_model, dummy_actor):
     """
     Long-horizon imagination should remain numerically stable.
@@ -13,6 +14,6 @@ def test_imagination_horizon_stability_strong(world_model, dummy_actor):
     state = world_model.init_state(B)
 
     for _ in range(H):
-        state = world_model.imagine_step(state, dummy_actor, stochastic=False)
+        state = world_model.imagine_step(state, dummy_actor, deterministic_imagination=True)
         assert torch.isfinite(state.h).all()
         assert torch.isfinite(state.z).all()

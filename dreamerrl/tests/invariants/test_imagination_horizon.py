@@ -21,6 +21,7 @@ def _build_world_model(device: torch.device) -> WorldModel:
 
 
 @pytest.mark.invariants
+@pytest.mark.imagination_invariants
 def test_imagine_step_horizon_consistency() -> None:
     """
     Unrolling imagine_step H times must produce exactly H states, with consistent
@@ -49,7 +50,7 @@ def test_imagine_step_horizon_consistency() -> None:
     states = [state0]
     cur = state0
     for _ in range(H):
-        cur = wm.imagine_step(cur, actor=actor, stochastic=False)
+        cur = wm.imagine_step(cur, actor=actor, deterministic_imagination=True)
         states.append(cur)
 
     # We expect H transitions → H next states (excluding initial)
@@ -63,13 +64,14 @@ def test_imagine_step_horizon_consistency() -> None:
     # Deterministic unroll: compare last state with recomputed chain
     cur2 = state0
     for _ in range(H):
-        cur2 = wm.imagine_step(cur2, actor=actor, stochastic=False)
+        cur2 = wm.imagine_step(cur2, actor=actor, deterministic_imagination=True)
 
     assert torch.allclose(states[-1].h, cur2.h, atol=1e-6)
     assert torch.allclose(states[-1].z, cur2.z, atol=1e-6)
 
 
 @pytest.mark.invariants
+@pytest.mark.imagination_invariants
 @pytest.mark.skipif(not torch.cuda.is_available(), reason="CUDA not available")
 def test_imagine_step_cpu_gpu_determinism_horizon() -> None:
     """
@@ -106,12 +108,11 @@ def test_imagine_step_cpu_gpu_determinism_horizon() -> None:
 
     cur_cpu = state0_cpu
     cur_gpu = state0_gpu
-    stochastic = False  # deterministic for testing
 
     with torch.no_grad():
         for _ in range(H):
-            cur_cpu = wm_cpu.imagine_step(cur_cpu, actor=actor_cpu, stochastic=stochastic)
-            cur_gpu = wm_gpu.imagine_step(cur_gpu, actor=actor_gpu, stochastic=stochastic)
+            cur_cpu = wm_cpu.imagine_step(cur_cpu, actor=actor_cpu, deterministic_imagination=True)
+            cur_gpu = wm_gpu.imagine_step(cur_gpu, actor=actor_gpu, deterministic_imagination=True)
 
     h_cpu = cur_cpu.h
     z_cpu = cur_cpu.z
@@ -129,6 +130,7 @@ def test_imagine_step_cpu_gpu_determinism_horizon() -> None:
 
 
 @pytest.mark.invariants
+@pytest.mark.imagination_invariants
 def test_stochastic_imagination_distributional_invariants() -> None:
     torch.manual_seed(0)
 
@@ -160,8 +162,8 @@ def test_stochastic_imagination_distributional_invariants() -> None:
         cur_gpu = s0_gpu
 
         for _ in range(H):
-            cur_cpu = wm_cpu.imagine_step(cur_cpu, actor=actor_cpu, stochastic=True)
-            cur_gpu = wm_gpu.imagine_step(cur_gpu, actor=actor_gpu, stochastic=True)
+            cur_cpu = wm_cpu.imagine_step(cur_cpu, actor=actor_cpu, deterministic_imagination=False)
+            cur_gpu = wm_gpu.imagine_step(cur_gpu, actor=actor_gpu, deterministic_imagination=False)
 
         samples_cpu.append(cur_cpu.h.detach().cpu())
         samples_gpu.append(cur_gpu.h.detach().cpu())

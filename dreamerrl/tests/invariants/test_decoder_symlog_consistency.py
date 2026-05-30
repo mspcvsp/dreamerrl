@@ -8,6 +8,7 @@ from dreamerrl.utils.types import LatentConfig, NetworkConfig
 
 
 @pytest.mark.invariants
+@pytest.mark.decoder_invariants
 def test_decoder_symlog_consistency():
     latent = LatentConfig(deter_size=200, stoch_size=30, num_classes=32)
     net = NetworkConfig(hidden_size=256, action_dim=3, value_bins=41)

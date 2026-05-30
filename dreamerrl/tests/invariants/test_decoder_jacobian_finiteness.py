@@ -3,6 +3,7 @@ import torch
 
 
 @pytest.mark.invariants
+@pytest.mark.decoder_invariants
 def test_decoder_jacobian_finiteness(world_model):
     """
     Decoder Jacobian must be finite for stability.

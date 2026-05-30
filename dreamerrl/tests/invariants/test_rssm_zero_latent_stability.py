@@ -12,7 +12,7 @@ def test_rssm_zero_latent_stability(world_model, dummy_actor):
     state = world_model.init_state(B)
 
     # Deterministic rollout with dummy actor
-    next_state = world_model.imagine_step(state, dummy_actor, stochastic=False)
+    next_state = world_model.imagine_step(state, dummy_actor, deterministic_imagination=True)
 
     assert torch.isfinite(next_state.h).all()
     assert torch.isfinite(next_state.z).all()

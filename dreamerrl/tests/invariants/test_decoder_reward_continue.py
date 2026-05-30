@@ -22,6 +22,7 @@ def _wm():
 
 
 @pytest.mark.invariants
+@pytest.mark.decoder_invariants
 def test_decoder_deterministic():
     wm = _wm()
     h = torch.randn(4, wm.latent.deter_size)
@@ -35,6 +36,7 @@ def test_decoder_deterministic():
 
 
 @pytest.mark.invariants
+@pytest.mark.decoder_invariants
 def test_reward_continue_finite():
     wm = _wm()
     h = torch.randn(4, wm.latent.deter_size)

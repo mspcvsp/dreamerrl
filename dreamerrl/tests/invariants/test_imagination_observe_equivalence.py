@@ -3,6 +3,7 @@ import torch
 
 
 @pytest.mark.invariants
+@pytest.mark.imagination_invariants
 def test_imagination_observe_equivalence(world_model):
     """
     In Dreamer-V3, imagine_step and observe_step do NOT match exactly.
@@ -36,7 +37,7 @@ def test_imagination_observe_equivalence(world_model):
             return torch.zeros(B, world_model.net_cfg.action_dim)
 
     actor = ZeroActor()
-    imagined = world_model.imagine_step(state0, actor, stochastic=False)
+    imagined = world_model.imagine_step(state0, actor, deterministic_imagination=True)
 
     # Correct invariant: both must be finite and stable
     assert torch.isfinite(post.h).all()

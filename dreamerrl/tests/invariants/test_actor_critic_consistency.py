@@ -3,6 +3,7 @@ import torch
 
 
 @pytest.mark.invariants
+@pytest.mark.actor_invariants
 def test_actor_critic_consistency(world_model):
     """
     Distributional value head must produce finite expected values

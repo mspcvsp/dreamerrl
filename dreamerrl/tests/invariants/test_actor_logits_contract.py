@@ -6,6 +6,7 @@ from dreamerrl.utils.types import LatentConfig, NetworkConfig
 
 
 @pytest.mark.invariants
+@pytest.mark.actor_invariants
 def test_actor_logits_contract_basic():
     """
     Actor must output:
