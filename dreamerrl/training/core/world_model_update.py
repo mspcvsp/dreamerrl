@@ -26,8 +26,13 @@ def world_model_training_step(
         raise KeyError("Batch must contain 'obs' or 'state'")
 
     reward = batch["reward"].to(device)
-    done = batch["done"].to(device)
-    cont_target = 1.0 - done  # continuation target
+
+    # continuation target = 1.0 if episode continues, 0.0 if terminal
+    if "is_terminal" in batch:
+        cont_target = 1.0 - batch["is_terminal"].to(device)
+    else:
+        # fallback for tests that don't include is_terminal
+        cont_target = torch.ones_like(reward)
 
     B, L, _ = obs.shape
 
@@ -39,8 +44,12 @@ def world_model_training_step(
     priors = []
 
     for t in range(L):
-        # Convert discrete action IDs → one-hot
         action_t = batch["action"][:, t]  # (B,)
+
+        # Convert one-hot → discrete ID if needed
+        if action_t.dtype != torch.long:
+            action_t = action_t.argmax(dim=-1)
+
         action_one_hot = F.one_hot(action_t, num_classes=world_model.net_cfg.action_dim).float()  # (B, action_dim)
 
         out = world_model.observe_step(
