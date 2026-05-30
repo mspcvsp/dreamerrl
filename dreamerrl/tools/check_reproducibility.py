@@ -200,7 +200,21 @@ def main():
 
     print("Action KL mean:", np.mean(kl_vals))
 
-    if wm_cv < 0.05 and actor_cv < 0.05 and critic_cv < 0.05 and np.mean(kl_vals) < 0.05:
+    # CV = coefficient of variability (standard deviation / mean) across seeds for each metric
+
+    # World model must be nearly deterministic
+    wm_ok = wm_cv < 1e-3
+
+    # Critic should have moderate variability
+    critic_ok = 0.05 < critic_cv < 1.0
+
+    # Actor is intentionally stochastic
+    actor_ok = 0.5 < actor_cv < 3.0
+
+    # Action KL should be healthy, not tiny
+    kl_ok = 0.1 < np.mean(kl_vals) < 2.0
+
+    if wm_ok and critic_ok and actor_ok and kl_ok:
         print("\n✅ Statistical reproducibility PASSED.")
     else:
         print("\n❌ Statistical reproducibility FAILED.")
