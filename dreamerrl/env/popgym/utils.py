@@ -10,3 +10,9 @@ def list_popgym_envs() -> list[str]:
     Gymnasium >=0.29 exposes the registry via gym.registry (public API).
     """
     return sorted([eid for eid in gym.registry.keys() if "popgym" in eid.lower()])
+
+
+if __name__ == "__main__":
+    print("Registered PopGym environments:")
+    for env_id in list_popgym_envs():
+        print(f"  - {env_id}")
