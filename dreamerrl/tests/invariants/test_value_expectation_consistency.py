@@ -14,7 +14,7 @@ def test_value_expectation_consistency():
 
     B = 6
     h = torch.randn(B, latent.deter_size)
-    z = torch.randn(B, latent.stoch_size, latent.num_classes)
+    z = torch.randn(B, latent.num_classes, latent.stoch_size)
 
     logits = head(h, z)
     probs = logits.softmax(-1)
