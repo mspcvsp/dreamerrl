@@ -18,4 +18,4 @@ def test_posterior_fuzz(world_model):
 
         assert torch.isfinite(post["logits"]).all()
         assert torch.isfinite(post["probs"]).all()
-        assert torch.allclose(post["probs"].sum(-1), torch.ones(B, world_model.latent.stoch_size), atol=1e-5)
+        assert torch.allclose(post["probs"].sum(-1), torch.ones(B, world_model.latent.num_classes), atol=1e-5)

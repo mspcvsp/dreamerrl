@@ -12,7 +12,7 @@ def test_reward_head_fuzz(world_model):
     B = 32
     for _ in range(50):
         h = torch.randn(B, world_model.latent.deter_size) * 10
-        z = torch.randn(B, world_model.latent.stoch_size, world_model.latent.num_classes) * 10
+        z = torch.randn(B, world_model.latent.num_classes, world_model.latent.stoch_size) * 10
 
         logits = world_model.reward_head(h, z)
         probs = logits.softmax(-1)
