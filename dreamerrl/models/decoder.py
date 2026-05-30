@@ -18,10 +18,7 @@ class ObsDecoder(nn.Module):
         self.net_cfg = net
         self.output_dim = output_dim
 
-        # Embed each categorical factor (C classes → embed_dim)
-        self.z_embed = nn.Linear(latent.num_classes, net.hidden_size)
-
-        # Embed deterministic state h
+        self.z_embed = nn.Linear(latent.stoch_size, net.hidden_size)
         self.h_embed = nn.Linear(latent.deter_size, net.hidden_size)
 
         # Final decoder MLP

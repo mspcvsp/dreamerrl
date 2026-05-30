@@ -16,7 +16,7 @@ class ValueHead(nn.Module):
         self.latent = latent
         self.net_cfg = net
 
-        self.z_embed = nn.Linear(latent.num_classes, net.hidden_size)
+        self.z_embed = nn.Linear(latent.stoch_size, net.hidden_size)
         self.h_embed = nn.Linear(latent.deter_size, net.hidden_size)
 
         self.net = nn.Sequential(

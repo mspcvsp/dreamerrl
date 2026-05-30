@@ -210,7 +210,7 @@ class WorldModel(nn.Module):
 
         if deterministic_imagination:
             idx = prior["probs"].argmax(dim=-1)
-            z = F.one_hot(idx, num_classes=self.latent.num_classes).float()
+            z = F.one_hot(idx, num_classes=self.latent.stoch_size).float()
         else:
             z = prior["z"]
 

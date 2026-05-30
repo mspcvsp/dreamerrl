@@ -50,17 +50,17 @@ class Prior(nn.Module):
 
         x = F.silu(self.fc1(h))
         logits = self.fc_logits(x)
-        logits = logits.view(B, self.latent.stoch_size, self.latent.num_classes)
+        logits = logits.view(B, self.latent.num_classes, self.latent.stoch_size)
         probs = F.softmax(logits, dim=-1)
 
         if self.deterministic_latent_for_tests:
-            idx = probs.argmax(dim=-1)
-            z = F.one_hot(idx, num_classes=self.latent.num_classes).float()
+            idx = probs.argmax(dim=-1)  # (B, K)
+            z = F.one_hot(idx, num_classes=self.latent.stoch_size).float()  # (B, K, C)
         else:
             g = -torch.log(-torch.log(torch.rand_like(probs)))
             y = F.softmax((logits + g) / self.temperature, dim=-1)
-            idx = y.argmax(dim=-1)
-            z_hard = F.one_hot(idx, num_classes=self.latent.num_classes).float()
+            idx = y.argmax(dim=-1)  # (B, K)
+            z_hard = F.one_hot(idx, num_classes=self.latent.stoch_size).float()  # (B, K, C)
             z = z_hard + (y - y.detach())
 
         return {"logits": logits, "probs": probs, "z": z}
