@@ -44,7 +44,7 @@ def test_observe_step_deterministic():
 
     # Stochastic latent z is not deterministic — check invariants instead
     z1, z2 = out1["post"].z, out2["post"].z
-    assert z1.shape == (4, wm.latent.stoch_size, wm.latent.num_classes)
-    assert z2.shape == (4, wm.latent.stoch_size, wm.latent.num_classes)
+    assert z1.shape == (4, wm.latent.num_classes, wm.latent.stoch_size)
+    assert z2.shape == (4, wm.latent.num_classes, wm.latent.stoch_size)
     assert torch.isfinite(z1).all()
     assert torch.isfinite(z2).all()

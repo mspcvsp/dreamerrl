@@ -26,7 +26,7 @@ def test_actor_logits_contract_basic():
     B = 16
     h = torch.randn(B, latent.deter_size)
     # V3 factored latent
-    z = torch.randn(B, latent.stoch_size, latent.num_classes)
+    z = torch.randn(B, latent.num_classes, latent.stoch_size)
 
     logits = actor(h, z)
 
@@ -67,7 +67,7 @@ def test_actor_logits_cpu_gpu_determinism():
     B = 8
     h_cpu = torch.randn(B, latent.deter_size)
     # V3 factored latent
-    z_cpu = torch.randn(B, latent.stoch_size, latent.num_classes)
+    z_cpu = torch.randn(B, latent.num_classes, latent.stoch_size)
 
     h_gpu = h_cpu.to("cuda")
     z_gpu = z_cpu.to("cuda")

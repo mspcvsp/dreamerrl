@@ -13,7 +13,7 @@ def test_distributional_ce_scale_invariance():
 
     B = 8
     h = torch.randn(B, latent.deter_size)
-    z = torch.randn(B, latent.stoch_size, latent.num_classes)
+    z = torch.randn(B, latent.num_classes, latent.stoch_size)
 
     logits = head(h, z)
     target = torch.randn(B)

@@ -11,7 +11,7 @@ def test_actor_critic_consistency(world_model):
     """
     B = 8
     h = torch.randn(B, world_model.latent.deter_size)
-    z = torch.randn(B, world_model.latent.stoch_size, world_model.latent.num_classes)
+    z = torch.randn(B, world_model.latent.num_classes, world_model.latent.stoch_size)
 
     logits = world_model.reward_head(h, z)
     probs = logits.softmax(-1)

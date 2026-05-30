@@ -27,7 +27,7 @@ def test_decoder_deterministic():
     wm = _wm()
     h = torch.randn(4, wm.latent.deter_size)
     # V3 factored latent
-    z = torch.randn(4, wm.latent.stoch_size, wm.latent.num_classes)
+    z = torch.randn(4, wm.latent.num_classes, wm.latent.stoch_size)
 
     out1 = wm.decoder(h, z)
     out2 = wm.decoder(h, z)
@@ -41,7 +41,7 @@ def test_reward_continue_finite():
     wm = _wm()
     h = torch.randn(4, wm.latent.deter_size)
     # V3 factored latent
-    z = torch.randn(4, wm.latent.stoch_size, wm.latent.num_classes)
+    z = torch.randn(4, wm.latent.num_classes, wm.latent.stoch_size)
 
     reward = wm.reward_head(h, z)
     cont = wm.continue_head(h, z)

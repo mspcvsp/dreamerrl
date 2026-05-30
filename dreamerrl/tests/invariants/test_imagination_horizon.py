@@ -57,7 +57,7 @@ def test_imagine_step_horizon_consistency() -> None:
     assert len(states) == H + 1
     for s in states:
         assert s.h.shape == (B, latent.deter_size)
-        assert s.z.shape == (B, latent.stoch_size, latent.num_classes)
+        assert s.z.shape == (B, latent.num_classes, latent.stoch_size)
         assert s.h.device == device
         assert s.z.device == device
 

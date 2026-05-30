@@ -15,7 +15,7 @@ def test_actor_entropy_invariance():
 
     B = 6
     h = torch.randn(B, latent.deter_size)
-    z = torch.randn(B, latent.stoch_size, latent.num_classes)
+    z = torch.randn(B, latent.num_classes, latent.stoch_size)
 
     logits = actor(h, z)
     dist = Categorical(logits=logits)

@@ -18,7 +18,7 @@ def test_decoder_symlog_consistency():
 
     B = 4
     h = torch.randn(B, latent.deter_size)
-    z = torch.randn(B, latent.stoch_size, latent.num_classes)
+    z = torch.randn(B, latent.num_classes, latent.stoch_size)
 
     recon = wm.decoder(h, z)
 
