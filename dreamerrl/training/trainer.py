@@ -49,6 +49,7 @@ class DreamerTrainer:
 
     def __init__(self, cfg: DreamerConfig):
         self.cfg = cfg
+        self.sample_step = 0
 
         # -----------------------------------------------------
         # Seeding (must be first for reproducibility)
@@ -182,7 +183,11 @@ class DreamerTrainer:
 
             self.collect_env_steps()
 
-            batch = self.replay.sample(batch_size=self.cfg.train.batch_size)
+            batch = self.replay.sample(
+                batch_size=self.cfg.train.batch_size,
+                seed=self.cfg.train.seed + self.sample_step,
+            )
+            self.sample_step += 1
 
             model_loss = self.update_world_model(batch, update_idx)
             actor_loss, critic_loss = self.update_actor_critic(batch, update_idx)
