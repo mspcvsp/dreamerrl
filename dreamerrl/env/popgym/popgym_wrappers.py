@@ -1,6 +1,7 @@
 from typing import Any, Callable, Dict, Optional
 
 import gymnasium as gym
+import numpy as np
 import torch
 from gymnasium.spaces import Discrete
 from gymnasium.vector import SyncVectorEnv
@@ -15,11 +16,15 @@ from .popgym_preprocessing import flatten_obs
 
 def make_env(env_cfg: EnvironmentConfig, idx: int) -> Callable[[], gym.Env]:
     def thunk():
+        if env_cfg.deterministic:
+            # Reset global NumPy RNG BEFORE environment construction
+            np.random.seed(env_cfg.seed + idx)
+
         env = gym.make(env_cfg.env_id)
         env = TimeLimit(env, max_episode_steps=env_cfg.max_episode_steps)
 
-        # Deterministic seeding per environment
-        if getattr(env_cfg, "deterministic", False):
+        # Also seed the environment's own RNG on first reset
+        if env_cfg.deterministic:
             env.reset(seed=env_cfg.seed + idx)
 
         return env
