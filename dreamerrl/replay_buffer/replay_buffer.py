@@ -41,6 +41,7 @@ class ReplayBuffer:
         action_dim: int,
         device: torch.device,
         seq_len: int = 50,
+        seed: int = 0,
     ):
         self.capacity = capacity
         self.device = device
@@ -53,6 +54,9 @@ class ReplayBuffer:
         self.size = 0
         self.obs_dim = obs_dim
         self.action_dim = action_dim
+
+        self.rng = torch.Generator(device)
+        self.rng.manual_seed(seed)
 
     def _ensure_envs(self, num_envs: int):
         if self.num_envs is None:
@@ -91,8 +95,11 @@ class ReplayBuffer:
             removed = self.episodes.pop(0)
             self.size -= removed["obs"].shape[0]
 
-    def sample(self, batch_size: int) -> Dict[str, torch.Tensor]:
+    def sample(self, batch_size: int, seed: int | None = None) -> Dict[str, torch.Tensor]:
         assert len(self.episodes) > 0, "Replay buffer is empty"
+
+        if seed is not None:
+            self.rng.manual_seed(seed)
 
         obs_batch = []
         act_batch = []
@@ -100,7 +107,7 @@ class ReplayBuffer:
         done_batch = []
 
         for _ in range(batch_size):
-            idx = int(torch.randint(0, len(self.episodes), (1,), device=self.device))
+            idx = int(torch.randint(0, len(self.episodes), (1,), generator=self.rng, device=self.device))
             ep = self.episodes[idx]
 
             length = ep["obs"].shape[0]
@@ -108,7 +115,7 @@ class ReplayBuffer:
             if length <= self.seq_len:
                 start = 0
             else:
-                start = int(torch.randint(0, length - self.seq_len, (1,), device=self.device))
+                start = int(torch.randint(0, length - self.seq_len, (1,), generator=self.rng, device=self.device))
 
             end = start + self.seq_len
 

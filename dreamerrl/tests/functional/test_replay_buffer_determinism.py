@@ -34,11 +34,8 @@ def test_replay_buffer_determinism():
             rb.add(obs, action, reward, done)
 
     # --- Sample twice with same seed ---
-    torch.manual_seed(123)
-    batch1 = rb.sample(batch_size=4)
-
-    torch.manual_seed(123)
-    batch2 = rb.sample(batch_size=4)
+    batch1 = rb.sample(batch_size=4, seed=123)
+    batch2 = rb.sample(batch_size=4, seed=123)
 
     # --- Compare ---
     for key in batch1.keys():
