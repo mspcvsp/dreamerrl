@@ -239,3 +239,26 @@ def cpu_gpu_available():
     Skip GPU determinism tests if CUDA is not available.
     """
     return torch.cuda.is_available()
+
+
+# ---------------------------------------------------------------------------
+# Manual test control (disable unless --run-manual is passed)
+# ---------------------------------------------------------------------------
+def pytest_addoption(parser):
+    parser.addoption(
+        "--run-manual",
+        action="store_true",
+        default=False,
+        help="Run tests marked as manual",
+    )
+
+
+def pytest_collection_modifyitems(config, items):
+    if config.getoption("--run-manual"):
+        # User explicitly asked to run manual tests → do nothing
+        return
+
+    skip_manual = pytest.mark.skip(reason="Use --run-manual to run this test")
+    for item in items:
+        if "manual" in item.keywords:
+            item.add_marker(skip_manual)
