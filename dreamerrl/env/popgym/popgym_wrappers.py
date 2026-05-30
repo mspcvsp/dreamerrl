@@ -16,15 +16,20 @@ from .popgym_preprocessing import flatten_obs
 
 def make_env(env_cfg: EnvironmentConfig, idx: int) -> Callable[[], gym.Env]:
     def thunk():
+        # Reset global NumPy RNG BEFORE construction (Deck shuffle)
         if env_cfg.deterministic:
-            # Reset global NumPy RNG BEFORE environment construction
             np.random.seed(env_cfg.seed + idx)
 
         env = gym.make(env_cfg.env_id)
         env = TimeLimit(env, max_episode_steps=env_cfg.max_episode_steps)
 
-        # Also seed the environment's own RNG on first reset
         if env_cfg.deterministic:
+            # Reseed PopGym's internal RNG if present
+            rng = getattr(env.unwrapped, "rng", None)
+            if rng is not None:
+                setattr(env.unwrapped, "rng", np.random.default_rng(env_cfg.seed + idx))
+
+            # Also seed Gymnasium RNG
             env.reset(seed=env_cfg.seed + idx)
 
         return env
