@@ -9,6 +9,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torch.distributions import Categorical
 
+from dreamerrl.tests.conftest import latent
 from dreamerrl.utils.types import KLConfig, LatentConfig, NetworkConfig
 
 from .categorical_kl import structured_kl
@@ -17,7 +18,7 @@ from .decoder import ObsDecoder
 from .obs_encoder import ObsEncoder, build_obs_encoder, get_flat_obs_dim
 from .posterior import Posterior
 from .prior import Prior
-from .reward_head import RewardHead
+from .multi_reward_head import MultiRewardHead
 from .world_model_core import RSSMCore
 
 
@@ -105,7 +106,7 @@ class WorldModel(nn.Module):
         self.prior: Prior = Prior(latent=latent, net=net).to(self.device)
         self.posterior: Posterior = Posterior(latent=latent, net=net).to(self.device)
         self.decoder: ObsDecoder = ObsDecoder(latent=latent, net=net, output_dim=self.flat_obs_dim).to(self.device)
-        self.reward_head: RewardHead = RewardHead(latent=latent, net=net).to(self.device)
+        self.reward_heads = MultiRewardHead(latent=latent, net=net, num_aux=1).to(self.device)
         self.continue_head: ContinueHead = ContinueHead(latent=latent, net=net).to(self.device)
 
     def init_state(self, batch_size: int) -> WorldModelState:
@@ -151,7 +152,7 @@ class WorldModel(nn.Module):
         prior = WorldModelState(h=prev_state.h, z=prior_stats["z"], prior_stats=prior_stats, post_stats=None)
 
         recon = self.decoder(h, z)
-        reward_logits = self.reward_head(h, z)
+        reward_main_logits, reward_aux_logits = self.reward_heads(h, z)
         cont_logits = self.continue_head(h, z)
 
         kl_dict = structured_kl(
@@ -172,7 +173,8 @@ class WorldModel(nn.Module):
             "post_stats": post_stats,
             "prior_stats": prior_stats,
             "recon": recon,
-            "reward_logits": reward_logits,
+            "reward_main_logits": reward_main_logits,
+            "reward_aux_logits": reward_aux_logits,
             "cont_logits": cont_logits,
             "kl": post_stats["kl_total"],
         }
