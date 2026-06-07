@@ -24,7 +24,7 @@ def test_popgym(request):
         cfg.env.env_id = env_id
         cfg.env.seed = seed
         cfg.train.seed = seed
-        cfg.train.enable_wandb = False
+        cfg.log.enable_wandb = False
 
         trainer = DreamerTrainer(cfg)
         metrics = train_popgym_seed(trainer, steps=steps)
