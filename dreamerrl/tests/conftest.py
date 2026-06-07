@@ -252,8 +252,20 @@ def pytest_addoption(parser):
         help="Run tests marked as manual",
     )
 
-    parser.addoption("--env", action="store", default="popgym-RepeatFirstEasy-v0")
-    parser.addoption("--steps", action="store", default=5000, type=int)
+    parser.addoption(
+        "--env",
+        action="store",
+        default="popgym-RepeatFirstEasy-v0",
+        help="PopGym environment ID",
+    )
+
+    parser.addoption(
+        "--steps",
+        action="store",
+        default=5000,
+        type=int,
+        help="Number of training steps",
+    )
 
 
 def pytest_collection_modifyitems(config, items):
