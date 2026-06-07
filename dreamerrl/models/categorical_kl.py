@@ -37,8 +37,8 @@ def structured_kl(q_probs, p_probs, free_nats=0.0, kl_cfg=KLConfig()):
     kl_rep_f = categorical_kl(q_probs, p_probs.detach())
 
     # Apply free-nats per factor
-    kl_dyn = apply_free_nats(kl_dyn_f, free_nats).sum(dim=-1)
-    kl_rep = apply_free_nats(kl_rep_f, free_nats).sum(dim=-1)
+    kl_dyn = apply_free_nats(kl_dyn_f, free_nats).mean(dim=-1)
+    kl_rep = apply_free_nats(kl_rep_f, free_nats).mean(dim=-1)
 
     # Validate KL stability
     for name, kl_tensor in [("kl_dyn", kl_dyn), ("kl_rep", kl_rep)]:
