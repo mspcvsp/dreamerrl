@@ -6,13 +6,14 @@ import torch
 import torch.nn.functional as F
 
 from dreamerrl.utils.transforms import symlog
+from dreamerrl.utils.types import WorldModelMetrics
 
 
 def world_model_training_step(
     world_model,
     batch: Dict[str, torch.Tensor],
     kl_scale: float = 1.0,
-) -> torch.Tensor:
+) -> WorldModelMetrics:
     device = next(world_model.parameters()).device
 
     # -------------------------------------------------------------
@@ -130,4 +131,14 @@ def world_model_training_step(
     kl_dyn = torch.stack([p["kl_dyn"] for p in posts], dim=1).mean()
     kl_rep = torch.stack([p["kl_rep"] for p in posts], dim=1).mean()
 
-    return L_pred + kl_scale * (kl_dyn + kl_rep)
+    total_loss = L_pred + kl_scale * (kl_dyn + kl_rep)
+
+    return WorldModelMetrics(
+        total_loss=total_loss,
+        recon_loss=recon_loss,
+        reward_loss=reward_loss,
+        cont_loss=cont_loss,
+        kl_dyn=kl_dyn,
+        kl_rep=kl_rep,
+        aux_losses=aux_losses,
+    )

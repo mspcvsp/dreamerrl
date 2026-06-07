@@ -274,17 +274,35 @@ class DreamerTrainer:
     # World Model Update
     # -------------------------------------------------------------
     def update_world_model(self, batch: Dict[str, torch.Tensor], update_idx: int) -> float:
+        # Zero optimizer gradients
         self.model_opt.zero_grad()
 
-        loss = world_model_training_step(
+        # Forward pass
+        metrics = world_model_training_step(
             world_model=self.world,
             batch=batch,
             kl_scale=self.cfg.world.kl_scale,
         )
 
+        loss = metrics.total_loss
+
+        # Backprop
         loss.backward()
         torch.nn.utils.clip_grad_norm_(self.world.parameters(), self.cfg.train.grad_clip)
         self.model_opt.step()
+
+        # TensorBoard logging
+        step = update_idx
+
+        self.tb.add_scalar("wm/total_loss", metrics.total_loss.item(), step)
+        self.tb.add_scalar("wm/recon_loss", metrics.recon_loss.item(), step)
+        self.tb.add_scalar("wm/reward_loss", metrics.reward_loss.item(), step)
+        self.tb.add_scalar("wm/cont_loss", metrics.cont_loss.item(), step)
+        self.tb.add_scalar("wm/kl_dyn", metrics.kl_dyn.item(), step)
+        self.tb.add_scalar("wm/kl_rep", metrics.kl_rep.item(), step)
+
+        for i, aux in enumerate(metrics.aux_losses):
+            self.tb.add_scalar(f"wm/aux_loss_{i}", aux.item(), step)
 
         return float(loss.item())
 

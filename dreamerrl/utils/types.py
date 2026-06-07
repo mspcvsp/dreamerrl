@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from typing import List
 
 import torch
 
@@ -166,6 +167,7 @@ class LoggingConfig:
     tb_logdir: str = "./tb_logs"
     checkpoint_dir: str = "./checkpoints"
     run_name: str = ""
+    enable_wandb: bool = False
 
 
 # ---------------------------------------------------------
@@ -283,3 +285,17 @@ class LRScheduleConfig:
     warmup_steps: int
     total_steps: int
     lr_floor: float = 0.1
+
+
+# ---------------------------------------------------------
+# 11. World Model Metrics (returned by world model update)
+# ---------------------------------------------------------
+@dataclass
+class WorldModelMetrics:
+    total_loss: torch.Tensor
+    recon_loss: torch.Tensor
+    reward_loss: torch.Tensor
+    cont_loss: torch.Tensor
+    kl_dyn: torch.Tensor
+    kl_rep: torch.Tensor
+    aux_losses: List
