@@ -5,6 +5,8 @@ import os
 import time
 from typing import Any, Dict
 
+from matplotlib.pyplot import step
+import numpy as np
 import torch
 import torch.nn.functional as F
 from gymnasium.spaces import Discrete
@@ -179,6 +181,9 @@ class DreamerTrainer:
         t.add_row("Actor Loss", f"{actor_loss:.4f}")
         t.add_row("Critic Loss", f"{critic_loss:.4f}")
         t.add_row("Episodic Return", f"{ep_return:.3f}")
+        t.add_row(
+            "Avg Return (50)", f"{np.mean(self.recent_returns):.3f}" if hasattr(self, "recent_returns") else "N/A"
+        )
 
         return t
 
@@ -198,6 +203,8 @@ class DreamerTrainer:
         if self.cfg.debug.rich_dashboard:
             live = Live(refresh_per_second=4)
             live.start()
+
+        self.recent_returns = []
 
         for update_idx in range(total_updates):
             t0 = time.time()
@@ -224,6 +231,11 @@ class DreamerTrainer:
             ep_return = 0.0
             if self.env_state["is_last"].any():
                 ep_return = self.env_state["reward"].sum().item()
+                self.tb.add_scalar("env/ep_return", ep_return, step)
+
+                self.recent_returns.append(ep_return)
+                self.recent_returns = self.recent_returns[-50:]
+                self.tb.add_scalar("env/avg_return_50", np.mean(self.recent_returns), step)
 
             if live and update_idx % self.cfg.debug.rich_update_interval == 0:
                 live.update(
