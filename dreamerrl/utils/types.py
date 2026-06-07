@@ -9,7 +9,7 @@ from .transforms import symexp
 
 
 # ---------------------------------------------------------
-# 1. World Model Config (RSSM + Encoder/Decoder)
+# World Model Config (RSSM + Encoder/Decoder)
 # ---------------------------------------------------------
 @dataclass
 class WorldModelConfig:
@@ -51,7 +51,7 @@ class WorldModelConfig:
 
 
 # ---------------------------------------------------------
-# 2. Actor/Critic Config
+# Actor/Critic Config
 # ---------------------------------------------------------
 @dataclass
 class ActorCriticConfig:
@@ -73,7 +73,7 @@ class ActorCriticConfig:
 
 
 # ---------------------------------------------------------
-# 3. Training Config
+# Training Config
 # ---------------------------------------------------------
 @dataclass
 class TrainingConfig:
@@ -131,7 +131,7 @@ class TrainingConfig:
 
 
 # ---------------------------------------------------------
-# 4. Environment Config
+# Environment Config
 # ---------------------------------------------------------
 @dataclass
 class EnvironmentConfig:
@@ -152,7 +152,7 @@ class EnvironmentConfig:
 
 
 # ---------------------------------------------------------
-# 5. Logging Config
+# Logging Config
 # ---------------------------------------------------------
 @dataclass
 class LoggingConfig:
@@ -171,7 +171,16 @@ class LoggingConfig:
 
 
 # ---------------------------------------------------------
-# 6. Top-level Dreamer Config
+# Debug Config (non-essential features for debugging)
+# ---------------------------------------------------------
+@dataclass
+class DebugConfig:
+    rich_dashboard: bool = False
+    rich_update_interval: int = 10
+
+
+# ---------------------------------------------------------
+# Top-level Dreamer Config
 # ---------------------------------------------------------
 @dataclass
 class DreamerConfig:
@@ -190,6 +199,7 @@ class DreamerConfig:
     train: TrainingConfig = field(default_factory=TrainingConfig)
     env: EnvironmentConfig = field(default_factory=EnvironmentConfig)
     log: LoggingConfig = field(default_factory=LoggingConfig)
+    debug: DebugConfig = field(default_factory=DebugConfig)
 
     def init_run_name(self):
         import datetime
@@ -205,7 +215,7 @@ def make_default_config() -> DreamerConfig:
 
 
 # ---------------------------------------------------------
-# 7. KL Config (used in invariants + world model update)
+# KL Config (used in invariants + world model update)
 # ---------------------------------------------------------
 @dataclass(frozen=True)
 class KLConfig:
@@ -215,7 +225,7 @@ class KLConfig:
 
 
 # ---------------------------------------------------------
-# 8. LatentConfig (shared latent geometry)
+# LatentConfig (shared latent geometry)
 # ---------------------------------------------------------
 @dataclass(frozen=True)
 class LatentConfig:
@@ -238,7 +248,7 @@ class LatentConfig:
 
 
 # ---------------------------------------------------------
-# 9. NetworkConfig (shared MLP geometry)
+# NetworkConfig (shared MLP geometry)
 # ---------------------------------------------------------
 @dataclass(frozen=True)
 class NetworkConfig:
@@ -269,7 +279,7 @@ class NetworkConfig:
 
 
 # ---------------------------------------------------------
-# 10. LR Schedule Config (shared LR schedule)
+# LR Schedule Config (shared LR schedule)
 # ---------------------------------------------------------
 @dataclass(frozen=True)
 class LRScheduleConfig:
@@ -288,7 +298,7 @@ class LRScheduleConfig:
 
 
 # ---------------------------------------------------------
-# 11. World Model Metrics (returned by world model update)
+# World Model Metrics (returned by world model update)
 # ---------------------------------------------------------
 @dataclass
 class WorldModelMetrics:

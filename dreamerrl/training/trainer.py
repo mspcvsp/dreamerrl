@@ -8,6 +8,8 @@ from typing import Any, Dict
 import torch
 import torch.nn.functional as F
 from gymnasium.spaces import Discrete
+from rich.live import Live
+from rich.table import Table
 from torch.utils.tensorboard import SummaryWriter
 
 import wandb
@@ -18,7 +20,7 @@ from dreamerrl.models.world_model import WorldModel
 from dreamerrl.replay_buffer.replay_buffer import ReplayBuffer
 from dreamerrl.training.core import actor_critic_update, world_model_training_step
 from dreamerrl.utils.seed import set_global_seeds
-from dreamerrl.utils.types import DreamerConfig, LatentConfig, LRScheduleConfig, NetworkConfig
+from dreamerrl.utils.types import DreamerConfig, LatentConfig, LRScheduleConfig, NetworkConfig, WorldModelMetrics
 
 
 class CosineWarmupScheduler:
@@ -164,6 +166,22 @@ class DreamerTrainer:
     def global_step(self) -> int:
         return self.total_env_steps
 
+    def _make_rich_table(self, step, wm, actor_loss, critic_loss, ep_return):
+        t = Table(title="DreamerV3 Convergence Monitor")
+
+        t.add_column("Metric")
+        t.add_column("Value")
+
+        t.add_row("Step", str(step))
+        t.add_row("WM Loss", f"{wm.total_loss.item():.4f}")
+        t.add_row("KL_dyn", f"{wm.kl_dyn.item():.4f}")
+        t.add_row("KL_rep", f"{wm.kl_rep.item():.4f}")
+        t.add_row("Actor Loss", f"{actor_loss:.4f}")
+        t.add_row("Critic Loss", f"{critic_loss:.4f}")
+        t.add_row("Episodic Return", f"{ep_return:.3f}")
+
+        return t
+
     # -------------------------------------------------------------
     # Training Loop
     # -------------------------------------------------------------
@@ -175,6 +193,11 @@ class DreamerTrainer:
             lr_floor=0.1,
         )
         lr_schedule = CosineWarmupScheduler(lr_cfg)
+
+        live = None
+        if self.cfg.debug.rich_dashboard:
+            live = Live(refresh_per_second=4)
+            live.start()
 
         for update_idx in range(total_updates):
             t0 = time.time()
@@ -195,18 +218,37 @@ class DreamerTrainer:
             )
             self.sample_step += 1
 
-            model_loss = self.update_world_model(batch, update_idx)
+            wm_metrics = self.update_world_model(batch, update_idx)
             actor_loss, critic_loss = self.update_actor_critic(batch, update_idx)
 
-            wandb.log(
-                {
-                    "loss/model": model_loss,
-                    "loss/actor": actor_loss,
-                    "loss/critic": critic_loss,
-                    "time/update": time.time() - t0,
-                },
-                step=update_idx,
-            )
+            ep_return = 0.0
+            if self.env_state["is_last"].any():
+                ep_return = self.env_state["reward"].sum().item()
+
+            if live and update_idx % self.cfg.debug.rich_update_interval == 0:
+                live.update(
+                    self._make_rich_table(
+                        update_idx,
+                        wm_metrics,
+                        actor_loss,
+                        critic_loss,
+                        ep_return,
+                    )
+                )
+
+            if self.cfg.log.enable_wandb:
+                wandb.log(
+                    {
+                        "loss/model": wm_metrics.total_loss.item(),
+                        "loss/actor": actor_loss,
+                        "loss/critic": critic_loss,
+                        "time/update": time.time() - t0,
+                    },
+                    step=update_idx,
+                )
+
+        if live:
+            live.stop()
 
     # -------------------------------------------------------------
     # Collect steps from environment
@@ -273,7 +315,7 @@ class DreamerTrainer:
     # -------------------------------------------------------------
     # World Model Update
     # -------------------------------------------------------------
-    def update_world_model(self, batch: Dict[str, torch.Tensor], update_idx: int) -> float:
+    def update_world_model(self, batch: Dict[str, torch.Tensor], update_idx: int) -> WorldModelMetrics:
         # Zero optimizer gradients
         self.model_opt.zero_grad()
 
@@ -304,7 +346,7 @@ class DreamerTrainer:
         for i, aux in enumerate(metrics.aux_losses):
             self.tb.add_scalar(f"wm/aux_loss_{i}", aux.item(), step)
 
-        return float(loss.item())
+        return metrics
 
     # -------------------------------------------------------------
     # Actor + Critic Update
