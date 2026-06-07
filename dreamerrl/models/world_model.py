@@ -108,6 +108,9 @@ class WorldModel(nn.Module):
         self.reward_heads = MultiRewardHead(latent=latent, net=net, num_aux=1).to(self.device)
         self.continue_head: ContinueHead = ContinueHead(latent=latent, net=net).to(self.device)
 
+        # Backward‑compatibility alias for invariants + actor/critic tests
+        self.reward_head = self.reward_heads.main
+
     def init_state(self, batch_size: int) -> WorldModelState:
         device = next(self.parameters()).device
         h0 = torch.zeros(batch_size, self.latent.deter_size, device=device)
