@@ -13,7 +13,7 @@ def run_popgym_seed(env_id, seed, steps=5000):
     cfg.env.seed = seed
     cfg.train.seed = seed
     cfg.train.cuda = True
-    cfg.train.enable_wandb = False
+    cfg.log.enable_wandb = False
 
     trainer = DreamerTrainer(cfg)
 

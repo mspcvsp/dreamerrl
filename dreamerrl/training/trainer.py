@@ -1,12 +1,14 @@
 from __future__ import annotations
 
 import math
+import os
 import time
 from typing import Any, Dict
 
 import torch
 import torch.nn.functional as F
 from gymnasium.spaces import Discrete
+from torch.utils.tensorboard import SummaryWriter
 
 import wandb
 from dreamerrl.env.popgym.popgym_wrappers import PopGymVecEnv
@@ -50,6 +52,9 @@ class DreamerTrainer:
     def __init__(self, cfg: DreamerConfig):
         self.cfg = cfg
         self.sample_step = 0
+
+        logdir = os.path.join(cfg.log.tb_logdir, cfg.log.run_name)
+        self.tb = SummaryWriter(log_dir=logdir)
 
         # -----------------------------------------------------
         # Seeding (must be first for reproducibility)
@@ -149,7 +154,7 @@ class DreamerTrainer:
         # -----------------------------------------------------
         # Logging
         # -----------------------------------------------------
-        if cfg.train.enable_wandb:
+        if cfg.log.enable_wandb:
             wandb.init(project="dreamer_v3", config=cfg.__dict__)
 
         self.env_state: Dict[str, Any] = self.env.reset()

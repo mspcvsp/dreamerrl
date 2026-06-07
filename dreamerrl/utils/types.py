@@ -128,9 +128,6 @@ class TrainingConfig:
     cuda: bool = True
     seed: int = 0
 
-    # Weights & Biases logging.
-    enable_wandb: bool = True
-
 
 # ---------------------------------------------------------
 # 4. Environment Config
