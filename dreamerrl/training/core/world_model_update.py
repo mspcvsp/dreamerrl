@@ -97,11 +97,9 @@ def world_model_training_step(
     # -------------------------------------------------------------
     recon = world_model.decoder(h_flat, z_factored).reshape(B, L, -1)
 
-    reward_main_logits, reward_aux_logits = world_model.reward_heads(h_flat, z_factored)
+    reward_main_logits, reward_aux_logits_list = world_model.reward_heads(h_flat, z_factored)
     reward_main_logits = reward_main_logits.reshape(B, L, world_model.net_cfg.value_bins)
-
-    # Only one aux head for now
-    reward_aux_logits = reward_aux_logits[0].reshape(B, L, world_model.net_cfg.value_bins)
+    aux_logits_reshaped = [aux.reshape(B, L, world_model.net_cfg.value_bins) for aux in reward_aux_logits_list]
 
     cont_logits = world_model.continue_head(h_flat, z_factored).reshape(B, L, world_model.net_cfg.value_bins)
 
@@ -111,11 +109,16 @@ def world_model_training_step(
     recon_target = symlog(obs)
     recon_loss = F.mse_loss(recon, recon_target)
 
-    main_loss = world_model.reward_heads.main.loss_from_logits(reward_main_logits, reward)
-    aux_loss = world_model.reward_heads.main.loss_from_logits(reward_aux_logits, short_horizon)
+    reward_loss = world_model.reward_heads.main.loss_from_logits(reward_main_logits, reward)
 
-    alpha = world_model.net_cfg.aux_reward_scale
-    reward_loss = main_loss + alpha * aux_loss
+    aux_losses = []
+    for i, aux_logits in enumerate(aux_logits_reshaped):
+        head = world_model.reward_heads.aux[i]
+        aux_losses.append(head.loss_from_logits(aux_logits, short_horizon))
+
+    if aux_losses:
+        alpha = world_model.net_cfg.aux_reward_scale
+        reward_loss = reward_loss + alpha * sum(aux_losses) / len(aux_losses)
 
     cont_loss = world_model.continue_head.loss_from_logits(cont_logits, cont_target)
 
