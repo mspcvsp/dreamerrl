@@ -25,7 +25,24 @@ def world_model_training_step(
     else:
         raise KeyError("Batch must contain 'obs' or 'state'")
 
+    B, L, _ = obs.shape
+
     reward = batch["reward"].to(device)
+
+    # -------------------------------------------------------------
+    # Short-horizon return target (auxiliary reward)
+    # r_sh[t] = r[t] + γ r[t+1] + γ^2 r[t+2]
+    # -------------------------------------------------------------
+    gamma = world_model.net_cfg.discount
+
+    if L >= 3:
+        short_horizon = reward[:, :-2] + gamma * reward[:, 1:-1] + (gamma**2) * reward[:, 2:]
+        # pad last 2 steps with zeros
+        pad = torch.zeros(B, 2, device=device)
+        short_horizon = torch.cat([short_horizon, pad], dim=1)
+    else:
+        # fallback for tiny sequences (tests)
+        short_horizon = reward.clone()
 
     # continuation target = 1.0 if episode continues, 0.0 if terminal
     if "is_terminal" in batch:
@@ -33,8 +50,6 @@ def world_model_training_step(
     else:
         # fallback for tests that don't include is_terminal
         cont_target = torch.ones_like(reward)
-
-    B, L, _ = obs.shape
 
     # -------------------------------------------------------------
     # Roll out RSSM over sequence
@@ -82,7 +97,11 @@ def world_model_training_step(
     # -------------------------------------------------------------
     recon = world_model.decoder(h_flat, z_factored).reshape(B, L, -1)
 
-    reward_logits = world_model.reward_head(h_flat, z_factored).reshape(B, L, world_model.net_cfg.value_bins)
+    reward_main_logits, reward_aux_logits = world_model.reward_heads(h_flat, z_factored)
+    reward_main_logits = reward_main_logits.reshape(B, L, world_model.net_cfg.value_bins)
+
+    # Only one aux head for now
+    reward_aux_logits = reward_aux_logits[0].reshape(B, L, world_model.net_cfg.value_bins)
 
     cont_logits = world_model.continue_head(h_flat, z_factored).reshape(B, L, world_model.net_cfg.value_bins)
 
@@ -92,7 +111,12 @@ def world_model_training_step(
     recon_target = symlog(obs)
     recon_loss = F.mse_loss(recon, recon_target)
 
-    reward_loss = world_model.reward_head.loss_from_logits(reward_logits, reward)
+    main_loss = world_model.reward_heads.main.loss_from_logits(reward_main_logits, reward)
+    aux_loss = world_model.reward_heads.main.loss_from_logits(reward_aux_logits, short_horizon)
+
+    alpha = world_model.net_cfg.aux_reward_scale
+    reward_loss = main_loss + alpha * aux_loss
+
     cont_loss = world_model.continue_head.loss_from_logits(cont_logits, cont_target)
 
     L_pred = recon_loss + reward_loss + cont_loss

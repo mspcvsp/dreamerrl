@@ -9,16 +9,15 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torch.distributions import Categorical
 
-from dreamerrl.tests.conftest import latent
 from dreamerrl.utils.types import KLConfig, LatentConfig, NetworkConfig
 
 from .categorical_kl import structured_kl
 from .continue_head import ContinueHead
 from .decoder import ObsDecoder
+from .multi_reward_head import MultiRewardHead
 from .obs_encoder import ObsEncoder, build_obs_encoder, get_flat_obs_dim
 from .posterior import Posterior
 from .prior import Prior
-from .multi_reward_head import MultiRewardHead
 from .world_model_core import RSSMCore
 
 

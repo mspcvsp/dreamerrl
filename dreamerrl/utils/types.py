@@ -255,6 +255,9 @@ class NetworkConfig:
     bin_min: float = -10.0
     bin_max: float = 10.0
 
+    discount: float = 0.99
+    aux_reward_scale: float = 0.1
+
     # Action dimension is required for Actor, optional for Critic.
     action_dim: int | None = None
 
