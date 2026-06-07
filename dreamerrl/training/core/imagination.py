@@ -24,8 +24,8 @@ def imagine_trajectory_for_training(
     hs, zs, rewards, actions = [], [], [], []
 
     for _ in range(horizon):
-        reward_logits = world_model.reward_head(s.h, s.z)
-        r = world_model.reward_head.readout(reward_logits)
+        reward_main_logits, _ = world_model.reward_heads(s.h, s.z)
+        r = world_model.reward_heads.main.readout(reward_main_logits)
 
         logits = actor(s.h, s.z)
 
@@ -62,8 +62,8 @@ def imagine_trajectory_for_testing(world_model: WorldModel, actor: Actor, state:
     hs, zs, rewards = [], [], []
 
     for _ in range(horizon):
-        reward_logits = world_model.reward_head(s.h, s.z)
-        r = world_model.reward_head.readout(reward_logits)
+        reward_main_logits, _ = world_model.reward_heads(s.h, s.z)
+        r = world_model.reward_heads.main.readout(reward_main_logits)
 
         rewards.append(r)
         hs.append(s.h)
