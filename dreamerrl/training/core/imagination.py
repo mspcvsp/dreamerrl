@@ -3,9 +3,8 @@ from __future__ import annotations
 from typing import Any, Dict
 
 import torch
-from torch.distributions import Categorical
 
-from dreamerrl.models.actor import Actor
+from dreamerrl.models.actor import Actor, act_in_imagination
 from dreamerrl.models.value_head import ValueHead
 from dreamerrl.models.world_model import WorldModel, WorldModelState
 
@@ -28,12 +27,7 @@ def imagine_trajectory_for_training(
         r = world_model.reward_heads.main.readout(reward_main_logits)
 
         logits = actor(s.h, s.z)
-
-        if deterministic_imagination:
-            a = logits.argmax(dim=-1)
-        else:
-            dist = Categorical(logits=logits)
-            a = dist.sample().to(logits.device)
+        a = act_in_imagination(logits, deterministic_imagination=deterministic_imagination)
 
         rewards.append(r)
         actions.append(a)

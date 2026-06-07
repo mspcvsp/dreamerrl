@@ -7,8 +7,8 @@ import gymnasium as gym
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from torch.distributions import Categorical
 
+from dreamerrl.models.actor import act_in_imagination
 from dreamerrl.utils.types import KLConfig, LatentConfig, NetworkConfig
 
 from .categorical_kl import structured_kl
@@ -81,6 +81,7 @@ class WorldModel(nn.Module):
         net: NetworkConfig,
         free_nats: float = 3.0,
         kl_cfg: Optional[KLConfig] = None,
+        num_aux_reward_heads: int = 0,  # ← NEW
         device: Optional[torch.device] = None,
     ):
         super().__init__()
@@ -105,7 +106,13 @@ class WorldModel(nn.Module):
         self.prior: Prior = Prior(latent=latent, net=net).to(self.device)
         self.posterior: Posterior = Posterior(latent=latent, net=net).to(self.device)
         self.decoder: ObsDecoder = ObsDecoder(latent=latent, net=net, output_dim=self.flat_obs_dim).to(self.device)
-        self.reward_heads = MultiRewardHead(latent=latent, net=net, num_aux=1).to(self.device)
+
+        self.reward_heads = MultiRewardHead(
+            latent=latent,
+            net=net,
+            num_aux=num_aux_reward_heads,
+        ).to(self.device)
+
         self.continue_head: ContinueHead = ContinueHead(latent=latent, net=net).to(self.device)
 
         # Backward‑compatibility alias for invariants + actor/critic tests
@@ -209,12 +216,7 @@ class WorldModel(nn.Module):
         prev_state = self._ensure_state(prev)
 
         logits = actor(prev_state.h, prev_state.z)
-
-        if deterministic_imagination:
-            a = logits.argmax(dim=-1)
-        else:
-            dist = Categorical(logits=logits)
-            a = dist.sample().to(logits.device)
+        a = act_in_imagination(logits, deterministic_imagination=deterministic_imagination)
 
         assert self.net_cfg.action_dim is not None, "action_dim must be specified in net config for imagine_step"
         action = F.one_hot(a, num_classes=self.net_cfg.action_dim).float()

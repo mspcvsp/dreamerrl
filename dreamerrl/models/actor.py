@@ -1,6 +1,7 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from torch.distributions import Categorical
 
 
 class Actor(nn.Module):
@@ -64,3 +65,13 @@ class Actor(nn.Module):
             actions = torch.multinomial(probs, num_samples=1).squeeze(-1).to(logits.device)
 
         return actions, logits
+
+
+def act_in_imagination(logits, deterministic_imagination: bool = False):
+    if deterministic_imagination:
+        a = logits.argmax(dim=-1)
+    else:
+        dist = Categorical(logits=logits)
+        a = dist.sample().to(logits.device)
+
+    return a

@@ -105,6 +105,7 @@ class DreamerTrainer:
             latent=latent,
             net=net_world,
             free_nats=cfg.world.free_nats,
+            num_aux_reward_heads=cfg.world.num_aux_reward_heads,
             device=self.device,
         )
         self.world_state = self.world.init_state(self.env.batch_size)

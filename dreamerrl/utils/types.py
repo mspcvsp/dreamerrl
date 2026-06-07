@@ -46,6 +46,8 @@ class WorldModelConfig:
     # Distributional value/reward bins.
     value_bins: int = 41
 
+    num_aux_reward_heads: int = 1
+
 
 # ---------------------------------------------------------
 # 2. Actor/Critic Config
