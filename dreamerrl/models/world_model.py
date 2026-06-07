@@ -166,12 +166,22 @@ class WorldModel(nn.Module):
                 raise ValueError(f"KL divergence {key} is not finite: {kl_dict[key]}")
             post_stats[key] = kl_dict[key]
 
+        # NOTE:
+        #   We return `reward_logits` for backward‑compatibility with the Dreamer‑V3 API and test suite. The training
+        #   pipeline (imagination, actor‑critic update, value learning) all expect a single key named `reward_logits`
+        #   that contains the *main* reward‑head logits.
+        #
+        #   Even though this model now supports multiple reward heads (`reward_main_logits`, `reward_aux_logits`), the
+        #   legacy key must remain so downstream code continues to work without modification.
+        #
+        #   In short: `reward_logits` is an alias for the main reward head.
         return {
             "post": post,
             "prior": prior,
             "post_stats": post_stats,
             "prior_stats": prior_stats,
             "recon": recon,
+            "reward_logits": reward_main_logits,
             "reward_main_logits": reward_main_logits,
             "reward_aux_logits": reward_aux_logits,
             "cont_logits": cont_logits,
