@@ -1,9 +1,9 @@
 from typing import Any, Callable, Dict, Optional
-from gymnasium.spaces import Box
+
 import gymnasium as gym
 import numpy as np
 import torch
-from gymnasium.spaces import Discrete
+from gymnasium.spaces import Box, Discrete
 from gymnasium.vector import AsyncVectorEnv
 from gymnasium.wrappers import TimeLimit
 
