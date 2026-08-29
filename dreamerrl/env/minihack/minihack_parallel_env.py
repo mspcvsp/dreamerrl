@@ -8,6 +8,7 @@ from gymnasium.vector import AsyncVectorEnv
 from gymnasium.wrappers import TimeLimit
 
 from dreamerrl.env.env import EnvInterface
+from dreamerrl.env.minihack.minihack_utils import extract_glyphs
 from dreamerrl.utils.types import EnvironmentConfig
 
 
@@ -25,12 +26,7 @@ def make_mhack_env(env_cfg: EnvironmentConfig, idx: int) -> Callable[[], gym.Env
 class MiniHackParallelEnv(EnvInterface):
     """
     Dreamer‑V3 parallel environment wrapper for MiniHack.
-    Mirrors PopGymParallelEnv:
-      • AsyncVectorEnv
-      • flattened symbolic observations
-      • per‑environment resets
-      • prev_action tracking
-      • Dreamer‑native return dict
+    Uses AsyncVectorEnv + unified glyph extraction.
     """
 
     def __init__(self, env_cfg: EnvironmentConfig, device: torch.device, probe=None):
@@ -45,17 +41,10 @@ class MiniHackParallelEnv(EnvInterface):
 
         # Infer observation shape from real reset
         obs, _ = self.venv.reset()
+        glyphs = extract_glyphs(obs)  # ALWAYS returns (B, H, W)
+        glyphs = np.asarray(glyphs)
 
-        # AsyncVectorEnv returns array of dicts → extract glyphs
-        if isinstance(obs, dict):
-            obs = obs["glyphs"]
-        else:
-            # obs is e.g. array of dicts; take first and extract glyphs
-            first = obs[0]
-            if isinstance(first, dict):
-                obs = np.stack([o["glyphs"] for o in obs], axis=0)
-
-        self._obs_shape = obs[0].shape
+        self._obs_shape = glyphs[0].shape  # (H, W)
         self._obs_dim = int(np.prod(self._obs_shape))
 
         self._obs_space = Box(
@@ -102,12 +91,13 @@ class MiniHackParallelEnv(EnvInterface):
     # -------------------------------------------------------------------------
     # Helpers
     # -------------------------------------------------------------------------
-    def _flatten_obs(self, obs: np.ndarray) -> torch.Tensor:
-        flat = obs.reshape(self._batch_size, -1)
+    def _flatten_obs(self, glyphs: np.ndarray) -> torch.Tensor:
+        flat = glyphs.reshape(self._batch_size, -1)
         return torch.tensor(flat, dtype=torch.float32, device=self.device)
 
-    def _flatten_single(self, obs: np.ndarray) -> torch.Tensor:
-        flat = obs.reshape(1, -1)
+    def _flatten_single(self, glyphs: np.ndarray) -> torch.Tensor:
+        glyphs = np.asarray(glyphs)
+        flat = glyphs.reshape(1, -1)
         return torch.tensor(flat, dtype=torch.float32, device=self.device)
 
     # -------------------------------------------------------------------------
@@ -115,13 +105,16 @@ class MiniHackParallelEnv(EnvInterface):
     # -------------------------------------------------------------------------
     def reset(self, seed: Optional[int] = None) -> Dict[str, Any]:
         obs, info = self.venv.reset(seed=seed)
-        state = self._flatten_obs(obs)
+
+        glyphs = extract_glyphs(obs)
+        glyphs = np.asarray(glyphs)
+        state = self._flatten_obs(glyphs)
 
         self._prev_action.zero_()
         self._needs_first[:] = True
 
         if self.probe:
-            self.probe.env_reset(obs.tolist())
+            self.probe.env_reset(glyphs.tolist())
 
         return {
             "state": state,
@@ -144,14 +137,16 @@ class MiniHackParallelEnv(EnvInterface):
 
         obs, reward, terminated, truncated, info = self.venv.step(actions_np)
 
-        state = self._flatten_obs(obs)
+        glyphs = extract_glyphs(obs)
+        glyphs = np.asarray(glyphs)
+        state = self._flatten_obs(glyphs)
 
         reward_t = torch.tensor(reward, dtype=torch.float32, device=self.device)
         terminated_t = torch.tensor(terminated, dtype=torch.bool, device=self.device)
         truncated_t = torch.tensor(truncated, dtype=torch.bool, device=self.device)
 
-        is_terminal = terminated_t | truncated_t
-        is_last = is_terminal
+        is_last = terminated_t | truncated_t
+        is_terminal = is_last
         is_first = self._needs_first.clone()
 
         # One-hot prev action
@@ -164,8 +159,14 @@ class MiniHackParallelEnv(EnvInterface):
         for i in range(self._batch_size):
             if is_last[i]:
                 seed = self.base_seed + i if self.deterministic else None
+
+                # Gymnasium's AsyncVectorEnv creates `.envs` dynamically, but the type stubs don't declare it.
+                #
+                # Pylance warns even though the attribute exists at runtime. We intentionally suppress this because
+                # per‑env reset *requires* envs[i].reset().
                 obs_i, _ = self.venv.envs[i].reset(seed=seed)  # type: ignore[attr-defined]
-                state[i] = self._flatten_single(obs_i)[0]
+                glyphs_i = extract_glyphs(obs_i)
+                state[i] = self._flatten_single(glyphs_i)[0]
                 self._prev_action[i] = torch.zeros(self._action_dim, device=self.device)
                 self._needs_first[i] = True
             else:
@@ -173,7 +174,7 @@ class MiniHackParallelEnv(EnvInterface):
 
         if self.probe:
             self.probe.env_step(
-                obs.tolist(),
+                glyphs.tolist(),
                 reward_t.tolist(),
                 terminated_t.tolist(),
                 truncated_t.tolist(),

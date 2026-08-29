@@ -9,6 +9,7 @@ from gymnasium.wrappers import TimeLimit
 
 import minihack  # noqa: F401
 from dreamerrl.env.env import EnvInterface
+from dreamerrl.env.minihack.minihack_utils import extract_glyphs
 from dreamerrl.utils.types import EnvironmentConfig
 
 
@@ -44,12 +45,9 @@ class MiniHackVecEnv(EnvInterface):
 
         # Infer observation shape from real reset
         obs, _ = self.venv.reset()
+        glyphs = extract_glyphs(obs)
 
-        # Vectorized MiniHack returns array of dicts → extract glyphs
-        if isinstance(obs, dict):
-            obs = obs["glyphs"]
-
-        self._obs_shape = obs[0].shape
+        self._obs_shape = glyphs[0].shape
         self._obs_dim = int(np.prod(self._obs_shape))
 
         # Flattened glyph observation space for Dreamer
@@ -107,17 +105,14 @@ class MiniHackVecEnv(EnvInterface):
     # -------------------------------------------------------------------------
     def reset(self, seed: Optional[int] = None) -> Dict[str, Any]:
         obs, info = self.venv.reset(seed=seed)
-
-        if isinstance(obs, dict):
-            obs = obs["glyphs"]
-
-        state = self._flatten_obs(obs)
+        glyphs = extract_glyphs(obs)
+        state = self._flatten_obs(glyphs)
 
         self._prev_action.zero_()
         self._needs_first[:] = True
 
         if self.probe:
-            self.probe.env_reset(obs.tolist())
+            self.probe.env_reset(glyphs.tolist())
 
         return {
             "state": state,
@@ -140,10 +135,8 @@ class MiniHackVecEnv(EnvInterface):
 
         obs, reward, terminated, truncated, info = self.venv.step(actions_np)
 
-        if isinstance(obs, dict):
-            obs = obs["glyphs"]
-
-        state = self._flatten_obs(obs)
+        glyphs = extract_glyphs(obs)
+        state = self._flatten_obs(glyphs)
 
         reward_t = torch.tensor(reward, dtype=torch.float32, device=self.device)
         terminated_t = torch.tensor(terminated, dtype=torch.bool, device=self.device)
@@ -179,7 +172,7 @@ class MiniHackVecEnv(EnvInterface):
 
         if self.probe:
             self.probe.env_step(
-                obs.tolist(),
+                glyphs.tolist(),
                 reward_t.tolist(),
                 terminated_t.tolist(),
                 truncated_t.tolist(),

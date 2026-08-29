@@ -4,10 +4,11 @@ import pytest
 import torch
 from gymnasium.spaces import Box
 
+from dreamerrl.env.env_factory import make_env
 from dreamerrl.models.aux_objectives import AUX_OBJECTIVES
 from dreamerrl.models.world_model import WorldModel
 from dreamerrl.models.world_model_core import RSSMCore as RSSM
-from dreamerrl.utils.types import LatentConfig, NetworkConfig
+from dreamerrl.utils.types import EnvironmentConfig, LatentConfig, NetworkConfig
 
 
 @pytest.fixture
@@ -371,3 +372,29 @@ def latent_cluster(latent):
         return z.view(batch * L, latent.num_classes * latent.stoch_size)
 
     return _make
+
+
+@pytest.fixture
+def minihack_vec_env():
+    cfg = EnvironmentConfig(
+        env_id="MiniHack-Room-5x5-v0",
+        num_envs=4,
+        max_episode_steps=50,
+        seed=123,
+        deterministic=True,
+        parallel=False,
+    )
+    return make_env(cfg, device=torch.device("cpu"))
+
+
+@pytest.fixture
+def minihack_parallel_env():
+    cfg = EnvironmentConfig(
+        env_id="MiniHack-Room-5x5-v0",
+        num_envs=4,
+        max_episode_steps=50,
+        seed=123,
+        deterministic=True,
+        parallel=True,
+    )
+    return make_env(cfg, device=torch.device("cpu"))
