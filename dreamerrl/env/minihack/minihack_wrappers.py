@@ -47,10 +47,13 @@ class MiniHackVecEnv(EnvInterface):
         obs, _ = self.venv.reset()
         glyphs = extract_glyphs(obs)
 
-        self._obs_shape = glyphs[0].shape
-        self._obs_dim = int(np.prod(self._obs_shape))
+        # Flatten once and use that to define obs_dim
+        state0 = self._flatten_obs(glyphs)  # (batch_size, obs_dim)
+        self._obs_dim = state0.shape[1]
 
-        # Flattened glyph observation space for Dreamer
+        # You don't actually need the grid shape for Dreamer, only obs_dim.
+        self._obs_shape = (self._obs_dim,)
+
         self._obs_space = Box(
             low=0,
             high=255,
@@ -157,18 +160,15 @@ class MiniHackVecEnv(EnvInterface):
                 seed = self.base_seed + i if self.deterministic else None
                 obs_i, _ = self.venv.envs[i].reset(seed=seed)
 
-                if isinstance(obs_i, dict):
-                    obs_i = obs_i["glyphs"]
+                glyphs_i = extract_glyphs(obs_i)
+                state[i] = self._flatten_single(glyphs_i)[0]
 
-                state[i] = self._flatten_single(obs_i)[0]
-
-                # Reset prev-action for terminated env
                 prev[i] = torch.zeros(self._action_dim, device=self.device)
                 self._needs_first[i] = True
             else:
                 self._needs_first[i] = False
 
-        self._prev_action = prev
+                self._prev_action = prev
 
         if self.probe:
             self.probe.env_step(
