@@ -240,6 +240,8 @@ class MinigridVecEnv(EnvInterface):
         is_terminal = terminated_t | truncated_t
         is_last = is_terminal
 
+        print(f"terminated: {terminated} " + f"truncated: {truncated} " + f"is_last: {is_last} " + f"reward: {reward} ")
+
         # Per-environment reset
         for i in range(self._batch_size):
             if is_last[i]:
