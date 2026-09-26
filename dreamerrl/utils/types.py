@@ -220,6 +220,8 @@ class TrainingConfig:
     freeze_actor_critic_steps: int = 2000
     disable_aux_losses: bool = False
 
+    console_log_interval: int = 10
+
 
 # ---------------------------------------------------------
 # Environment Config

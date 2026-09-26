@@ -253,6 +253,34 @@ class DreamerTrainer:
             self.sample_step += 1
 
             wm_metrics = self.update_world_model(batch, update_idx)
+
+            if update_idx % self.cfg.train.console_log_interval == 0:
+                print(
+                    f"[train] "
+                    f"update={update_idx}/{total_updates} "
+                    f"episodes={len(self.replay.episodes)} "
+                    f"replay_size={self.replay.size} "
+                    f"env_steps={self.total_env_steps}"
+                )
+
+                print(
+                    f"[wm] "
+                    f"total={wm_metrics.total_loss.item():.4f} "
+                    f"recon={wm_metrics.recon_loss.item():.4f} "
+                    f"reward={wm_metrics.reward_loss.item():.4f} "
+                    f"cont={wm_metrics.cont_loss.item():.4f} "
+                    f"kl_dyn={wm_metrics.kl_dyn.item():.4f} "
+                    f"kl_rep={wm_metrics.kl_rep.item():.4f}"
+                )
+
+                if wm_metrics.aux_losses:
+                    aux_names = [obj.name for obj in self.world.aux_objectives]
+
+                    print(
+                        "[aux] "
+                        + " ".join(f"{name}={loss.item():.4f}" for name, loss in zip(aux_names, wm_metrics.aux_losses))
+                    )
+
             actor_loss, critic_loss = self.update_actor_critic(batch, update_idx)
 
             ep_return = 0.0

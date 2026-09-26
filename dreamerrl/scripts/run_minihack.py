@@ -29,7 +29,6 @@ def main():
         AUX_OBJECTIVES["novelty"],
         AUX_OBJECTIVES["reachability"],
         AUX_OBJECTIVES["resource"],
-        AUX_OBJECTIVES["affordance"],  # optional but helpful
     ]
 
     # DreamerV3 latent sizes (moderate)
@@ -70,7 +69,7 @@ def main():
     # -----------------------------------------------------
     # Train
     # -----------------------------------------------------
-    trainer.train(total_updates=10)
+    trainer.train(total_updates=1000)
 
 
 if __name__ == "__main__":
