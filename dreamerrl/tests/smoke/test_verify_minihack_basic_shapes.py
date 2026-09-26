@@ -6,7 +6,8 @@ from dreamerrl.utils.types import EnvironmentConfig
 
 
 @pytest.mark.smoke
-def smoke_test_minihack():
+@pytest.mark.minihack_smoke
+def test_verify_minihack_basic_shapes():
     cfg = EnvironmentConfig(
         env_id="MiniHack-Room-5x5-v0",
         num_envs=4,
@@ -48,7 +49,3 @@ def smoke_test_minihack():
         assert out["prev_action"].shape == (cfg.num_envs, env.action_dim)
 
     print("\n=== PASSED BASIC SHAPE TESTS ===")
-
-
-if __name__ == "__main__":
-    smoke_test_minihack()
