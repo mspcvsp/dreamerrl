@@ -158,6 +158,7 @@ class MiniHackVecEnv(EnvInterface):
         for i in range(self._batch_size):
             if is_last[i]:
                 seed = self.base_seed + i if self.deterministic else None
+
                 obs_i, _ = self.venv.envs[i].reset(seed=seed)
 
                 glyphs_i = extract_glyphs(obs_i)
@@ -168,7 +169,12 @@ class MiniHackVecEnv(EnvInterface):
             else:
                 self._needs_first[i] = False
 
-                self._prev_action = prev
+        # Update prev_action after per-env resets.
+        #
+        # If an env terminated this step, its prev_action is cleared to zeros. Performing the assignment after the loop
+        # avoids edge cases where all environments terminate simultaneously and no assignment would occur if it lived
+        # inside the non-terminal branch.
+        self._prev_action = prev
 
         if self.probe:
             self.probe.env_step(
