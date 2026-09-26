@@ -332,6 +332,7 @@ class DreamerTrainer:
                 action=actions_discrete,
                 reward=env_out["reward"],
                 done=env_out["is_last"].float().to(self.device),
+                is_terminal=env_out["is_terminal"].float().to(self.device),
             )
 
             # 6. Update counters

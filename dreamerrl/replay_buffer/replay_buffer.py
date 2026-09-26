@@ -17,13 +17,15 @@ class Episode:
             "action": [],
             "reward": [],
             "done": [],
+            "is_terminal": [],
         }
 
-    def add(self, obs, action, reward, done):
+    def add(self, obs, action, reward, done, is_terminal):
         self.data["obs"].append(obs)
         self.data["action"].append(action)
         self.data["reward"].append(reward)
         self.data["done"].append(done)
+        self.data["is_terminal"].append(is_terminal)
 
     def finalize(self) -> Dict[str, torch.Tensor]:
         return {k: torch.stack(v, dim=0) for k, v in self.data.items()}
@@ -69,7 +71,7 @@ class ReplayBuffer:
             self.num_envs = num_envs
             self.current_eps = [Episode() for _ in range(num_envs)]
 
-    def add(self, obs, action, reward, done):
+    def add(self, obs, action, reward, done, is_terminal):
         """
         obs: (num_envs, obs_dim)
         action: (num_envs,)
@@ -85,6 +87,7 @@ class ReplayBuffer:
                 action[i].detach().to(self.device),
                 reward[i].detach().to(self.device),
                 done[i].detach().to(self.device),
+                is_terminal[i].detach().to(self.device),
             )
 
             if bool(done[i]):

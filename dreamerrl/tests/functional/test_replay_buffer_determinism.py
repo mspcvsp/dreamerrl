@@ -33,8 +33,9 @@ def test_replay_buffer_determinism():
             action = torch.randint(0, 2, (1,))
             reward = torch.randn(1)
             done = torch.tensor([1.0 if t == 9 else 0.0])
+            is_terminal = torch.tensor([0])
 
-            rb.add(obs, action, reward, done)
+            rb.add(obs, action, reward, done, is_terminal)
 
     # --- Sample twice with same seed ---
     batch1 = rb.sample(batch_size=4, seed=123)

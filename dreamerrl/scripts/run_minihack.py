@@ -14,6 +14,7 @@ def main():
     cfg.env.env_id = "MiniHack-LockedDoor-v0"
     cfg.env.num_envs = 8
     cfg.env.max_episode_steps = 200
+
     cfg.env.parallel = False
     cfg.env.deterministic = False
     cfg.env.seed = 0
@@ -44,7 +45,7 @@ def main():
     cfg.train.seed = 0
     cfg.train.cuda = torch.cuda.is_available()
     cfg.train.batch_size = 16
-    cfg.train.collect_steps = 50
+    cfg.train.collect_steps = 250
     cfg.train.seq_len = 50
 
     cfg.train.model_lr = 3e-4
@@ -69,7 +70,7 @@ def main():
     # -----------------------------------------------------
     # Train
     # -----------------------------------------------------
-    trainer.train(total_updates=5000)
+    trainer.train(total_updates=10)
 
 
 if __name__ == "__main__":
