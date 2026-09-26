@@ -125,6 +125,7 @@ class ReplayBuffer:
         act_batch = []
         rew_batch = []
         done_batch = []
+        terminal_batch = []
 
         for _ in range(batch_size):
             idx = valid_indices[int(torch.randint(0, len(valid_indices), (1,), generator=self.rng))]
@@ -146,10 +147,12 @@ class ReplayBuffer:
             act_batch.append(ep["action"][start:end])
             rew_batch.append(ep["reward"][start:end])
             done_batch.append(ep["done"][start:end])
+            terminal_batch.append(ep["is_terminal"][start:end])
 
         return {
             "obs": torch.stack(obs_batch).to(self.device),
             "action": torch.stack(act_batch).to(self.device),
             "reward": torch.stack(rew_batch).to(self.device),
             "done": torch.stack(done_batch).to(self.device),
+            "is_terminal": torch.stack(terminal_batch).to(self.device),
         }
