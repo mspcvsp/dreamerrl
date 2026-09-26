@@ -115,13 +115,16 @@ class ReplayBuffer:
             self.rng.manual_seed(seed)
             np.random.seed(seed)
 
+        valid_indices = [i for i, ep in enumerate(self.episodes) if ep["obs"].shape[0] >= self.seq_len]
+        assert len(valid_indices) > 0, f"No episodes with length >= seq_len ({self.seq_len})"
+
         obs_batch = []
         act_batch = []
         rew_batch = []
         done_batch = []
 
         for _ in range(batch_size):
-            idx = int(torch.randint(0, len(self.episodes), (1,), generator=self.rng))
+            idx = valid_indices[int(torch.randint(0, len(valid_indices), (1,), generator=self.rng))]
             ep = self.episodes[idx]
 
             length = ep["obs"].shape[0]
