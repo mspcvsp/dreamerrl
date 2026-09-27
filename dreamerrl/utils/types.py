@@ -119,6 +119,8 @@ class WorldModelConfig:
     # -----------------------------------------------------------------------------
     aux_objectives: List[AuxObjectiveConfig] = field(default_factory=list)
 
+    aux_reward_scale: float = 0.1
+
 
 # ---------------------------------------------------------
 # Actor/Critic Config

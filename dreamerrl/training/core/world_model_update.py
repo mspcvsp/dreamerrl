@@ -132,6 +132,10 @@ def world_model_training_step(
             head = world_model.aux_heads[name]
             loss = head.loss_from_logits(logits, target)
 
+            print(name, torch.isnan(logits).any().item())
+            print(name, torch.isnan(target).any().item())
+            print(name, torch.isnan(loss).item())
+
             # clamp loss to prevent latent drift
             loss = torch.clamp(loss, -1.0, 1.0)  # >>> NEW
 

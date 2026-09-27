@@ -129,7 +129,7 @@ class WorldModel(nn.Module):
         # -------------------------------------------------------------
         # Auxiliary heads (novelty, reachability, affordance, skill, resource)
         # -------------------------------------------------------------
-        if self.net_cfg.disable_aux_losses:
+        if self.cfg.disable_aux_losses:
             # Disable auxiliary losses entirely
             self.aux_heads = nn.ModuleDict({}).to(self.device)
             self.aux_objectives = []
