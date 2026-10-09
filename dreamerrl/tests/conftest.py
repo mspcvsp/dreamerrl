@@ -341,6 +341,7 @@ def world_model_aux_losses_disabled():
     net = NetworkConfig(hidden_size=256, action_dim=5, value_bins=41)
 
     cfg = DreamerConfig()
+    cfg.world.disable_aux_losses = True
 
     cfg.world.aux_objectives = [
         AUX_OBJECTIVES["novelty"],
