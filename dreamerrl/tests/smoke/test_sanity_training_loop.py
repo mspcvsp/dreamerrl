@@ -8,7 +8,7 @@ from dreamerrl.models.actor import Actor
 from dreamerrl.models.value_head import ValueHead
 from dreamerrl.models.world_model import WorldModel
 from dreamerrl.training.core.actor_critic_update import actor_critic_update
-from dreamerrl.utils.types import LatentConfig, NetworkConfig
+from dreamerrl.utils.types import DreamerConfig, LatentConfig, NetworkConfig
 
 
 @pytest.mark.smoke
@@ -22,7 +22,7 @@ def test_sanity_training_loop():
     net_actor = NetworkConfig(hidden_size=256, action_dim=action_dim)
     net_critic = NetworkConfig(hidden_size=256, value_bins=41)
 
-    wm = WorldModel(obs_space=env.observation_space, latent=latent, net=net_world)
+    wm = WorldModel(obs_space=env.observation_space, dreamer_cfg=DreamerConfig(), latent=latent, net=net_world)
     actor = Actor(latent=latent, net=net_actor)
     critic = ValueHead(latent=latent, net=net_critic)
 

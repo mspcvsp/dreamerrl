@@ -13,7 +13,7 @@ from dreamerrl.utils.types import LatentConfig, NetworkConfig
 @pytest.mark.invariants
 @pytest.mark.rssm
 @pytest.mark.skipif(not torch.cuda.is_available(), reason="CUDA not available")
-def test_rssm_core_cpu_gpu_determinism():
+def test_rssm_core_cpu_gpu_determinism(dreamer_cfg):
     """
     RSSMCore should produce numerically identical outputs on CPU and GPU when
     given identical parameters and inputs. This test verifies that determinism.
@@ -32,8 +32,12 @@ def test_rssm_core_cpu_gpu_determinism():
     latent = LatentConfig(deter_size=200, stoch_size=30, num_classes=32)
     net = NetworkConfig(hidden_size=256, action_dim=3, value_bins=41)
 
-    wm_cpu = WorldModel(obs_space=obs_space, latent=latent, net=net, device=torch.device("cpu"))
-    wm_gpu = WorldModel(obs_space=obs_space, latent=latent, net=net, device=torch.device("cuda"))
+    wm_cpu = WorldModel(
+        dreamer_cfg=dreamer_cfg, obs_space=obs_space, latent=latent, net=net, device=torch.device("cpu")
+    )
+    wm_gpu = WorldModel(
+        dreamer_cfg=dreamer_cfg, obs_space=obs_space, latent=latent, net=net, device=torch.device("cuda")
+    )
 
     # Copy parameters exactly
     wm_gpu.load_state_dict(wm_cpu.state_dict())

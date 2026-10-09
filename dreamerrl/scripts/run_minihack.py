@@ -22,7 +22,7 @@ def main():
     # -----------------------------------------------------
     # World Model: enable auxiliary losses
     # -----------------------------------------------------
-    cfg.train.disable_aux_losses = False
+    cfg.world.disable_aux_losses = False
 
     # Recommended aux losses for MiniHack symbolic mode
     cfg.world.aux_objectives = [

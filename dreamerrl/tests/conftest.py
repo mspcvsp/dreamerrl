@@ -8,7 +8,7 @@ from dreamerrl.env.env_factory import make_env
 from dreamerrl.models.aux_objectives import AUX_OBJECTIVES
 from dreamerrl.models.world_model import WorldModel
 from dreamerrl.models.world_model_core import RSSMCore as RSSM
-from dreamerrl.utils.types import EnvironmentConfig, LatentConfig, NetworkConfig
+from dreamerrl.utils.types import DreamerConfig, EnvironmentConfig, LatentConfig, NetworkConfig
 
 
 @pytest.fixture
@@ -26,7 +26,12 @@ def dummy_batch():
 
 
 @pytest.fixture
-def world_model():
+def dreamer_cfg():
+    return DreamerConfig()
+
+
+@pytest.fixture
+def world_model(dreamer_cfg):
     """
     Minimal world model fixture for invariants testing.
     Matches the latent + network config used in your tests.
@@ -53,6 +58,7 @@ def world_model():
 
     wm = WorldModel(
         obs_space=obs_space,
+        dreamer_cfg=dreamer_cfg,
         latent=latent,
         net=net,
         device=torch.device("cpu"),
@@ -293,27 +299,26 @@ def aux_world_model():
     """
     obs_space = DummyObsSpace(obs_dim=8)
 
+    cfg = DreamerConfig()
+
+    cfg.world.aux_objectives = [
+        AUX_OBJECTIVES["novelty"],
+        AUX_OBJECTIVES["skill"],
+    ]
+
     latent = LatentConfig(
         deter_size=200,
         stoch_size=30,
         num_classes=32,
     )
 
-    net = NetworkConfig(
-        hidden_size=256,
-        action_dim=5,
-        value_bins=41,
-        disable_aux_losses=False,
-    )
+    net = NetworkConfig(hidden_size=256, action_dim=5, value_bins=41)
 
     wm = WorldModel(
         obs_space=obs_space,
+        dreamer_cfg=cfg,
         latent=latent,
         net=net,
-        aux_objectives=[
-            AUX_OBJECTIVES["novelty"],
-            AUX_OBJECTIVES["skill"],
-        ],
         device=torch.device("cpu"),
     )
 
@@ -333,21 +338,20 @@ def world_model_aux_losses_disabled():
         num_classes=32,
     )
 
-    net = NetworkConfig(
-        hidden_size=256,
-        action_dim=5,
-        value_bins=41,
-        disable_aux_losses=True,
-    )
+    net = NetworkConfig(hidden_size=256, action_dim=5, value_bins=41)
+
+    cfg = DreamerConfig()
+
+    cfg.world.aux_objectives = [
+        AUX_OBJECTIVES["novelty"],
+        AUX_OBJECTIVES["skill"],
+    ]
 
     wm = WorldModel(
         obs_space=obs_space,
+        dreamer_cfg=cfg,
         latent=latent,
         net=net,
-        aux_objectives=[
-            AUX_OBJECTIVES["novelty"],
-            AUX_OBJECTIVES["skill"],
-        ],
         device=torch.device("cpu"),
     )
 

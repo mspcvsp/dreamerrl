@@ -9,12 +9,12 @@ from dreamerrl.utils.types import LatentConfig, NetworkConfig
 
 @pytest.mark.invariants
 @pytest.mark.decoder_invariants
-def test_decoder_symlog_consistency():
+def test_decoder_symlog_consistency(dreamer_cfg):
     latent = LatentConfig(deter_size=200, stoch_size=30, num_classes=32)
     net = NetworkConfig(hidden_size=256, action_dim=3, value_bins=41)
     obs_space = Box(low=0, high=1, shape=(8,), dtype=np.float32)
 
-    wm = WorldModel(obs_space=obs_space, latent=latent, net=net)
+    wm = WorldModel(dreamer_cfg=dreamer_cfg, obs_space=obs_space, latent=latent, net=net)
 
     B = 4
     h = torch.randn(B, latent.deter_size)

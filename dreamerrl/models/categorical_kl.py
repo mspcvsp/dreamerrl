@@ -26,7 +26,7 @@ def apply_free_nats(kl_per_factor, free_nats):
     return torch.clamp(kl_per_factor, min=free_nats)
 
 
-def structured_kl(q_probs, p_probs, free_nats=0.0, kl_cfg=KLConfig()):
+def structured_kl(q_probs, p_probs, kl_cfg=KLConfig()):
     """
     Dreamer‑V3 structured KL:
         KL_dyn = KL[ sg(q) || p ]
@@ -37,8 +37,8 @@ def structured_kl(q_probs, p_probs, free_nats=0.0, kl_cfg=KLConfig()):
     kl_rep_f = categorical_kl(q_probs, p_probs.detach())
 
     # Apply free-nats per factor
-    kl_dyn = apply_free_nats(kl_dyn_f, free_nats).mean(dim=-1)
-    kl_rep = apply_free_nats(kl_rep_f, free_nats).mean(dim=-1)
+    kl_dyn = apply_free_nats(kl_dyn_f, kl_cfg.free_nats).mean(dim=-1)
+    kl_rep = apply_free_nats(kl_rep_f, kl_cfg.free_nats).mean(dim=-1)
 
     # Validate KL stability
     for name, kl_tensor in [("kl_dyn", kl_dyn), ("kl_rep", kl_rep)]:

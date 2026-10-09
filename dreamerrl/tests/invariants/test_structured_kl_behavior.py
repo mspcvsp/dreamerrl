@@ -1,6 +1,9 @@
+from dataclasses import replace
+
 import torch
 
 from dreamerrl.models.categorical_kl import structured_kl
+from dreamerrl.utils.types import KLConfig
 
 
 def test_structured_kl_behavior():
@@ -27,7 +30,16 @@ def test_structured_kl_behavior():
         q_probs = q_logits.softmax(dim=-1)
         p_probs = p_logits.softmax(dim=-1)
 
-        out = structured_kl(q_probs, p_probs, free_nats=1.0)
+        kl_cfg = replace(
+            KLConfig(),
+            free_nats=1.0,
+        )
+
+        out = structured_kl(
+            q_probs,
+            p_probs,
+            kl_cfg=kl_cfg,
+        )
 
         kl = out["kl_total"].mean().item()
         kl_values.append(kl)

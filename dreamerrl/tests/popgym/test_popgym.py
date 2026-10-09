@@ -1,6 +1,6 @@
 import pytest
 import torch.nn as nn
-
+from dataclasses import replace
 from dreamerrl.eval.popgym_eval import (
     aggregate_popgym_results,
     train_popgym_seed,
@@ -42,15 +42,13 @@ def test_popgym(request):
 
         # Imagination + KL: very conservative
         cfg.world.imagination_horizon = 2
-        cfg.world.kl_scale = 0.005
-        cfg.world.kl_balance = 0.5
-        cfg.world.free_nats = 0.5
+        cfg.world.kl_cfg = replace(cfg.world.kl_cfg, scale=0.005, balance=0.5, free_nats=0.5)
 
         # Training: gentle but not trivial
         cfg.train.model_lr = 3e-5
         cfg.train.grad_clip = 10.0
         cfg.train.freeze_actor_critic_steps = 0
-        cfg.train.disable_aux_losses = True
+        cfg.world.disable_aux_losses = True
         cfg.train.use_amp = False
 
         # Sequence / rollout lengths
@@ -68,7 +66,7 @@ def test_popgym(request):
         wm = trainer.world
 
         # Aux losses must be fully disabled for PopGym
-        assert wm.net_cfg.disable_aux_losses is True
+        assert wm.cfg.disable_aux_losses is True
         assert wm.aux_objectives == []
         assert isinstance(wm.aux_heads, nn.ModuleDict)
         assert len(wm.aux_heads) == 0

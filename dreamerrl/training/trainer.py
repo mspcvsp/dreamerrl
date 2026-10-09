@@ -138,10 +138,7 @@ class DreamerTrainer:
         )
 
         net_world = NetworkConfig(
-            hidden_size=cfg.world.hidden_size,
-            action_dim=self.action_dim,
-            value_bins=cfg.world.value_bins,
-            disable_aux_losses=self.cfg.train.disable_aux_losses,
+            hidden_size=cfg.world.hidden_size, action_dim=self.action_dim, value_bins=cfg.world.value_bins
         )
 
         # -----------------------------------------------------
@@ -149,13 +146,11 @@ class DreamerTrainer:
         # -----------------------------------------------------
         self.world = WorldModel(
             obs_space=obs_space,
+            dreamer_cfg=cfg,
             latent=latent,
             net=net_world,
-            free_nats=cfg.world.free_nats,
-            aux_objectives=cfg.world.aux_objectives,
             device=self.device,
             probe=self.probe,
-            deterministic_latent_for_tests=cfg.train.deterministic_env,
         )
         self.world_state = self.world.init_state(self.env.batch_size)
         self.world_state = self.world_state.to(self.device)
@@ -433,13 +428,13 @@ class DreamerTrainer:
                 metrics = world_model_training_step(
                     world_model=self.world,
                     batch=batch,
-                    kl_scale=self.cfg.world.kl_scale,
+                    kl_scale=self.cfg.world.kl_cfg.scale,
                 )
         else:
             metrics = world_model_training_step(
                 world_model=self.world,
                 batch=batch,
-                kl_scale=self.cfg.world.kl_scale,
+                kl_scale=self.cfg.world.kl_cfg.scale,
             )
 
         if self.repro_log:

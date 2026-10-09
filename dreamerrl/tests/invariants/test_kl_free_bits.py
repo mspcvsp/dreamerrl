@@ -9,7 +9,7 @@ import torch
 from dreamerrl.models.categorical_kl import structured_kl
 from dreamerrl.models.posterior import Posterior
 from dreamerrl.models.prior import Prior
-from dreamerrl.utils.types import LatentConfig, NetworkConfig
+from dreamerrl.utils.types import KLConfig, LatentConfig, NetworkConfig
 
 
 @pytest.mark.invariants
@@ -41,7 +41,7 @@ def test_structured_kl_free_nats_invariants(free_nats: float) -> None:
     q_probs = post_stats["probs"]  # (B, K, C)
     p_probs = prior_stats["probs"]
 
-    kl = structured_kl(q_probs=q_probs, p_probs=p_probs, free_nats=free_nats)
+    kl = structured_kl(q_probs=q_probs, p_probs=p_probs, kl_cfg=KLConfig(free_nats=free_nats))
 
     kl_total = kl["kl_total"]
     kl_dyn = kl["kl_dyn"]
@@ -81,7 +81,7 @@ def test_structured_kl_free_nats_effect():
     q_probs = post_stats["probs"]
     p_probs = prior_stats["probs"]
 
-    kl0 = structured_kl(q_probs=q_probs, p_probs=p_probs, free_nats=0.0)["kl_total"]
-    kl1 = structured_kl(q_probs=q_probs, p_probs=p_probs, free_nats=1.0)["kl_total"]
+    kl0 = structured_kl(q_probs=q_probs, p_probs=p_probs, kl_cfg=KLConfig(free_nats=0.0))["kl_total"]
+    kl1 = structured_kl(q_probs=q_probs, p_probs=p_probs, kl_cfg=KLConfig(free_nats=1.0))["kl_total"]
 
     assert not torch.allclose(kl0, kl1, atol=1e-6)

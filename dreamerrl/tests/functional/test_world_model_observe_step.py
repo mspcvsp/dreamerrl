@@ -1,11 +1,12 @@
+from dataclasses import replace
+
 import numpy as np
 import pytest
 import torch
 from gymnasium.spaces import Box
 
-from dreamerrl.models.categorical_kl import KLConfig
 from dreamerrl.models.world_model import WorldModel
-from dreamerrl.utils.types import LatentConfig, NetworkConfig
+from dreamerrl.utils.types import DreamerConfig, LatentConfig, NetworkConfig
 
 
 @pytest.mark.functional
@@ -17,11 +18,14 @@ def test_world_model_observe_step_keys_and_shapes():
     latent = LatentConfig(deter_size=200, stoch_size=30, num_classes=32)
     net = NetworkConfig(hidden_size=256, action_dim=action_dim, value_bins=41)
 
+    dreamer_cfg = DreamerConfig()
+    dreamer_cfg.world.kl_cfg = replace(dreamer_cfg.world.kl_cfg, require_nonzero=False)
+
     wm = WorldModel(
+        dreamer_cfg=dreamer_cfg,
         obs_space=obs_space,
         latent=latent,
         net=net,
-        kl_cfg=KLConfig(require_nonzero=False),
         device=torch.device("cpu"),
     )
 

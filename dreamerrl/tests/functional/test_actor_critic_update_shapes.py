@@ -11,7 +11,7 @@ from dreamerrl.utils.types import LatentConfig, NetworkConfig
 
 
 @pytest.mark.functional
-def test_actor_critic_update_shapes():
+def test_actor_critic_update_shapes(dreamer_cfg):
     B, T = 4, 5
     obs_dim = 8
     action_dim = 3
@@ -22,6 +22,7 @@ def test_actor_critic_update_shapes():
     net_critic = NetworkConfig(hidden_size=256, value_bins=41)
 
     wm = WorldModel(
+        dreamer_cfg=dreamer_cfg,
         obs_space=Box(low=0.0, high=1.0, shape=(obs_dim,), dtype=np.float32),
         latent=latent,
         net=net_world,

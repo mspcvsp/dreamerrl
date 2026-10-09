@@ -1,3 +1,5 @@
+from dataclasses import replace
+
 import torch
 
 from dreamerrl.models.actor import Actor
@@ -5,7 +7,7 @@ from dreamerrl.models.value_head import ValueHead
 from dreamerrl.models.world_model import WorldModel
 from dreamerrl.tests.conftest import DummyObsSpace
 from dreamerrl.training.core.imagination import imagine_trajectory_for_training
-from dreamerrl.utils.types import LatentConfig, NetworkConfig
+from dreamerrl.utils.types import DreamerConfig, LatentConfig, NetworkConfig
 
 
 def test_imagination_determinism():
@@ -15,9 +17,15 @@ def test_imagination_determinism():
     latent = LatentConfig(deter_size=32, stoch_size=8, num_classes=4)
     net = NetworkConfig(hidden_size=64, action_dim=5, value_bins=51)
 
+    dreamer_cfg = DreamerConfig()
+
+    dreamer_cfg.world.kl_cfg = replace(
+        dreamer_cfg.world.kl_cfg,
+        free_nats=1.0,
+    )
     # World model, actor, critic
     obs_space = DummyObsSpace(8)
-    world = WorldModel(obs_space=obs_space, latent=latent, net=net, free_nats=1.0, device=torch.device("cpu"))
+    world = WorldModel(dreamer_cfg=dreamer_cfg, obs_space=obs_space, latent=latent, net=net, device=torch.device("cpu"))
     actor = Actor(latent=latent, net=net)
     critic = ValueHead(latent=latent, net=net)
 

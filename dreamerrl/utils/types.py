@@ -47,6 +47,18 @@ class AuxObjectiveConfig:
 
 
 # ---------------------------------------------------------
+# KL Config (used in invariants + world model update)
+# ---------------------------------------------------------
+@dataclass(frozen=True)
+class KLConfig:
+    scale: float = 1.0
+    free_nats: float = 3.0
+    max_kl: float = 100.0
+    min_kl: float = -1e-6
+    require_nonzero: bool = True
+
+
+# ---------------------------------------------------------
 # World Model Config (RSSM + Encoder/Decoder)
 # ---------------------------------------------------------
 @dataclass
@@ -70,10 +82,13 @@ class WorldModelConfig:
     # Reward head hidden size.
     reward_hidden: int = 256
 
-    # KL regularization.
-    kl_scale: float = 1.0
-    free_nats: float = 3.0
-    kl_balance: float = 0.8
+    kl_cfg: KLConfig = field(
+        default_factory=lambda: KLConfig(
+            max_kl=100.0,
+            min_kl=-1e-6,
+            require_nonzero=True,
+        )
+    )
 
     # Encoder/decoder MLP widths.
     encoder_hidden: int = 256
@@ -118,8 +133,8 @@ class WorldModelConfig:
     #   • compatible with AMP + determinism
     # -----------------------------------------------------------------------------
     aux_objectives: List[AuxObjectiveConfig] = field(default_factory=list)
-
     aux_reward_scale: float = 0.1
+    disable_aux_losses: bool = False
 
 
 # ---------------------------------------------------------
@@ -220,8 +235,6 @@ class TrainingConfig:
     repro_log_every_n: int = 100
 
     freeze_actor_critic_steps: int = 2000
-    disable_aux_losses: bool = False
-
     console_log_interval: int = 10
 
 
@@ -311,16 +324,6 @@ def make_default_config() -> DreamerConfig:
 
 
 # ---------------------------------------------------------
-# KL Config (used in invariants + world model update)
-# ---------------------------------------------------------
-@dataclass(frozen=True)
-class KLConfig:
-    max_kl: float = 100.0
-    min_kl: float = -1e-6
-    require_nonzero: bool = True
-
-
-# ---------------------------------------------------------
 # LatentConfig (shared latent geometry)
 # ---------------------------------------------------------
 @dataclass(frozen=True)
@@ -361,10 +364,7 @@ class NetworkConfig:
     value_bins: int | None = None
     bin_min: float = -10.0
     bin_max: float = 10.0
-
     discount: float = 0.99
-    aux_reward_scale: float = 0.1
-    disable_aux_losses: bool = False  # Disable auxiliary losses for reproducibility tests
 
     # Action dimension is required for Actor, optional for Critic.
     action_dim: int | None = None

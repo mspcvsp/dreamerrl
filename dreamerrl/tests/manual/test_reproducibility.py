@@ -38,7 +38,7 @@ def run_training(seed, steps, freeze_actor_critic_steps):
     cfg.train.enforce_length_invariants = True
     cfg.train.deterministic_env = True
     cfg.train.cuda = True
-    cfg.train.disable_aux_losses = True  # Disable auxiliary losses for PopGym tests to avoid KL inflation
+    cfg.world.disable_aux_losses = True  # Disable auxiliary losses for PopGym tests to avoid KL inflation
 
     # ----------------------------------------------------------------------------------------------------------------
     # Why actor & critic updates are disabled in reproducibility tests

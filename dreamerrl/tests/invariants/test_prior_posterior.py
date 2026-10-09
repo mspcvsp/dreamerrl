@@ -4,14 +4,14 @@ import pytest
 import torch
 
 from dreamerrl.models.world_model import WorldModel
-from dreamerrl.utils.types import LatentConfig, NetworkConfig
+from dreamerrl.utils.types import DreamerConfig, LatentConfig, NetworkConfig
 
 
 def _wm(device="cpu"):
     obs = gym.spaces.Box(0, 1, shape=(8,), dtype=np.float32)
     latent = LatentConfig(deter_size=200, stoch_size=30, num_classes=32)
     net = NetworkConfig(hidden_size=256, action_dim=5, value_bins=41)
-    return WorldModel(obs_space=obs, latent=latent, net=net, device=torch.device(device))
+    return WorldModel(dreamer_cfg=DreamerConfig(), obs_space=obs, latent=latent, net=net, device=torch.device(device))
 
 
 @pytest.mark.invariants

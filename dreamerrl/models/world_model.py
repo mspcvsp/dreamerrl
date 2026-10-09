@@ -9,7 +9,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 from dreamerrl.models.actor import act_in_imagination
-from dreamerrl.utils.types import KLConfig, LatentConfig, NetworkConfig
+from dreamerrl.utils.types import DreamerConfig, LatentConfig, NetworkConfig
 
 from .aux_heads import make_aux_heads
 from .categorical_kl import structured_kl
@@ -78,35 +78,27 @@ class WorldModel(nn.Module):
         self,
         *,
         obs_space: gym.Space,
+        dreamer_cfg: DreamerConfig,
         latent: LatentConfig,
         net: NetworkConfig,
-        free_nats: float = 3.0,
-        kl_cfg: Optional[KLConfig] = None,
-        aux_objectives=None,
         device: Optional[torch.device] = None,
-        deterministic_latent_for_tests: bool = False,
         probe=None,
     ):
         super().__init__()
 
         self.device = device or torch.device("cpu")
+        self.cfg = dreamer_cfg.world
         self.latent = latent
         self.net_cfg = net
-        self.free_nats = free_nats
         self.probe = probe
-
-        self.kl_cfg = kl_cfg or KLConfig(
-            max_kl=100.0,
-            min_kl=-1e-6,
-            require_nonzero=True,
-        )
-
         self.obs_space = obs_space
         self.flat_obs_dim = get_flat_obs_dim(obs_space)
         self.embed_size = net.hidden_size
 
         self.encoder = build_obs_encoder(obs_space, embed_dim=self.embed_size).to(self.device)
         self.rssm: RSSMCore = RSSMCore(latent=latent, net=net).to(self.device)
+
+        deterministic_latent_for_tests = dreamer_cfg.train.deterministic_env
 
         self.prior: Prior = Prior(
             latent=latent, net=net, deterministic_latent_for_tests=deterministic_latent_for_tests
@@ -142,11 +134,11 @@ class WorldModel(nn.Module):
                 hidden=net.hidden_size,
             )
 
-            self.aux_heads = nn.ModuleDict({cfg.name: all_aux_heads[cfg.name] for cfg in (aux_objectives or [])}).to(
+            self.aux_objectives = dreamer_cfg.world.aux_objectives or []
+
+            self.aux_heads = nn.ModuleDict({cfg.name: all_aux_heads[cfg.name] for cfg in self.aux_objectives}).to(
                 self.device
             )
-
-            self.aux_objectives = aux_objectives or []
 
         # Backward‑compatibility alias for invariants + actor/critic tests
         self.reward_head = self.reward_heads.main
@@ -206,8 +198,7 @@ class WorldModel(nn.Module):
         kl_dict = structured_kl(
             q_probs=post_stats["probs"],
             p_probs=prior_stats["probs"],
-            free_nats=self.free_nats,
-            kl_cfg=self.kl_cfg,
+            kl_cfg=self.cfg.kl_cfg,
         )
 
         if self.probe:
