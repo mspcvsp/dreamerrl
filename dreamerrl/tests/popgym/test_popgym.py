@@ -1,6 +1,8 @@
+from dataclasses import replace
+
 import pytest
 import torch.nn as nn
-from dataclasses import replace
+
 from dreamerrl.eval.popgym_eval import (
     aggregate_popgym_results,
     train_popgym_seed,

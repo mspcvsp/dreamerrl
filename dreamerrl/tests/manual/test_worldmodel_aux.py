@@ -18,7 +18,7 @@ def test_worldmodel_aux_stability():
         cfg = make_default_config()
 
         cfg.train.seed = seed
-        cfg.train.disable_aux_losses = False  # AUX LOSSES ON
+        cfg.world.disable_aux_losses = False  # AUX LOSSES ON
         cfg.train.freeze_actor_critic_steps = freeze
         cfg.train.deterministic_imagination = True
         cfg.train.deterministic_env = True
