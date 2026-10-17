@@ -44,7 +44,7 @@ def test_popgym(request):
 
         # Imagination + KL: very conservative
         cfg.world.imagination_horizon = 2
-        cfg.world.kl_cfg = replace(cfg.world.kl_cfg, scale=0.005, balance=0.5, free_nats=0.5)
+        cfg.world.kl_cfg = replace(cfg.world.kl_cfg, scale=0.005, free_nats=0.5)
 
         # Training: gentle but not trivial
         cfg.train.model_lr = 3e-5
