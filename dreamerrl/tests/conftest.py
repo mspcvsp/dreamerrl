@@ -2,6 +2,7 @@ import gymnasium as gym
 import numpy as np
 import pytest
 import torch
+import torch.nn.functional as F
 from gymnasium.spaces import Box
 
 from dreamerrl.env.env_factory import make_env
@@ -146,12 +147,31 @@ def _set_determinism():
 # ---------------------------------------------------------------------------
 # RSSM fixture (matches your WorldModel latent config)
 # ---------------------------------------------------------------------------
-@pytest.fixture(scope="session")
+@pytest.fixture
 def rssm(latent, net):
-    """
-    Minimal RSSM instance matching the latent + network config.
-    """
-    return RSSM(latent=latent, net=net).eval()
+    return RSSM(
+        latent=latent,
+        net=net,
+    ).eval()
+
+
+@pytest.fixture
+def sample_z(latent):
+
+    def _sample(batch_size):
+
+        idx = torch.randint(
+            0,
+            latent.stoch_size,
+            (batch_size, latent.num_classes),
+        )
+
+        return F.one_hot(
+            idx,
+            num_classes=latent.stoch_size,
+        ).float()
+
+    return _sample
 
 
 # ---------------------------------------------------------------------------
@@ -168,11 +188,8 @@ def dummy_h(latent):
 
 
 @pytest.fixture
-def dummy_z_actor(latent):
-    """
-    Stochastic latent z for actor (B, K, C).
-    """
-    return torch.randn(8, latent.num_classes, latent.stoch_size)
+def dummy_z_actor(sample_z):
+    return sample_z(8)
 
 
 # ---------------------------------------------------------------------------

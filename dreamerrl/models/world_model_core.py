@@ -26,8 +26,7 @@ class RSSMCore(nn.Module):
         self.latent = latent
         self.net_cfg = net
 
-        input_dim = latent.deter_size + net.action_dim
-
+        input_dim = latent.deter_size + latent.z_dim + net.action_dim
         self.fc1 = nn.Linear(input_dim, net.hidden_size)
         self.ln1 = DeterministicLayerNorm(net.hidden_size)
         self.fc2 = nn.Linear(net.hidden_size, latent.deter_size)
@@ -41,18 +40,21 @@ class RSSMCore(nn.Module):
             if m.bias is not None:
                 nn.init.zeros_(m.bias)
 
-    def forward(self, h: torch.Tensor, action: torch.Tensor) -> torch.Tensor:
-        """
-        Args:
-            h:      (B, deter_size)
-            action: (B, action_dim) one‑hot
+    def forward(self, h, z, action):
+        if z.dim() > 2:
+            z = z.reshape(z.shape[0], -1)
 
-        Returns:
-            h_next: (B, deter_size)
-        """
-        x = torch.cat([h, action], dim=-1)
+        x = torch.cat(
+            [
+                h,
+                z,
+                action,
+            ],
+            dim=-1,
+        )
+
         x = self.fc1(x)
         x = self.ln1(x)
         x = F.silu(x)
-        h_next = self.fc2(x)
-        return h_next
+
+        return self.fc2(x)

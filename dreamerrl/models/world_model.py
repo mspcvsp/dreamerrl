@@ -177,7 +177,7 @@ class WorldModel(nn.Module):
         prior_stats = self.prior(prev_state.h)
 
         z = post_stats["z"]
-        h = self.rssm(prev_state.h, action)
+        h = self.rssm(prev_state.h, prev_state.z, action)
 
         post_stats = {**post_stats, "h": h}
         prior_stats = {**prior_stats, "h": prev_state.h}
@@ -195,11 +195,7 @@ class WorldModel(nn.Module):
         else:
             aux_logits = {name: head(h, z) for name, head in self.aux_heads.items()}
 
-        kl_dict = structured_kl(
-            q_probs=post_stats["probs"],
-            p_probs=prior_stats["probs"],
-            kl_cfg=self.cfg.kl_cfg,
-        )
+        kl_dict = structured_kl(q_probs=post_stats["probs"], p_probs=prior_stats["probs"], kl_cfg=self.cfg.kl_cfg)
 
         if self.probe:
             self.probe.wm_observe(embed, post_stats, prior_stats)
@@ -256,7 +252,7 @@ class WorldModel(nn.Module):
         assert self.net_cfg.action_dim is not None, "action_dim must be specified in net config for imagine_step"
         action = F.one_hot(a, num_classes=self.net_cfg.action_dim).float()
 
-        h = self.rssm(prev_state.h, action)
+        h = self.rssm(prev_state.h, prev_state.z, action)
         prior = self.prior(h)
 
         """
