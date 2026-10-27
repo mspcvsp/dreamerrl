@@ -47,6 +47,13 @@ def test_rssm_core_cpu_gpu_determinism(dreamer_cfg):
     # Explicit dtype + device for Pylance
     h_cpu = torch.randn(B, latent.deter_size, dtype=torch.float32, device="cpu")
 
+    z_cpu = torch.randn(
+        B,
+        latent.stoch_size * latent.num_classes,
+        dtype=torch.float32,
+        device="cpu",
+    )
+
     # Pylance requires explicit int for high and num_classes
     assert net.action_dim is not None, "action_dim must be specified in net config for reproducibility check"
 
@@ -65,6 +72,7 @@ def test_rssm_core_cpu_gpu_determinism(dreamer_cfg):
 
     # Move to GPU
     h_gpu = h_cpu.to("cuda")
+    z_gpu = z_cpu.to("cuda")
     a_gpu = a_cpu.to("cuda")
 
     # RSSMCore is exposed as wm.core
@@ -72,8 +80,8 @@ def test_rssm_core_cpu_gpu_determinism(dreamer_cfg):
     core_gpu = cast(RSSMCore, wm_gpu.rssm)
 
     with torch.no_grad():
-        h_next_cpu = core_cpu(h_cpu, a_cpu)
-        h_next_gpu = core_gpu(h_gpu, a_gpu).to("cpu")
+        h_next_cpu = core_cpu(h_cpu, z_cpu, a_cpu)
+        h_next_gpu = core_gpu(h_gpu, z_gpu, a_gpu).to("cpu")
 
     assert h_next_cpu.shape == h_next_gpu.shape
 
