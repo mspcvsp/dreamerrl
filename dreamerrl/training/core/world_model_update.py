@@ -148,6 +148,9 @@ def world_model_training_step(
     # -------------------------------------------------------------
     # KL losses (already computed in observe_step)
     # -------------------------------------------------------------
+    raw_kl_dyn = torch.stack([p["raw_kl_dyn"] for p in posts], dim=1).mean()
+    raw_kl_rep = torch.stack([p["raw_kl_rep"] for p in posts], dim=1).mean()
+
     kl_dyn = torch.stack([p["kl_dyn"] for p in posts], dim=1).mean()
     kl_rep = torch.stack([p["kl_rep"] for p in posts], dim=1).mean()
 
@@ -158,6 +161,8 @@ def world_model_training_step(
         recon_loss=recon_loss,
         reward_loss=reward_loss,
         cont_loss=cont_loss,
+        raw_kl_dyn=raw_kl_dyn,
+        raw_kl_rep=raw_kl_rep,
         kl_dyn=kl_dyn,
         kl_rep=kl_rep,
         aux_losses=aux_losses,

@@ -201,7 +201,7 @@ class WorldModel(nn.Module):
             self.probe.wm_observe(embed, post_stats, prior_stats)
             self.probe.wm_kl(kl_dict)
 
-        for key in ["kl_dyn", "kl_rep", "kl_total"]:
+        for key in ["raw_kl_dyn", "kl_dyn", "raw_kl_rep", "kl_rep", "kl_total"]:
             if not torch.isfinite(kl_dict[key]).all():
                 raise ValueError(f"KL divergence {key} is not finite: {kl_dict[key]}")
             post_stats[key] = kl_dict[key]

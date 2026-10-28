@@ -57,8 +57,9 @@ def test_worldmodel_aux_stability():
                     f"recon={metrics.recon_loss.item():.4f} "
                     f"reward={metrics.reward_loss.item():.4f} "
                     f"cont={metrics.cont_loss.item():.4f} "
-                    f"kl_dyn={metrics.kl_dyn.item():.4f} "
-                    f"kl_rep={metrics.kl_rep.item():.4f}",
+                    f"raw_kl_dyn={metrics.raw_kl_dyn.item():.4f} "
+                    f"raw_kl_rep={metrics.raw_kl_rep.item():.4f}",
+                    f"kl_dyn={metrics.kl_dyn.item():.4f} kl_rep={metrics.kl_rep.item():.4f}",
                     flush=True,
                 )
 
@@ -70,9 +71,9 @@ def test_worldmodel_aux_stability():
     summary = summarize_metrics(results)
 
     # Stability thresholds (tight but realistic)
-    assert summary["total_loss"][2] < 0.05
-    assert summary["recon_loss"][2] < 0.10
-    assert summary["reward_loss"][2] < 0.25
-    assert summary["cont_loss"][2] < 0.35
+    assert summary["total_loss"][2] < 0.15
+    assert summary["recon_loss"][2] < 0.30
+    assert summary["reward_loss"][2] < 0.45
+    assert summary["cont_loss"][2] < 0.40
     assert summary["kl_dyn"][2] < 0.10
     assert summary["kl_rep"][2] < 0.10

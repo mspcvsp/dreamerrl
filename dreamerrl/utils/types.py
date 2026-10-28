@@ -403,6 +403,8 @@ class WorldModelMetrics:
     recon_loss: torch.Tensor
     reward_loss: torch.Tensor
     cont_loss: torch.Tensor
+    raw_kl_dyn: torch.Tensor
+    raw_kl_rep: torch.Tensor
     kl_dyn: torch.Tensor
     kl_rep: torch.Tensor
     aux_losses: List
