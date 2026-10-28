@@ -20,7 +20,7 @@ def test_imagination_random_actions(world_model):
         ).float()
 
         # manually step RSSM
-        h = world_model.rssm(state.h, action)
+        h = world_model.rssm(state.h, state.z, action)
         prior = world_model.prior(h)
         z = prior["z"]
 
