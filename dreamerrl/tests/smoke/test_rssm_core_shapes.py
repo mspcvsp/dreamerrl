@@ -15,7 +15,15 @@ def test_rssm_core_shapes():
     core = RSSMCore(latent=latent, net=net)
 
     h = torch.zeros(B, latent.deter_size)
+
+    z = torch.randn(
+        B,
+        latent.stoch_size * latent.num_classes,
+        dtype=torch.float32,
+        device="cpu",
+    )
+
     action = torch.zeros(B, net.action_dim)
 
-    h_next = core(h, action)
+    h_next = core(h, z, action)
     assert h_next.shape == (B, latent.deter_size)
