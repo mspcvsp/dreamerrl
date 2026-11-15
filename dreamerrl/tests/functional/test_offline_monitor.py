@@ -132,11 +132,15 @@ def test_stop_callback_saves_at_completed_update_boundary(tmp_path):
 def test_evaluation_preserves_all_rngs_and_handles_stop(tmp_path):
     trainer = DreamerTrainer(minihack_config(0, tmp_path / "logs"))
     try:
-        before_python, before_numpy, before_torch = random.getstate(), np.random.get_state(legacy=True), torch.get_rng_state()
+        before_python = random.getstate()
+        before_numpy = np.random.get_state(legacy=True)
+        before_torch = torch.get_rng_state()
+        assert isinstance(before_numpy, tuple)
         results = evaluate_minihack(trainer.cfg, trainer.world, trainer.actor, [10000, 10001])
         assert len(results) == 2 and math.isfinite(mean(results))
         assert random.getstate() == before_python
         actual_numpy = np.random.get_state(legacy=True)
+        assert isinstance(actual_numpy, tuple)
         assert actual_numpy[0] == before_numpy[0] and actual_numpy[2:] == before_numpy[2:]
         np.testing.assert_array_equal(actual_numpy[1], before_numpy[1])
         assert torch.equal(torch.get_rng_state(), before_torch)
