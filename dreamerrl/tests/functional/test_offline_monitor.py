@@ -161,11 +161,14 @@ def test_final_evaluation_rejects_validation_seeds(tmp_path):
         trainer.run_state["minihack_monitor"] = {"baselines": {"spec": {"evaluation_seeds": [10000, 10001]}}}
         path = tmp_path / "initial.pt"
         trainer.save_checkpoint(path)
+        trainer.tb.flush()
+        log_files = {p: p.stat().st_size for p in (tmp_path / "logs").rglob("*") if p.is_file()}
         with pytest.raises(ValueError, match="overlap"):
             evaluate_checkpoints(path, path, episodes=2, seed_start=10000, cpu=True)
         result = evaluate_checkpoints(path, path, episodes=2, seed_start=20000, cpu=True)
         assert result["trained_returns"] == result["untrained_returns"]
         assert result["vs_untrained"]["mean_difference"] == 0
+        assert {p: p.stat().st_size for p in (tmp_path / "logs").rglob("*") if p.is_file()} == log_files
     finally:
         close(trainer)
 

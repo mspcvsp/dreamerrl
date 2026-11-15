@@ -3,6 +3,7 @@
 import argparse
 from pathlib import Path
 from statistics import mean
+from tempfile import TemporaryDirectory
 from typing import Any
 
 from dreamerrl.eval.minihack_eval import compare_returns, evaluate_minihack
@@ -15,51 +16,57 @@ def evaluate_checkpoints(
 ) -> dict[str, Any]:
     if episodes < 2 or seed_start < 0:
         raise ValueError("Final evaluation needs at least two episodes and a nonnegative seed")
-    trainer = DreamerTrainer.from_checkpoint(checkpoint, cuda=False if cpu else None)
-    initial = None
-    try:
-        initial = DreamerTrainer.from_checkpoint(initial_checkpoint, cuda=trainer.device.type == "cuda")
-        if initial.completed_updates != 0:
-            raise ValueError("The untrained checkpoint must be from update zero")
-        if (
-            trainer.cfg.env != initial.cfg.env
-            or trainer.cfg.world != initial.cfg.world
-            or trainer.cfg.ac != initial.cfg.ac
-        ):
-            raise ValueError("Trained and initial checkpoints must use matching environment/model configurations")
-        seeds = list(range(seed_start, seed_start + episodes))
-        validation = (
-            trainer.run_state.get("minihack_monitor", {})
-            .get("baselines", {})
-            .get("spec", {})
-            .get("evaluation_seeds", [])
+    # Evaluation must not append TensorBoard events to the original training run.
+    with TemporaryDirectory(prefix="dreamerrl-evaluation-") as log_dir:
+        trainer = DreamerTrainer.from_checkpoint(
+            checkpoint, cuda=False if cpu else None, log_dir=Path(log_dir) / "trained"
         )
-        if set(seeds) & set(validation):
-            raise ValueError("Final test seeds must not overlap the run's validation seeds")
-        trained = evaluate_minihack(trainer.cfg, trainer.world, trainer.actor, seeds)
-        untrained = evaluate_minihack(initial.cfg, initial.world, initial.actor, seeds)
-        random_returns = evaluate_minihack(trainer.cfg, trainer.world, trainer.actor, seeds, random_policy=True)
-        return dict(
-            update=trainer.completed_updates,
-            env_steps=trainer.total_env_steps,
-            train_seed=trainer.cfg.train.seed,
-            evaluation_seeds=seeds,
-            trained_returns=trained,
-            untrained_returns=untrained,
-            random_returns=random_returns,
-            trained_mean=mean(trained),
-            untrained_mean=mean(untrained),
-            random_mean=mean(random_returns),
-            vs_random=compare_returns(trained, random_returns),
-            vs_untrained=compare_returns(trained, untrained),
-            interval_method="paired normal approximation, descriptive; confirm across independent training seeds",
-        )
-    finally:
-        trainer.env.venv.close()
-        trainer.tb.close()
-        if initial is not None:
-            initial.env.venv.close()
-            initial.tb.close()
+        initial = None
+        try:
+            initial = DreamerTrainer.from_checkpoint(
+                initial_checkpoint, cuda=trainer.device.type == "cuda", log_dir=Path(log_dir) / "initial"
+            )
+            if initial.completed_updates != 0:
+                raise ValueError("The untrained checkpoint must be from update zero")
+            if (
+                trainer.cfg.env != initial.cfg.env
+                or trainer.cfg.world != initial.cfg.world
+                or trainer.cfg.ac != initial.cfg.ac
+            ):
+                raise ValueError("Trained and initial checkpoints must use matching environment/model configurations")
+            seeds = list(range(seed_start, seed_start + episodes))
+            validation = (
+                trainer.run_state.get("minihack_monitor", {})
+                .get("baselines", {})
+                .get("spec", {})
+                .get("evaluation_seeds", [])
+            )
+            if set(seeds) & set(validation):
+                raise ValueError("Final test seeds must not overlap the run's validation seeds")
+            trained = evaluate_minihack(trainer.cfg, trainer.world, trainer.actor, seeds)
+            untrained = evaluate_minihack(initial.cfg, initial.world, initial.actor, seeds)
+            random_returns = evaluate_minihack(trainer.cfg, trainer.world, trainer.actor, seeds, random_policy=True)
+            return dict(
+                update=trainer.completed_updates,
+                env_steps=trainer.total_env_steps,
+                train_seed=trainer.cfg.train.seed,
+                evaluation_seeds=seeds,
+                trained_returns=trained,
+                untrained_returns=untrained,
+                random_returns=random_returns,
+                trained_mean=mean(trained),
+                untrained_mean=mean(untrained),
+                random_mean=mean(random_returns),
+                vs_random=compare_returns(trained, random_returns),
+                vs_untrained=compare_returns(trained, untrained),
+                interval_method="paired normal approximation, descriptive; confirm across independent training seeds",
+            )
+        finally:
+            trainer.env.venv.close()
+            trainer.tb.close()
+            if initial is not None:
+                initial.env.venv.close()
+                initial.tb.close()
 
 
 def main():
