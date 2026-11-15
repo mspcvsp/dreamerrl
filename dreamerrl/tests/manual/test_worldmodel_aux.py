@@ -31,6 +31,7 @@ def run_experiment(seed, novelty, updates, episodes, logdir, initial_policy=None
         if initial_policy is not None:
             trainer.actor.load_state_dict(initial_policy["actor"])
             trainer.critic.load_state_dict(initial_policy["critic"])
+            trainer.slow_critic.load_state_dict(initial_policy["critic"])
         initial_policy = {
             "actor": {key: value.detach().clone() for key, value in trainer.actor.state_dict().items()},
             "critic": {key: value.detach().clone() for key, value in trainer.critic.state_dict().items()},

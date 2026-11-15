@@ -54,7 +54,7 @@ def test_checkpoint_roundtrip_and_next_optimizer_update(tmp_path):
         assert resumed.episode_returns.count_nonzero() == 0
         assert_state_equal(trainer.replay.episodes, resumed.replay.episodes)
         assert_state_equal(batch, resumed.replay.sample(2))
-        for name in ["world", "actor", "critic", "model_opt", "actor_opt", "critic_opt"]:
+        for name in ["world", "actor", "critic", "slow_critic", "model_opt", "actor_opt", "critic_opt"]:
             assert_state_equal(getattr(trainer, name).state_dict(), getattr(resumed, name).state_dict())
         # Same fixed replay batch and RNG must give the same next optimizer step.
         rng = torch.get_rng_state()
@@ -64,7 +64,7 @@ def test_checkpoint_roundtrip_and_next_optimizer_update(tmp_path):
         x = resumed.update_world_model(batch, 2).total_loss.item()
         y, z = resumed.update_actor_critic(batch, 2)
         assert (a, b, c) == (x, y, z)
-        for name in ["world", "actor", "critic", "model_opt", "actor_opt", "critic_opt"]:
+        for name in ["world", "actor", "critic", "slow_critic", "model_opt", "actor_opt", "critic_opt"]:
             assert_state_equal(getattr(trainer, name).state_dict(), getattr(resumed, name).state_dict())
         old_steps = resumed.total_env_steps
         resumed.train(4, checkpoint_path=checkpoint, checkpoint_every=1)

@@ -53,7 +53,7 @@ class AuxObjectiveConfig:
 class KLConfig:
     scale: float = 1.0
     free_nats: float = 1.0
-    dynamics_scale: float = 0.5
+    dynamics_scale: float = 1.0
     representation_scale: float = 0.1
     max_kl: float = 100.0
     min_kl: float = -1e-6
@@ -99,6 +99,8 @@ class WorldModelConfig:
     # Imagination horizon for actor/critic rollout.
     imagination_horizon: int = 15
 
+    unimix: float = 0.01
+
     # Distributional value/reward bins.
     value_bins: int = 41
 
@@ -129,6 +131,10 @@ class ActorCriticConfig:
 
     discount: float = 0.99
     lambda_: float = 0.95  # λ‑return smoothing
+    unimix: float = 0.01
+    entropy_scale: float = 3e-4
+    slow_critic_rate: float = 0.02
+    slow_critic_scale: float = 1.0
 
 
 # ---------------------------------------------------------
@@ -340,6 +346,7 @@ class NetworkConfig:
 
     # Action dimension is required for Actor, optional for Critic.
     action_dim: int | None = None
+    unimix: float = 0.01
 
     def make_bins(self, device=None):
         symlog_bins = torch.linspace(self.bin_min, self.bin_max, steps=self.value_bins)

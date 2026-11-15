@@ -9,7 +9,12 @@ from dreamerrl.training.trainer import DreamerTrainer
 
 def training_trace(seed, logdir):
     trainer = DreamerTrainer(minihack_config(seed, logdir))
-    modules = {"world": trainer.world, "actor": trainer.actor, "critic": trainer.critic}
+    modules = {
+        "world": trainer.world,
+        "actor": trainer.actor,
+        "critic": trainer.critic,
+        "slow_critic": trainer.slow_critic,
+    }
     initial = {name: [p.detach().clone() for p in module.parameters()] for name, module in modules.items()}
     trace = []
     try:

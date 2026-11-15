@@ -204,7 +204,7 @@ def test_world_loss_kl_weights_and_aux_switch(small_model, sequence):
     wm.cfg.disable_aux_losses = True
     m = world_model_training_step(wm, sequence, kl_scale=2)
     assert m.aux_losses == []
-    expected = m.recon_loss + m.reward_loss + m.cont_loss + 2 * (0.5 * m.kl_dyn + 0.1 * m.kl_rep)
+    expected = m.recon_loss + m.reward_loss + m.cont_loss + 2 * (1.0 * m.kl_dyn + 0.1 * m.kl_rep)
     torch.testing.assert_close(m.total_loss, expected)
 
 
@@ -254,7 +254,7 @@ def test_configured_kl_scale_is_applied_once(small_model, sequence):
     wm.cfg.disable_aux_losses = True
     wm.cfg.kl_cfg = replace(wm.cfg.kl_cfg, scale=3.0)
     m = world_model_training_step(wm, sequence, kl_scale=wm.cfg.kl_cfg.scale)
-    expected = m.recon_loss + m.reward_loss + m.cont_loss + 3 * (0.5 * m.kl_dyn + 0.1 * m.kl_rep)
+    expected = m.recon_loss + m.reward_loss + m.cont_loss + 3 * (1.0 * m.kl_dyn + 0.1 * m.kl_rep)
     torch.testing.assert_close(m.total_loss, expected)
 
 

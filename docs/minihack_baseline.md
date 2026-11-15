@@ -53,7 +53,7 @@ zero weight. Return normalization tracks EMA percentiles in original reward unit
 
 Reward and value heads apply symlog once, train against two-hot targets, and apply
 symexp to expected bin coordinates at readout. Continuation uses Bernoulli BCE.
-KL sums over latent factors before the free-nats floor, with separate 0.5 dynamics
+KL sums over latent factors before the free-nats floor, with separate 1.0 dynamics
 and 0.1 representation weights and the respective stop-gradient directions.
 
 Auxiliary binary targets retain their original labels. Scalar novelty/resource
@@ -130,3 +130,12 @@ For direct trainer use: `save_checkpoint(path)`, `load_checkpoint(path)`, or
 matching environment/model and replay layout. Call saves at completed-update
 boundaries. The `train(total_updates, checkpoint_path=..., checkpoint_every=...)`
 API manages counters and those boundaries automatically.
+
+## Fidelity profile
+
+See [the bounded fidelity check](dreamerv3_fidelity.md) for the pinned official
+reference, probability-gradient and EMA-critic corrections, and explicit local
+architecture/optimization differences. Checkpoint v2 persists the slow critic;
+v1 loads with a warning and initializes that critic from online weights. Old saved
+coefficients remain in effect, while resumed categorical behavior uses the current
+implementation. Use new runs for comparisons with the corrected defaults.

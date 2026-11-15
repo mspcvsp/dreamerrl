@@ -3,6 +3,8 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torch.distributions import Categorical
 
+from dreamerrl.models.categorical import mixed_probs
+
 
 class Actor(nn.Module):
     """
@@ -40,7 +42,7 @@ class Actor(nn.Module):
         h_e = self.h_embed(h)  # (B, H)
 
         features = h_e + z_sum
-        logits = self.net(features)
+        logits = mixed_probs(self.net(features), self.net_cfg.unimix).log()
 
         if self.probe:
             self.probe.actor(logits)

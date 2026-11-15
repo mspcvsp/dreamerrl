@@ -20,6 +20,9 @@ def actor_critic_update(
     discount,
     lam,
     deterministic_imagination=False,
+    slow_critic=None,
+    slow_critic_scale=1.0,
+    entropy_scale=3e-4,
 ):
     # Use every replay posterior as an imagination start, without model gradients.
     with torch.no_grad():
@@ -65,6 +68,13 @@ def actor_critic_update(
     # Keep per-example weights while reusing the head's two-hot target convention.
     targets = twohot_encode(symlog(returns), critic.bin_values)
     critic_loss = -(weights * (targets * critic_logits.log_softmax(-1)).sum(-1)).mean()
+    if slow_critic is not None:
+        with torch.no_grad():
+            slow_values = slow_critic.readout(slow_critic(h_flat, z_flat)).reshape(T, N)
+            slow_targets = twohot_encode(symlog(slow_values), critic.bin_values)
+        critic_loss = (
+            critic_loss - slow_critic_scale * (weights * (slow_targets * critic_logits.log_softmax(-1)).sum(-1)).mean()
+        )
     dist = Categorical(logits=actor(h_flat, z_flat).reshape(T, N, -1))
-    actor_loss = -(weights * (dist.log_prob(traj["action"]) * advantage + 1e-3 * dist.entropy())).mean()
+    actor_loss = -(weights * (dist.log_prob(traj["action"]) * advantage + entropy_scale * dist.entropy())).mean()
     return actor_loss, critic_loss

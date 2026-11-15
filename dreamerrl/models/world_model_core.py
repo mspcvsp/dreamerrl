@@ -9,11 +9,11 @@ class RSSMCore(nn.Module):
     """
     Dreamer‑V3 deterministic transition:
 
-        h_{t+1} = f(h_t, a_t)
+        h_{t+1} = f(h_t, z_t, a_t)
 
     where a_t is a one‑hot discrete action.
 
-    No GRU, no z in the deterministic update:
+    This implementation uses an MLP recurrence rather than a GRU:
       • Pure MLP + LayerNorm for stability and reproducibility
       • DeterministicLayerNorm ensures CPU/GPU equivalence in tests
     """

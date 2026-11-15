@@ -1,10 +1,12 @@
 from __future__ import annotations
 
+import copy
 import math
 import os
 import random
 import tempfile
 import time
+import warnings
 from pathlib import Path
 from typing import Any, Dict
 
@@ -42,7 +44,7 @@ LOG_DIR.mkdir(exist_ok=True)
 
 
 class CosineWarmupScheduler:
-    """Single shared LR schedule for world, actor, critic (Dreamer‑V3 requirement)."""
+    """Local shared LR schedule for world, actor, and critic optimizers."""
 
     def __init__(self, cfg: LRScheduleConfig):
         self.cfg = cfg
@@ -109,7 +111,7 @@ class DreamerTrainer:
         # -----------------------------------------------------
         set_global_seeds(cfg.train.seed)
 
-        # Ensure bit-for-bit reproducibility across PyTorch versions and hardware.
+        # Request deterministic kernels for repeatability on the same stack.
         torch.use_deterministic_algorithms(True)
         torch.backends.cudnn.benchmark = False
         torch.backends.cudnn.deterministic = True
@@ -142,7 +144,10 @@ class DreamerTrainer:
         )
 
         net_world = NetworkConfig(
-            hidden_size=cfg.world.hidden_size, action_dim=self.action_dim, value_bins=cfg.world.value_bins
+            hidden_size=cfg.world.hidden_size,
+            action_dim=self.action_dim,
+            value_bins=cfg.world.value_bins,
+            unimix=cfg.world.unimix,
         )
 
         # -----------------------------------------------------
@@ -164,6 +169,7 @@ class DreamerTrainer:
         # -----------------------------------------------------
         net_actor = NetworkConfig(
             hidden_size=cfg.ac.actor_hidden,
+            unimix=cfg.ac.unimix,
             action_dim=self.action_dim,
         )
 
@@ -174,6 +180,10 @@ class DreamerTrainer:
 
         self.actor = Actor(latent=latent, net=net_actor, probe=self.probe).to(self.device)
         self.critic = ValueHead(latent=latent, net=net_critic, probe=self.probe).to(self.device)
+        self.slow_critic = copy.deepcopy(self.critic).requires_grad_(False).eval()
+        self.slow_critic.probe = None
+        if not 0 < cfg.ac.slow_critic_rate <= 1:
+            raise ValueError("slow_critic_rate must be in (0, 1]")
 
         # -----------------------------------------------------
         # Replay Buffer
@@ -237,11 +247,12 @@ class DreamerTrainer:
         path = Path(path)
         path.parent.mkdir(parents=True, exist_ok=True)
         payload = {
-            "version": 1,
+            "version": 2,
             "config": self.cfg,
             "world": self.world.state_dict(),
             "actor": self.actor.state_dict(),
             "critic": self.critic.state_dict(),
+            "slow_critic": self.slow_critic.state_dict(),
             "model_opt": self.model_opt.state_dict(),
             "actor_opt": self.actor_opt.state_dict(),
             "critic_opt": self.critic_opt.state_dict(),
@@ -282,7 +293,7 @@ class DreamerTrainer:
     def from_checkpoint(cls, path: str | Path, *, cuda: bool | None = None) -> DreamerTrainer:
         """Construct from the saved configuration, optionally selecting CPU/CUDA."""
         payload = torch.load(path, map_location="cpu", weights_only=False)
-        if payload.get("version") != 1:
+        if payload.get("version") not in (1, 2):
             raise ValueError("Unsupported Dreamer checkpoint version")
         cfg = payload["config"]
         if cuda is not None:
@@ -300,7 +311,7 @@ class DreamerTrainer:
         return trainer
 
     def _restore_checkpoint(self, payload) -> None:
-        if payload.get("version") != 1:
+        if payload.get("version") not in (1, 2):
             raise ValueError("Unsupported Dreamer checkpoint version")
         saved_cfg = payload["config"]
         if self.cfg.world != saved_cfg.world or self.cfg.ac != saved_cfg.ac or self.cfg.env != saved_cfg.env:
@@ -311,6 +322,15 @@ class DreamerTrainer:
                 raise ValueError(f"Checkpoint replay {key} does not match this trainer")
         for name in ("world", "actor", "critic", "model_opt", "actor_opt", "critic_opt"):
             getattr(self, name).load_state_dict(payload[name])
+        if payload["version"] == 1:
+            warnings.warn(
+                "Checkpoint v1 has no EMA critic; initializing it from the restored online critic.",
+                RuntimeWarning,
+                stacklevel=2,
+            )
+            self.slow_critic.load_state_dict(payload["critic"])
+        else:
+            self.slow_critic.load_state_dict(payload["slow_critic"])
         if self.device.type == "cpu":
             for optimizer in (self.model_opt, self.actor_opt, self.critic_opt):
                 for group in optimizer.param_groups:
@@ -643,6 +663,9 @@ class DreamerTrainer:
                     discount=self.cfg.ac.discount,
                     lam=self.cfg.ac.lambda_,
                     deterministic_imagination=self.cfg.train.deterministic_imagination,
+                    slow_critic=self.slow_critic,
+                    slow_critic_scale=self.cfg.ac.slow_critic_scale,
+                    entropy_scale=self.cfg.ac.entropy_scale,
                 )
         else:
             actor_loss, critic_loss = actor_critic_update(
@@ -654,6 +677,9 @@ class DreamerTrainer:
                 discount=self.cfg.ac.discount,
                 lam=self.cfg.ac.lambda_,
                 deterministic_imagination=self.cfg.train.deterministic_imagination,
+                slow_critic=self.slow_critic,
+                slow_critic_scale=self.cfg.ac.slow_critic_scale,
+                entropy_scale=self.cfg.ac.entropy_scale,
             )
 
         # AMP (Automatic Mixed Precision):
@@ -687,4 +713,12 @@ class DreamerTrainer:
             torch.nn.utils.clip_grad_norm_(self.critic.parameters(), self.cfg.train.grad_clip)
             self.critic_opt.step()
 
+        self.update_slow_critic()
         return float(actor_loss.item()), float(critic_loss.item())
+
+    @torch.no_grad()
+    def update_slow_critic(self) -> None:
+        for slow, online in zip(self.slow_critic.parameters(), self.critic.parameters()):
+            slow.lerp_(online, self.cfg.ac.slow_critic_rate)
+        for slow, online in zip(self.slow_critic.buffers(), self.critic.buffers()):
+            slow.copy_(online)

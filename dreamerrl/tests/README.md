@@ -223,3 +223,12 @@ held-out evaluation seeds. A short run establishes execution, not learned memory
 use adequate training budgets and multiple seeds to assess performance. PopGym
 remains optional to the MiniHack-to-CAGE plan, but its supported code paths are
 covered by the regular tests.
+
+## 17. Bounded algorithm fidelity
+
+`invariants/test_dreamer_fidelity.py` verifies uniform categorical mixing,
+straight-through probability gradients, actor sampling/scoring, numerical slow
+critic regularization, gradient isolation, EMA update order, and v1 checkpoint
+migration. Checkpoint and repeatability checks include slow-critic state.
+See [the fidelity report](../../docs/dreamerv3_fidelity.md) for the pinned reference
+and the implementation's explicit deviations from a full reproduction.

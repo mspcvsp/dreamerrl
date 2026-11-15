@@ -6,6 +6,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
+from dreamerrl.models.categorical import mixed_probs, sample_onehot
 from dreamerrl.utils.types import LatentConfig, NetworkConfig
 
 
@@ -25,13 +26,11 @@ class Prior(nn.Module):
         latent: LatentConfig,
         net: NetworkConfig,
         deterministic_latent_for_tests: bool = False,
-        temperature: float = 1.0,
     ):
         super().__init__()
 
         self.latent = latent
         self.net_cfg = net
-        self.temperature = temperature
         self.deterministic_latent_for_tests = deterministic_latent_for_tests
 
         self.fc1 = nn.Linear(latent.deter_size, net.hidden_size)
@@ -51,16 +50,10 @@ class Prior(nn.Module):
         x = F.silu(self.fc1(h))
         logits = self.fc_logits(x)
         logits = logits.view(B, self.latent.num_classes, self.latent.stoch_size)
-        probs = F.softmax(logits, dim=-1)
-
-        if self.deterministic_latent_for_tests:
-            idx = probs.argmax(dim=-1)  # (B, K)
-            z = F.one_hot(idx, num_classes=self.latent.stoch_size).float()  # (B, K, C)
-        else:
-            g = -torch.log(-torch.log(torch.rand_like(probs)))
-            y = F.softmax((logits + g) / self.temperature, dim=-1)
-            idx = y.argmax(dim=-1)  # (B, K)
-            z_hard = F.one_hot(idx, num_classes=self.latent.stoch_size).float()  # (B, K, C)
-            z = z_hard + (y - y.detach())
+        probs = mixed_probs(logits, self.net_cfg.unimix)
+        # The same mixed distribution is used for sampling, KL, and diagnostics.
+        if self.net_cfg.unimix:
+            logits = probs.log()
+        z = sample_onehot(probs, deterministic=self.deterministic_latent_for_tests)
 
         return {"logits": logits, "probs": probs, "z": z}
