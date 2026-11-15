@@ -157,18 +157,69 @@ _Comprehensive, de‑duplicated, subsystem‑organized overview_
 
 ---
 
-## 15. Manual Reproducibility
-- manual/test_reproducibility.py
+## 15. Training repeatability and optional learning experiments
 
----
+`functional/test_training_repeatability.py` replaces the old manual reproducibility
+check. It runs by default on CPU, repeats three actual world/actor/critic updates
+with the same seed, and compares sampled replay, losses, final parameters/buffers,
+and episode returns exactly. It also verifies that each network's parameters
+changed. It makes no claims about cross-device or different-seed equivalence.
 
-# Summary
-This suite is:
-- **66 files**
-- **Zero duplicates**
-- **Subsystem‑orthogonal**
-- **Covers every Dreamer‑V3 failure mode**
-- **Balanced across invariants, functional, smoke, and stress layers**
+`manual/test_worldmodel_aux.py` is now a MiniHack Room-5x5 learning experiment:
+three seeds, auxiliaries off versus novelty only, equal environment-step budgets,
+matched initial actor/critic weights, and held-out greedy policy evaluation. It reports random, untrained, and trained
+whole-episode returns, including terminal/truncation rewards. It checks that
+novelty is active and losses/returns are finite; passing does not establish learning
+or auxiliary benefit. The JSON report contains individual episode returns,
+evaluation seeds, budgets, losses, and paired differences between the two arms.
 
+Run from the `cage2_env` Python environment:
 
+```bash
+# Normal correctness suite, including same-seed training repeatability
+python -m pytest dreamerrl/tests -q
 
+# Short experiment wiring check (not evidence of learning)
+python -m pytest dreamerrl/tests/manual/test_worldmodel_aux.py --run-manual --steps=2 --eval-episodes=2 -s
+
+# Longer CPU experiment: --steps is optimizer updates per seed/arm
+python -m pytest dreamerrl/tests/manual/test_worldmodel_aux.py --run-manual --steps=1000 --eval-episodes=10 -s
+```
+
+The experiment prints the JSON report path in pytest's temporary directory; copy
+that report if you want to preserve it across later pytest runs. TensorBoard logs
+are written under the same temporary directory. The repository-wide pytest default
+is only 20 updates; set the budget explicitly for a learning experiment. Evaluate
+results across seeds before making task-success or CAGE-readiness claims.
+
+## 16. Optional PopGym benchmark
+
+PopGym remains available for discrete-cue memory tasks such as RepeatFirst and
+RepeatPrevious. Both vector adapters use the same transition contract as MiniHack,
+including native reward magnitudes, final observations, per-row same-step resets,
+and distinct termination/truncation flags. Non-discrete observations/actions are
+rejected explicitly rather than flattened inconsistently.
+
+`popgym/test_popgym.py` now runs in the regular suite for both sync and async
+collection and training. `popgym/test_popgym_contracts.py` additionally checks
+independent resets, native negative/fractional rewards, whole-episode training
+returns, and evaluation across rows with different episode lengths. No quarantine
+or cross-seed CV/KL acceptance thresholds remain.
+
+The evaluator uses a separate environment in the CLI, held-out reset seeds,
+greedy actions, and posterior modes. It includes the final reward and latches each
+row's first episode end so autoresets cannot leak rewards from later episodes.
+Model modes and torch RNG state are restored afterward. Evaluation episode counts
+are per vector row. Training metrics use native rewards and scalar losses rather
+than retaining computation graphs.
+
+```bash
+# Short CLI wiring check; not evidence of task learning
+python -m dreamerrl.scripts.run_popgym --cpu --steps=2 --seeds 0 --episodes=2
+```
+
+The CLI reports untrained and trained returns for every seed using the same
+held-out evaluation seeds. A short run establishes execution, not learned memory;
+use adequate training budgets and multiple seeds to assess performance. PopGym
+remains optional to the MiniHack-to-CAGE plan, but its supported code paths are
+covered by the regular tests.

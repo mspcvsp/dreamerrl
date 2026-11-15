@@ -18,7 +18,7 @@ class EnvInterface(ABC):
     # ---------------------------------------------------------
 
     @abstractmethod
-    def reset(self, seed: Optional[int] = None) -> Dict[str, torch.Tensor]:
+    def reset(self, seed: Optional[int] = None) -> Dict[str, Any]:
         """
         Reset environment(s).
 
@@ -35,7 +35,7 @@ class EnvInterface(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    def step(self, actions: torch.Tensor) -> Dict[str, torch.Tensor]:
+    def step(self, actions: torch.Tensor) -> Dict[str, Any]:
         """
         Step environment(s).
 
@@ -121,7 +121,7 @@ class DreamerVecWrapper(EnvInterface):
     def batch_size(self) -> int:
         return self._batch_size
 
-    def reset(self, seed=None):
+    def reset(self, seed=None) -> Dict[str, Any]:
         obs, info = self.venv.reset(seed=seed)
 
         return {
@@ -133,7 +133,7 @@ class DreamerVecWrapper(EnvInterface):
             "info": info,
         }
 
-    def step(self, actions):
+    def step(self, actions) -> Dict[str, Any]:
         obs, reward, terminated, truncated, info = self.venv.step(actions.cpu().numpy())
 
         is_last = torch.tensor(terminated | truncated, dtype=torch.bool)

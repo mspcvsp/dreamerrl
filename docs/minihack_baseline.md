@@ -70,3 +70,20 @@ observe/reset timing, imagination action alignment, actual auxiliary-to-RSSM
 gradients, sync/async autoreset sentinel tests, and two real MiniHack optimizer
 cycles. It does not establish task success or CAGE readiness; use the training
 comparisons above for that milestone.
+
+## Optional paired learning experiment
+
+The regular suite now includes a same-seed CPU training repeatability check with
+all three networks updating. For a paired three-seed experiment with random and
+untrained baselines and held-out greedy evaluation:
+
+```bash
+python -m pytest dreamerrl/tests/manual/test_worldmodel_aux.py --run-manual --steps=1000 --eval-episodes=10 -s
+```
+
+Here `--steps` means optimizer updates per arm and seed. The experiment reports
+whole episode returns and saves a JSON report at the printed pytest temporary
+path. Copy it to preserve results. Passing verifies execution and finite metrics;
+learning and novelty benefit must be assessed from the reported returns. PopGym
+is optional; its repaired sync/async transition and evaluation contracts run in
+the regular suite. See the test README for its separate benchmark command.

@@ -1,4 +1,4 @@
-from typing import Callable
+from typing import Any, Callable
 
 import gymnasium as gym
 import minigrid  # noqa: F401  # ensures Minigrid registers its environments
@@ -75,7 +75,7 @@ class MinigridParallelEnv:
         # Track "first step" markers for Dreamer-style streaming
         self._needs_first = torch.ones(self.num_envs, dtype=torch.bool, device=self.device)
 
-    def reset(self, seed=None):
+    def reset(self, seed=None) -> dict[str, Any]:
         obs, info = self.venv.reset(seed=seed)
 
         # ImgObsWrapper already gives (B, H, W, C) float32
@@ -93,7 +93,7 @@ class MinigridParallelEnv:
             "info": info,
         }
 
-    def step(self, actions: torch.Tensor):
+    def step(self, actions: torch.Tensor) -> dict[str, Any]:
         # Normalize actions to shape (B,)
         if actions.dim() == 2 and actions.size(-1) == 1:
             actions_np = actions.squeeze(-1).detach().cpu().numpy()

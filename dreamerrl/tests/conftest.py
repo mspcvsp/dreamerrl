@@ -157,9 +157,7 @@ def rssm(latent, net):
 
 @pytest.fixture
 def sample_z(latent):
-
     def _sample(batch_size):
-
         idx = torch.randint(
             0,
             latent.stoch_size,
@@ -290,6 +288,14 @@ def pytest_addoption(parser):
         default=5000,
         type=int,
         help="Number of training steps",
+    )
+
+    parser.addoption(
+        "--eval-episodes",
+        action="store",
+        default=10,
+        type=int,
+        help="Held-out episodes per seed and arm in the manual MiniHack learning experiment",
     )
 
 
