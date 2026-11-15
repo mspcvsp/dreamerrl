@@ -1,4 +1,5 @@
 import argparse
+from pathlib import Path
 
 import torch
 
@@ -12,9 +13,14 @@ def main():
     parser.add_argument("--env", default="MiniHack-Room-5x5-v0")
     parser.add_argument("--aux", choices=["none", "novelty"], default="none")
     parser.add_argument("--seed", type=int, default=0)
-    parser.add_argument("--updates", type=int, default=1000)
+    parser.add_argument("--updates", type=int, default=None, help="Total desired updates, including resumed updates")
     parser.add_argument("--cpu", action="store_true")
+    parser.add_argument("--checkpoint", type=Path, help="Checkpoint destination (default: checkpoints/<run>/latest.pt)")
+    parser.add_argument("--checkpoint-every", type=int, default=100, help="Save every N completed updates")
+    parser.add_argument("--resume", type=Path, help="Resume a trusted checkpoint using its saved configuration")
     args = parser.parse_args()
+    if args.checkpoint_every < 1 or (args.updates is not None and args.updates < 1):
+        parser.error("--checkpoint-every and --updates must be positive")
     cfg = make_default_config()
 
     # -----------------------------------------------------
@@ -67,13 +73,23 @@ def main():
     # -----------------------------------------------------
     # Trainer
     # -----------------------------------------------------
-    trainer = DreamerTrainer(cfg)
+    if args.resume is not None:
+        trainer = DreamerTrainer.from_checkpoint(args.resume, cuda=False if args.cpu else None)
+        cfg = trainer.cfg
+    else:
+        if not cfg.train.cuda:
+            cfg.train.use_amp = False
+            cfg.train.enable_fused_adamw_kernels = False
+        trainer = DreamerTrainer(cfg)
+    target_updates = args.updates if args.updates is not None else (trainer.total_updates_target or 1000)
+    checkpoint = args.checkpoint or args.resume or Path("checkpoints") / cfg.log.run_name / "latest.pt"
 
     # -----------------------------------------------------
     # Train
     # -----------------------------------------------------
     try:
-        trainer.train(total_updates=args.updates)
+        print(f"Training from update {trainer.completed_updates} to {target_updates}; checkpoint: {checkpoint}")
+        trainer.train(total_updates=target_updates, checkpoint_path=checkpoint, checkpoint_every=args.checkpoint_every)
     finally:
         trainer.env.venv.close()
         trainer.tb.close()

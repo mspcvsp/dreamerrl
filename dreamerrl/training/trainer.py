@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import math
 import os
+import random
+import tempfile
 import time
 from pathlib import Path
 from typing import Any, Dict
@@ -70,6 +72,8 @@ class DreamerTrainer:
     def __init__(self, cfg: DreamerConfig):
         self.cfg = cfg
         self.sample_step = 0
+        self.completed_updates = 0
+        self.total_updates_target: int | None = None
 
         if cfg.train.enable_repro_log:
             self.repro_log = create_repro_logger(cfg.train.seed, cfg.env.seed, LOG_DIR)
@@ -218,15 +222,141 @@ class DreamerTrainer:
             self.cfg.train.collect_steps,
             self.cfg.env.max_episode_steps,
         )
+        self.replay.seq_len = self.cfg.train.seq_len
 
     @property
     def global_step(self) -> int:
         return self.total_env_steps
 
+    def save_checkpoint(self, path: str | Path) -> None:
+        """Atomically save a trusted local training checkpoint at an update boundary.
+
+        Environment state and unfinished replay episodes are intentionally omitted.
+        A resumed collector starts new episodes rather than joining unrelated states.
+        """
+        path = Path(path)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        payload = {
+            "version": 1,
+            "config": self.cfg,
+            "world": self.world.state_dict(),
+            "actor": self.actor.state_dict(),
+            "critic": self.critic.state_dict(),
+            "model_opt": self.model_opt.state_dict(),
+            "actor_opt": self.actor_opt.state_dict(),
+            "critic_opt": self.critic_opt.state_dict(),
+            "scaler": self.scaler.state_dict() if self.scaler is not None else None,
+            "completed_updates": self.completed_updates,
+            "total_updates_target": self.total_updates_target,
+            "total_env_steps": self.total_env_steps,
+            "sample_step": self.sample_step,
+            "recent_returns": self.recent_returns,
+            "replay": self.replay.state_dict(),
+            "rng": {
+                "python": random.getstate(),
+                "numpy": np.random.get_state(),
+                "torch": torch.get_rng_state(),
+                "cuda": torch.cuda.get_rng_state_all() if self.device.type == "cuda" else None,
+            },
+        }
+        temporary = None
+        try:
+            with tempfile.NamedTemporaryFile(
+                dir=path.parent, prefix=path.name + ".", suffix=".tmp", delete=False
+            ) as file:
+                temporary = Path(file.name)
+                torch.save(payload, file)
+                file.flush()
+                os.fsync(file.fileno())
+            os.replace(temporary, path)
+        finally:
+            if temporary is not None:
+                temporary.unlink(missing_ok=True)
+
+    def load_checkpoint(self, path: str | Path) -> None:
+        """Load a checkpoint produced by this project; only load files you trust."""
+        payload = torch.load(path, map_location="cpu", weights_only=False)
+        self._restore_checkpoint(payload)
+
+    @classmethod
+    def from_checkpoint(cls, path: str | Path, *, cuda: bool | None = None) -> DreamerTrainer:
+        """Construct from the saved configuration, optionally selecting CPU/CUDA."""
+        payload = torch.load(path, map_location="cpu", weights_only=False)
+        if payload.get("version") != 1:
+            raise ValueError("Unsupported Dreamer checkpoint version")
+        cfg = payload["config"]
+        if cuda is not None:
+            cfg.train.cuda = cuda
+        if not cfg.train.cuda or not torch.cuda.is_available():
+            cfg.train.use_amp = False
+            cfg.train.enable_fused_adamw_kernels = False
+        trainer = cls(cfg)
+        try:
+            trainer._restore_checkpoint(payload)
+        except Exception:
+            trainer.env.venv.close()
+            trainer.tb.close()
+            raise
+        return trainer
+
+    def _restore_checkpoint(self, payload) -> None:
+        if payload.get("version") != 1:
+            raise ValueError("Unsupported Dreamer checkpoint version")
+        saved_cfg = payload["config"]
+        if self.cfg.world != saved_cfg.world or self.cfg.ac != saved_cfg.ac or self.cfg.env != saved_cfg.env:
+            raise ValueError("Checkpoint environment/model configuration does not match this trainer")
+        # Validate replay dimensions before changing model/optimizer state.
+        for key in ("seq_len", "obs_dim", "action_dim", "capacity"):
+            if payload["replay"][key] != getattr(self.replay, key):
+                raise ValueError(f"Checkpoint replay {key} does not match this trainer")
+        for name in ("world", "actor", "critic", "model_opt", "actor_opt", "critic_opt"):
+            getattr(self, name).load_state_dict(payload[name])
+        if self.device.type == "cpu":
+            for optimizer in (self.model_opt, self.actor_opt, self.critic_opt):
+                for group in optimizer.param_groups:
+                    group["fused"] = False
+        if self.scaler is not None and payload["scaler"] is not None:
+            self.scaler.load_state_dict(payload["scaler"])
+        self.replay.load_state_dict(payload["replay"])
+        self.completed_updates = payload["completed_updates"]
+        self.total_updates_target = payload["total_updates_target"]
+        self.total_env_steps = payload["total_env_steps"]
+        self.sample_step = payload["sample_step"]
+        self.recent_returns = list(payload["recent_returns"])
+        self.episode_returns.zero_()
+        # The simulator cannot be snapshotted. Reset both collector and RSSM.
+        self.env_state = self.env.reset(seed=self.cfg.env.seed + self.total_env_steps)
+        with torch.no_grad():
+            self.world_state = self.world.observe_step(
+                self.world.init_state(self.env.batch_size),
+                self.env_state["state"].to(self.device),
+                torch.zeros(self.env.batch_size, self.action_dim, device=self.device),
+                is_first=torch.ones(self.env.batch_size, dtype=torch.bool, device=self.device),
+            )["post"].detach()
+        rng = payload["rng"]
+        random.setstate(rng["python"])
+        np.random.set_state(rng["numpy"])
+        torch.set_rng_state(rng["torch"].cpu())
+        if rng["cuda"] is not None and self.device.type == "cuda":
+            for index, state in enumerate(rng["cuda"][: torch.cuda.device_count()]):
+                torch.cuda.set_rng_state(state.cpu(), index)
+
     # -------------------------------------------------------------
     # Training Loop
     # -------------------------------------------------------------
-    def train(self, total_updates: int) -> None:
+    def train(
+        self,
+        total_updates: int,
+        *,
+        checkpoint_path: str | Path | None = None,
+        checkpoint_every: int = 100,
+    ) -> None:
+        """Train to an absolute update count, saving after completed updates."""
+        if total_updates < self.completed_updates:
+            raise ValueError("total_updates is below the checkpoint's completed update count")
+        if checkpoint_every < 1:
+            raise ValueError("checkpoint_every must be positive")
+        self.total_updates_target = total_updates
         lr_cfg = LRScheduleConfig(
             base_lr=self.cfg.train.model_lr,
             warmup_steps=self.cfg.train.warmup_steps,
@@ -235,7 +365,7 @@ class DreamerTrainer:
         )
         lr_schedule = CosineWarmupScheduler(lr_cfg)
 
-        for update_idx in range(total_updates):
+        for update_idx in range(self.completed_updates, total_updates):
             t0 = time.time()
 
             lr = lr_schedule(update_idx)
@@ -295,6 +425,12 @@ class DreamerTrainer:
                     },
                     step=update_idx,
                 )
+
+            self.completed_updates = update_idx + 1
+            if checkpoint_path is not None and (
+                self.completed_updates % checkpoint_every == 0 or self.completed_updates == total_updates
+            ):
+                self.save_checkpoint(checkpoint_path)
 
     # -------------------------------------------------------------
     # Collect steps from environment

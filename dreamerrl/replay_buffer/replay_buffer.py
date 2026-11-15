@@ -122,6 +122,27 @@ class ReplayBuffer:
                 total_size=self.size,
             )
 
+    def state_dict(self):
+        """Persist completed episodes only; live environments cannot be restored."""
+        return {
+            "episodes": [{k: v.detach().cpu() for k, v in ep.items()} for ep in self.episodes],
+            "rng": self.rng.get_state(),
+            "seq_len": self.seq_len,
+            "obs_dim": self.obs_dim,
+            "action_dim": self.action_dim,
+            "capacity": self.capacity,
+        }
+
+    def load_state_dict(self, state):
+        for key in ("seq_len", "obs_dim", "action_dim", "capacity"):
+            if state[key] != getattr(self, key):
+                raise ValueError(f"Checkpoint replay {key} does not match the current configuration")
+        self.episodes = [{k: v.to(self.device) for k, v in ep.items()} for ep in state["episodes"]]
+        self.size = sum(ep["obs"].shape[0] for ep in self.episodes)
+        self.rng.set_state(state["rng"].cpu())
+        self.current_eps = []
+        self.num_envs = None
+
     def sample(self, batch_size: int, seed: int | None = None) -> Dict[str, torch.Tensor]:
         assert len(self.episodes) > 0, "Replay buffer is empty"
 

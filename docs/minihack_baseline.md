@@ -87,3 +87,46 @@ path. Copy it to preserve results. Passing verifies execution and finite metrics
 learning and novelty benefit must be assessed from the reported returns. PopGym
 is optional; its repaired sync/async transition and evaluation contracts run in
 the regular suite. See the test README for its separate benchmark command.
+
+## Checkpoint and resume
+
+The MiniHack runner saves `checkpoints/<run_name>/latest.pt` every 100 completed
+updates and at normal completion. Saves replace the prior file atomically, so an
+interrupted or failed write leaves the last complete checkpoint available.
+
+```bash
+# Start a run; choose a stable destination and save frequency.
+python -m dreamerrl.scripts.run_minihack --cpu --updates 1000 --checkpoint checkpoints/room.pt --checkpoint-every 50
+
+# Continue an interrupted run to its original target update count.
+python -m dreamerrl.scripts.run_minihack --cpu --resume checkpoints/room.pt
+
+# Extend a completed run to 2000 total updates (not 2000 additional updates).
+python -m dreamerrl.scripts.run_minihack --cpu --resume checkpoints/room.pt --updates 2000
+```
+
+Resume uses the saved environment, seed, model, auxiliary objectives, and training
+configuration; `--env`, `--aux`, and `--seed` apply to new runs. `--cpu` can select
+CPU on resume. `--checkpoint` can select a new destination. With no new destination,
+resume updates the source checkpoint. Extending `--updates` also extends the cosine
+learning-rate schedule horizon; resuming to the original target preserves its
+schedule and completed-update position.
+
+Checkpoints include all three models, optimizer states, AMP scaler when active,
+completed replay episodes, replay RNG, Python/NumPy/PyTorch RNG states, update and
+environment-step counters, replay sample counter, and recent episode returns.
+Replay data can make checkpoint files large. The format includes Python objects;
+load only trusted checkpoints produced by this project.
+
+MiniHack's live simulator is not serialized. Resume resets the collector/RSSM and
+discards unfinished episodes and their partial returns, retaining completed replay
+and learned state. It therefore resumes training, but does not reproduce the exact
+environment trajectory of an uninterrupted run. Periodic saves occur only after
+all updates for that iteration complete; a crash or Ctrl-C resumes from the last
+saved boundary. Changes since that checkpoint are lost.
+
+For direct trainer use: `save_checkpoint(path)`, `load_checkpoint(path)`, or
+`DreamerTrainer.from_checkpoint(path, cuda=False)`. The instance load requires a
+matching environment/model and replay layout. Call saves at completed-update
+boundaries. The `train(total_updates, checkpoint_path=..., checkpoint_every=...)`
+API manages counters and those boundaries automatically.
