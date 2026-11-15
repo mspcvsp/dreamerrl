@@ -23,6 +23,7 @@ def actor_critic_update(
     slow_critic=None,
     slow_critic_scale=1.0,
     entropy_scale=3e-4,
+    remaining_steps=None,
 ):
     # Use every replay posterior as an imagination start, without model gradients.
     with torch.no_grad():
@@ -33,6 +34,11 @@ def actor_critic_update(
         start = WorldModelState(h.reshape(B * L, -1), z.reshape(B * L, *z.shape[2:]))
         terminal = batch.get("is_terminal", torch.zeros(B, L, device=h.device))
         start_weight = 1.0 - terminal.to(h.device).float().reshape(-1)
+        if remaining_steps is not None:
+            if remaining_steps.shape != (B, L):
+                raise ValueError("remaining_steps must have replay shape (B, L)")
+            remaining_steps = remaining_steps.to(h.device).reshape(-1)
+            start_weight = start_weight * (remaining_steps > 0)
     traj = imagine_trajectory_for_training(
         world_model,
         actor,
@@ -48,6 +54,10 @@ def actor_critic_update(
         values = critic.readout(critic(h_flat, z_flat)).reshape(T, N)
         value_seq = torch.cat([values, traj["bootstrap_value"].unsqueeze(0)])
         discounts = discount * traj["continue"]
+        if remaining_steps is not None:
+            # Reward for the final task action is kept; continuation beyond it is zero.
+            offsets = torch.arange(1, T + 1, device=h.device).unsqueeze(-1)
+            discounts = discounts * (offsets < remaining_steps.unsqueeze(0))
         returns = lambda_return(traj["reward"], value_seq, discounts, lam)
         weights = torch.cumprod(torch.cat([start_weight.unsqueeze(0), discounts[:-1]]), dim=0)
         live_returns = returns[weights > 0].float()

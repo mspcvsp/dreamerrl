@@ -18,8 +18,8 @@ averaging examples. Current defaults are 1 nat and loss weights 1.0 / 0.1.
 
 Keep factor/category axes intact for categorical probabilities, samples, and KL.
 Flattening a latent for an MLP is valid and is used in the recurrent transition
-and auxiliary heads. Several main heads instead sum factor embeddings; this is a
-local architecture simplification, not a DreamerV3 requirement. Categorical latent
+and all prediction/actor heads. Each factor has its own projection coordinates;
+permuting factors can change predictions even when category counts are identical. Categorical latent
 capacity alone does not prove a network can learn to use that capacity.
 
 The [bounded fidelity report](../../docs/dreamerv3_fidelity.md) records the pinned

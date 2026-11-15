@@ -228,7 +228,17 @@ covered by the regular tests.
 
 `invariants/test_dreamer_fidelity.py` verifies uniform categorical mixing,
 straight-through probability gradients, actor sampling/scoring, numerical slow
-critic regularization, gradient isolation, EMA update order, and v1 checkpoint
-migration. Checkpoint and repeatability checks include slow-critic state.
+critic regularization, gradient isolation, EMA update order, and rejection of incompatible pooled-latent checkpoints. Checkpoint and repeatability checks include slow-critic state.
 See [the fidelity report](../../docs/dreamerv3_fidelity.md) for the pinned reference
 and the implementation's explicit deviations from a full reproduction.
+
+## 18. Latent identity and task horizons
+
+`invariants/test_latent_factor_identity.py` checks every main prediction head and
+the actor against factor permutations with identical pooled statistics, including
+factor-specific gradients. `functional/test_replay_horizons.py` checks mixed short
+and long episodes without stitching/padding, one-step episodes, and replay across
+collection chunks. `invariants/test_finite_task_horizon.py` checks finite versus
+continuing termination targets, clock features, bounded imagined returns, and
+checkpoint/evaluation compatibility. MiniHack evaluation regressions exercise the
+same clock feature on both terminated and truncated episodes.

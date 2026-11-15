@@ -149,18 +149,17 @@ def test_slow_critic_updates_once_after_online_optimizer(trainer, monkeypatch):
     assert any(not torch.equal(old, slow) for old, slow in zip(before, trainer.slow_critic.parameters()))
 
 
-def test_v1_checkpoint_initializes_missing_slow_critic(trainer, tmp_path):
+@pytest.mark.parametrize("version", [1, 2])
+def test_pooled_latent_checkpoint_is_rejected(trainer, tmp_path, version):
     path = tmp_path / "old.pt"
     trainer.save_checkpoint(path)
     payload = torch.load(path, map_location="cpu", weights_only=False)
-    payload["version"] = 1
-    del payload["slow_critic"]
+    payload["version"] = version
     torch.save(payload, path)
-    with torch.no_grad():
-        for param in trainer.slow_critic.parameters():
-            param.add_(1)
-    with pytest.warns(RuntimeWarning, match="no EMA critic"):
+    before = {key: value.clone() for key, value in trainer.actor.state_dict().items()}
+    with pytest.raises(ValueError, match="Pooled-latent checkpoint"):
         trainer.load_checkpoint(path)
-    for online, slow in zip(trainer.critic.parameters(), trainer.slow_critic.parameters()):
-        torch.testing.assert_close(online, slow, rtol=0, atol=0)
-        assert not slow.requires_grad
+    with pytest.raises(ValueError, match="Pooled-latent checkpoint"):
+        DreamerTrainer.from_checkpoint(path, cuda=False)
+    for key, value in trainer.actor.state_dict().items():
+        torch.testing.assert_close(before[key], value, rtol=0, atol=0)

@@ -155,7 +155,7 @@ class TrainingConfig:
 
     # Replay buffer + sequence sampling.
     replay_capacity: int = 200_000
-    seq_len: int = 50
+    seq_len: int = 16
     batch_size: int = 64
     collect_steps: int = 100
 
@@ -200,14 +200,8 @@ class TrainingConfig:
     cuda: bool = True
     seed: int = 0
 
-    # Dreamer‑V3 only needs that invariant for reproducibility tests (KL dynamics, bit‑for‑bit determinism). It is not
-    # required for:
-    #
-    # - PopGym functional tests
-    # - Atari training
-    # - DMControl training
-    # - Robotics
-    # - Any normal Dreamer training loop
+    # Legacy compatibility flag; positive lengths are always checked. Replay
+    # windows may span collection calls and shorten to fit selected episodes.
     enforce_length_invariants: bool = False
     enable_repro_log: bool = False  # Set to true to enable reproducibility logging (repro.log)
     repro_log_every_n: int = 100
@@ -236,6 +230,9 @@ class EnvironmentConfig:
     deterministic: bool = False
     parallel: bool = False  # reproducibility mode
     seed: int = 0
+    # True: episode ends define the task return, not a continuing-task cutoff.
+    # The trainer appends a remaining-time feature and bounds imagined returns.
+    finite_horizon: bool = False
 
 
 # ---------------------------------------------------------

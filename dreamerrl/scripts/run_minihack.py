@@ -15,6 +15,11 @@ def main():
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--updates", type=int, default=None, help="Total desired updates, including resumed updates")
     parser.add_argument("--cpu", action="store_true")
+    parser.add_argument(
+        "--finite-horizon",
+        action="store_true",
+        help="Treat episode limits as finite task ends and append remaining time",
+    )
     parser.add_argument("--checkpoint", type=Path, help="Checkpoint destination (default: checkpoints/<run>/latest.pt)")
     parser.add_argument("--checkpoint-every", type=int, default=100, help="Save every N completed updates")
     parser.add_argument("--resume", type=Path, help="Resume a trusted checkpoint using its saved configuration")
@@ -33,6 +38,7 @@ def main():
     cfg.env.parallel = False
     cfg.env.deterministic = False
     cfg.env.seed = args.seed
+    cfg.env.finite_horizon = args.finite_horizon
 
     # -----------------------------------------------------
     # World Model: establish the baseline before auxiliary ablations.
@@ -54,7 +60,7 @@ def main():
     cfg.train.cuda = torch.cuda.is_available() and not args.cpu
     cfg.train.batch_size = 16
     cfg.train.collect_steps = 250
-    cfg.train.seq_len = 50
+    cfg.train.seq_len = 16
 
     cfg.train.model_lr = 3e-4
     cfg.train.actor_lr = 3e-4

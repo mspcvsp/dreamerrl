@@ -24,7 +24,7 @@ DreamerV3 variant, not a claim to reproduce the official architecture or scores.
 | KL | Sum categorical factors before a 1-nat floor; dynamics/representation stop-gradients stay separate. Default scales corrected to 1.0 / 0.1. |
 | Scalar heads | Symlog two-hot training and symexp readout; Bernoulli continuation. |
 | Actor normalization/defaults | EMA return percentiles and a scale floor of 1; entropy coefficient corrected to 3e-4. |
-| Persistence | Checkpoint v2 includes the EMA critic. Fixed-batch continuation restores its values as well as optimizer/RNG state. |
+| Persistence | Checkpoint v3 includes factor-preserving heads and the EMA critic. Fixed-batch continuation restores optimizer/RNG state. |
 
 Distribution behavior is grounded in the reference
 [categorical and one-hot outputs](https://github.com/danijar/dreamerv3/blob/e01491fad6434b2245a3b8ca201dd7faedcc458c/embodied/jax/outs.py#L196-L253).
@@ -38,10 +38,10 @@ and [configured coefficients](https://github.com/danijar/dreamerv3/blob/e01491fa
 These are active design choices/omissions, not quarantined broken paths:
 
 - The recurrent transition is an MLP over previous deterministic state, latent, and
-  action, rather than the reference gated recurrent core. Several prediction heads
-  sum shared per-factor embeddings rather than consuming a flattened latent. These
-  choices restrict the hypothesis class and can affect memory/representation quality.
-  Network sizes are much smaller. See reference [RSSM](https://github.com/danijar/dreamerv3/blob/e01491fad6434b2245a3b8ca201dd7faedcc458c/dreamerv3/rssm.py#L126-L149)
+  action, rather than the reference gated recurrent core. Prediction heads and the
+  actor now preserve factor identity via a flattened latent projection; the prior
+  shared-factor pooling restriction has been removed. Network sizes remain much
+  smaller, and the MLP recurrence can affect memory quality. See reference [RSSM](https://github.com/danijar/dreamerv3/blob/e01491fad6434b2245a3b8ca201dd7faedcc458c/dreamerv3/rssm.py#L126-L149)
   and [feature construction](https://github.com/danijar/dreamerv3/blob/e01491fad6434b2245a3b8ca201dd7faedcc458c/dreamerv3/agent.py#L46-L48).
 - Adam, global gradient clipping, and separate optimizers are retained; the modern
   reference uses an AGC/RMS/momentum optimizer chain. Xavier/random prediction-head
@@ -78,11 +78,18 @@ order/formula. Existing learning-contract tests cover returns, continuation cuto
 reset timing, KL floor/scales, and two-hot units. Checkpoint and same-seed tests now
 include the slow critic.
 
-Version 1 checkpoints remain loadable, with an explicit warning that the missing
-slow critic is initialized from the restored online critic. Existing explicitly
-saved coefficients are retained. Categorical sampling/mixing behavior follows the
-new implementation when resuming. Start a fresh run to compare the corrected
-profile against earlier results; old and new learning curves are different profiles.
+Checkpoint v3 is required after replacing pooled latent embeddings with projections
+over all latent factors. Versions 1 and 2 are rejected with an architecture-specific
+message before loading model or optimizer state. No implicit weight/optimizer
+conversion is performed. New finite-task configurations also add one time feature
+and must match the saved configuration when resuming.
+
+Replay now retains short trials with unpadded, shared-length batches instead of
+filtering them out. Collection chunk size no longer limits replay sequence length.
+Optional `finite_horizon` training makes remaining time observable, trains finite
+terminal targets, and bounds imagined returns at the known trial end. The default
+continuing-task semantics remain appropriate for artificial time-limit cutoffs.
+See [horizon handling](minihack_baseline.md#finite-trial-horizons-and-collection-chunks).
 
 ```bash
 python -m pytest dreamerrl/tests/invariants/test_dreamer_fidelity.py dreamerrl/tests/functional/test_checkpoint_resume.py -q

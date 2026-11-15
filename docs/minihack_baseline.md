@@ -35,7 +35,11 @@ The other auxiliary heads remain available for experiments, with narrower claims
 Replay is batch-major `(B, L, ...)`. Each transition stores the resulting
 observation and the action/reward leading to it. The trainer also inserts each
 initial observation with zero action/reward and `is_first=True`. Sampled windows
-never cross episodes; windows starting mid-episode initialize recurrent state at
+never cross episodes. Replay selects episodes before choosing a shared batch
+length: the minimum of configured `seq_len` (default 16) and the shortest selected
+episode. Short episodes are retained without padding. Sequence length can vary
+between batches; frequent short episodes reduce context for that whole batch.
+Windows starting mid-episode initialize recurrent state at
 zero without a burn-in prefix.
 
 MiniHack uses same-step vector autoreset. `state` is the observation for the next
@@ -135,7 +139,41 @@ API manages counters and those boundaries automatically.
 
 See [the bounded fidelity check](dreamerv3_fidelity.md) for the pinned official
 reference, probability-gradient and EMA-critic corrections, and explicit local
-architecture/optimization differences. Checkpoint v2 persists the slow critic;
-v1 loads with a warning and initializes that critic from online weights. Old saved
-coefficients remain in effect, while resumed categorical behavior uses the current
-implementation. Use new runs for comparisons with the corrected defaults.
+architecture/optimization differences. Checkpoint v3 persists factor-preserving
+heads and the slow critic. Pooled-latent v1/v2 checkpoints are rejected before any
+model state is loaded; their input weight shapes are incompatible. Start a new run
+for this architecture. Existing checkpoint files are not modified.
+
+## Finite trial horizons and collection chunks
+
+By default, a time-limit cutoff is a continuing-task truncation: `is_last=True`,
+`is_terminal=False`, and continuation remains eligible for bootstrapping. When an
+episode is the complete finite task (for example, a fixed-length trial), set:
+
+```python
+cfg.env.finite_horizon = True
+cfg.env.max_episode_steps = 30
+cfg.train.seq_len = 16
+```
+
+The MiniHack runner exposes this choice as `--finite-horizon`. It is opt-in and
+is saved in checkpoints. This changes the objective, rather than merely changing
+how long a collection call runs.
+
+Finite mode appends one observation feature in [0,1] describing remaining time.
+Initial/reset observations have 1; the final horizon transition has 0. Each row
+has its own clock, so one environment ending does not reset the others. An early
+natural ending may have positive remaining time but is still terminal. Adapters
+must preserve `transition_state` separately from same-step reset observations.
+
+The trainer marks episode ends terminal in finite mode. Actor/critic updates also
+use the recorded remaining steps to cut continuation at known task ends, even if
+the learned continuation head is inaccurate. The last action's reward is kept;
+bootstrapping and loss weights beyond the task boundary are zero. Evaluation adds
+the same time feature (`task_horizon=...` for the PopGym evaluator).
+
+Collection chunks never mark task ends. They may be shorter than a replay window
+or episode: the training loop collects until its first completed episode is ready,
+then can sample context spanning collection calls. The first replay warmup is
+bounded by the configured episode length; an adapter that fails to end episodes
+raises a clear error instead of looping indefinitely.

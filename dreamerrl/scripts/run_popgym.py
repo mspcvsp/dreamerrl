@@ -34,10 +34,22 @@ def main():
         trainer = DreamerTrainer(cfg)
         evaluation_env = make_env(cfg.env, trainer.device)
         try:
-            untrained = evaluate_popgym(evaluation_env, trainer.world, trainer.actor, args.episodes)
+            untrained = evaluate_popgym(
+                evaluation_env,
+                trainer.world,
+                trainer.actor,
+                args.episodes,
+                task_horizon=cfg.env.max_episode_steps if cfg.env.finite_horizon else None,
+            )
             metrics = train_popgym_seed(trainer, steps=args.steps)
             results.append(metrics)
-            trained = evaluate_popgym(evaluation_env, trainer.world, trainer.actor, args.episodes)
+            trained = evaluate_popgym(
+                evaluation_env,
+                trainer.world,
+                trainer.actor,
+                args.episodes,
+                task_horizon=cfg.env.max_episode_steps if cfg.env.finite_horizon else None,
+            )
             print(
                 f"seed={seed} env_steps={metrics['env_steps']} "
                 f"untrained_return={untrained['mean']:.4f} trained_return={trained['mean']:.4f}"

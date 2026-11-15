@@ -6,6 +6,7 @@ import pytest
 import torch
 
 from dreamerrl.models.actor import Actor
+from dreamerrl.models.world_model import WorldModel
 from dreamerrl.tests.manual.utils import evaluate_minihack, minihack_config
 
 
@@ -38,6 +39,7 @@ class RewardSentinel(gym.Env):
         self.closed = True
 
 
+@pytest.mark.parametrize("finite", [False, True])
 @pytest.mark.parametrize("terminal", [False, True])
 @pytest.mark.parametrize("random_policy", [False, True])
 def test_held_out_evaluation_counts_final_reward_and_restores_state(
@@ -46,16 +48,30 @@ def test_held_out_evaluation_counts_final_reward_and_restores_state(
     monkeypatch,
     terminal,
     random_policy,
+    finite,
 ):
     env = RewardSentinel(terminal)
     monkeypatch.setattr("dreamerrl.tests.manual.utils.gym.make", lambda *args, **kwargs: env)
     cfg = minihack_config(0, tmp_path)
+    cfg.env.finite_horizon = finite
+    if finite:
+        world_model = WorldModel(
+            obs_space=gym.spaces.Box(0.0, 100.0, (9,), np.float32),
+            dreamer_cfg=cfg,
+            latent=world_model.latent,
+            net=world_model.net_cfg,
+        )
+    clocks = []
+    hook = world_model.encoder.register_forward_pre_hook(lambda module, args: clocks.append(args[0][:, -1].item()))
     actor = Actor(latent=world_model.latent, net=world_model.net_cfg)
     world_model.train()
     actor.train()
     posterior_mode = world_model.posterior.deterministic_latent_for_tests
     rng = torch.get_rng_state().clone()
     result = evaluate_minihack(cfg, world_model, actor, [10001, 10002], random_policy)
+    hook.remove()
+    if finite and not random_policy:
+        assert clocks == pytest.approx([1.0, 5 / 6, 1.0, 5 / 6])
     assert result == [5.0, 5.0]  # 2 + 3, including the reward at termination/truncation
     assert env.seeds == [10001, 10002]
     assert env.closed

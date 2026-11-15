@@ -20,8 +20,10 @@ class PopGymTrainingResult(TypedDict):
 
 
 @torch.no_grad()
-def evaluate_popgym(env, world, actor, episodes=10, device=None, seed=10000):
+def evaluate_popgym(env, world, actor, episodes=10, device=None, seed=10000, task_horizon=None):
     """Evaluate episodes per vector row, latching each row's first episode end."""
+    if task_horizon is not None and task_horizon < 1:
+        raise ValueError("task_horizon must be positive")
     if episodes < 1:
         raise ValueError("episodes must be positive")
     model_device = next(world.parameters()).device
@@ -45,14 +47,23 @@ def evaluate_popgym(env, world, actor, episodes=10, device=None, seed=10000):
                 action = torch.zeros(env.batch_size, action_dim, device=model_device)
                 done = torch.zeros(env.batch_size, dtype=torch.bool, device=model_device)
                 total = torch.zeros(env.batch_size, device=model_device)
+                elapsed = torch.zeros(env.batch_size, device=model_device)
                 while not done.all():
-                    state = world.observe_step(
-                        state, obs["state"].to(model_device), action, is_first=obs["is_first"].to(model_device)
-                    )["post"]
+                    observation = obs["state"].to(model_device)
+                    if task_horizon is not None:
+                        clock = (1 - elapsed / task_horizon).clamp_min(0).unsqueeze(-1)
+                        observation = torch.cat([observation, clock], -1)
+                    state = world.observe_step(state, observation, action, is_first=obs["is_first"].to(model_device))[
+                        "post"
+                    ]
                     ids = actor(state.h, state.z).argmax(-1)
                     obs = env.step(ids)
+                    elapsed.add_(1)
+                    elapsed[obs["is_first"].to(model_device)] = 0
                     total += obs["reward"].to(model_device) * (~done)
                     done |= obs["is_last"].to(model_device)
+                    if task_horizon is not None:
+                        done |= elapsed >= task_horizon
                     action = torch.nn.functional.one_hot(ids, action_dim).float()
                 returns.append(total.cpu())
     finally:

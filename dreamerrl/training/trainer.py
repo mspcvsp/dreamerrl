@@ -6,13 +6,13 @@ import os
 import random
 import tempfile
 import time
-import warnings
 from pathlib import Path
 from typing import Any, Dict
 
 import numpy as np
 import torch
 import torch.nn.functional as F
+from gymnasium.spaces import Box
 from torch import autocast
 from torch.amp.grad_scaler import GradScaler
 from torch.utils.tensorboard import SummaryWriter
@@ -72,6 +72,13 @@ class DreamerTrainer:
     """
 
     def __init__(self, cfg: DreamerConfig):
+        for name, value in (
+            ("seq_len", cfg.train.seq_len),
+            ("collect_steps", cfg.train.collect_steps),
+            ("max_episode_steps", cfg.env.max_episode_steps),
+        ):
+            if value < 1:
+                raise ValueError(f"{name} must be positive")
         self.cfg = cfg
         self.sample_step = 0
         self.completed_updates = 0
@@ -116,15 +123,6 @@ class DreamerTrainer:
         torch.backends.cudnn.benchmark = False
         torch.backends.cudnn.deterministic = True
 
-        if self.cfg.train.collect_steps < self.cfg.env.max_episode_steps:
-            print(
-                f"[Warning] collect_steps ({self.cfg.train.collect_steps}) is smaller than "
-                f"max_episode_steps ({self.cfg.env.max_episode_steps}). "
-                "Episodes will not finish inside a single rollout. "
-                "Replay buffer will remain empty unless collect_env_steps() "
-                "is called multiple times before sampling."
-            )
-
         self.device = torch.device("cuda" if cfg.train.cuda and torch.cuda.is_available() else "cpu")
 
         # -----------------------------------------------------
@@ -132,6 +130,17 @@ class DreamerTrainer:
         # -----------------------------------------------------
         self.env = make_env(cfg.env, device=self.device)
         obs_space = self.env.obs_space
+        self.episode_steps = torch.zeros(self.env.batch_size, dtype=torch.long, device=self.device)
+        if cfg.env.finite_horizon:
+            if not isinstance(obs_space, Box) or len(obs_space.shape) != 1:
+                self.env.venv.close()
+                self.tb.close()
+                raise ValueError("Finite-horizon training requires vector Box observations")
+            obs_space = Box(
+                np.append(obs_space.low, 0).astype(np.float32),
+                np.append(obs_space.high, 1).astype(np.float32),
+                dtype=np.float32,
+            )
         self.action_dim = self.env.action_dim
 
         # -----------------------------------------------------
@@ -210,7 +219,7 @@ class DreamerTrainer:
         if cfg.log.enable_wandb:
             wandb.init(project="dreamer_v3", config=cfg.__dict__)
 
-        self.env_state: Dict[str, Any] = self.env.reset()
+        self.env_state: Dict[str, Any] = self.prepare_env_output(self.env.reset(), reset=True)
         with torch.no_grad():
             self.world_state = self.world.observe_step(
                 self.world_state,
@@ -221,18 +230,6 @@ class DreamerTrainer:
         self.total_env_steps: int = 0
         self.episode_returns = torch.zeros(self.env.batch_size, device=self.device)
         self.recent_returns = []
-
-        # NOTE:
-        # Bound sampled sequence length by the rollout and episode limits.
-        # This clamp MUST run at the end of __init__, after all config overrides
-        # (including test overrides) have been applied. Running it earlier allows
-        # stale default values to leak into the trainer and break invariants.
-        self.cfg.train.seq_len = min(
-            self.cfg.train.seq_len,
-            self.cfg.train.collect_steps,
-            self.cfg.env.max_episode_steps,
-        )
-        self.replay.seq_len = self.cfg.train.seq_len
 
     @property
     def global_step(self) -> int:
@@ -247,7 +244,7 @@ class DreamerTrainer:
         path = Path(path)
         path.parent.mkdir(parents=True, exist_ok=True)
         payload = {
-            "version": 2,
+            "version": 3,
             "config": self.cfg,
             "world": self.world.state_dict(),
             "actor": self.actor.state_dict(),
@@ -293,7 +290,11 @@ class DreamerTrainer:
     def from_checkpoint(cls, path: str | Path, *, cuda: bool | None = None) -> DreamerTrainer:
         """Construct from the saved configuration, optionally selecting CPU/CUDA."""
         payload = torch.load(path, map_location="cpu", weights_only=False)
-        if payload.get("version") not in (1, 2):
+        if payload.get("version") in (1, 2):
+            raise ValueError(
+                "Pooled-latent checkpoint v1/v2 is incompatible with factor-preserving heads; start a new run"
+            )
+        if payload.get("version") != 3:
             raise ValueError("Unsupported Dreamer checkpoint version")
         cfg = payload["config"]
         if cuda is not None:
@@ -311,7 +312,11 @@ class DreamerTrainer:
         return trainer
 
     def _restore_checkpoint(self, payload) -> None:
-        if payload.get("version") not in (1, 2):
+        if payload.get("version") in (1, 2):
+            raise ValueError(
+                "Pooled-latent checkpoint v1/v2 is incompatible with factor-preserving heads; start a new run"
+            )
+        if payload.get("version") != 3:
             raise ValueError("Unsupported Dreamer checkpoint version")
         saved_cfg = payload["config"]
         if self.cfg.world != saved_cfg.world or self.cfg.ac != saved_cfg.ac or self.cfg.env != saved_cfg.env:
@@ -322,15 +327,7 @@ class DreamerTrainer:
                 raise ValueError(f"Checkpoint replay {key} does not match this trainer")
         for name in ("world", "actor", "critic", "model_opt", "actor_opt", "critic_opt"):
             getattr(self, name).load_state_dict(payload[name])
-        if payload["version"] == 1:
-            warnings.warn(
-                "Checkpoint v1 has no EMA critic; initializing it from the restored online critic.",
-                RuntimeWarning,
-                stacklevel=2,
-            )
-            self.slow_critic.load_state_dict(payload["critic"])
-        else:
-            self.slow_critic.load_state_dict(payload["slow_critic"])
+        self.slow_critic.load_state_dict(payload["slow_critic"])
         if self.device.type == "cpu":
             for optimizer in (self.model_opt, self.actor_opt, self.critic_opt):
                 for group in optimizer.param_groups:
@@ -345,7 +342,10 @@ class DreamerTrainer:
         self.recent_returns = list(payload["recent_returns"])
         self.episode_returns.zero_()
         # The simulator cannot be snapshotted. Reset both collector and RSSM.
-        self.env_state = self.env.reset(seed=self.cfg.env.seed + self.total_env_steps)
+        self.env_state = self.prepare_env_output(
+            self.env.reset(seed=self.cfg.env.seed + self.total_env_steps),
+            reset=True,
+        )
         with torch.no_grad():
             self.world_state = self.world.observe_step(
                 self.world.init_state(self.env.batch_size),
@@ -397,6 +397,17 @@ class DreamerTrainer:
                 pg["lr"] = lr
 
             self.collect_env_steps()
+            if not self.replay.episodes:
+                warmup_calls = math.ceil(self.cfg.env.max_episode_steps / self.cfg.train.collect_steps)
+                for _ in range(warmup_calls - 1):
+                    self.collect_env_steps()
+                    if self.replay.episodes:
+                        break
+                if not self.replay.episodes:
+                    raise RuntimeError(
+                        "No completed replay episodes within max_episode_steps; "
+                        "check environment endings and replay capacity"
+                    )
 
             batch = self.replay.sample(
                 batch_size=self.cfg.train.batch_size,
@@ -480,7 +491,7 @@ class DreamerTrainer:
                     actions_discrete, _ = self.actor.act(self.world_state)
 
             # 2. Step environment
-            env_out = self.env.step(actions_discrete)
+            env_out = self.prepare_env_output(self.env.step(actions_discrete))
             self._check_consistency(env_out)
 
             # Move env outputs to CUDA
@@ -540,6 +551,33 @@ class DreamerTrainer:
             self.env_state = env_out
             self.total_env_steps += self.env.batch_size
 
+    def prepare_env_output(self, out: Dict[str, Any], *, reset: bool = False) -> Dict[str, Any]:
+        """Apply the chosen finite-task objective and its observable clock.
+
+        Collection chunk boundaries do not end a task. Same-step autoreset
+        adapters must preserve the final transition observation separately.
+        """
+        if not self.cfg.env.finite_horizon:
+            return out
+        out = dict(out)
+        horizon = self.cfg.env.max_episode_steps
+        if reset:
+            self.episode_steps.zero_()
+        else:
+            if "transition_state" not in out:
+                raise ValueError("Finite-horizon adapters must preserve transition_state across autoreset")
+            self.episode_steps.add_(1)
+            remaining = (horizon - self.episode_steps).clamp_min(0).float() / horizon
+            out["transition_state"] = torch.cat(
+                [out["transition_state"].to(self.device), remaining.unsqueeze(-1)],
+                -1,
+            )
+            out["is_terminal"] = out["is_terminal"] | out["is_last"]
+            self.episode_steps[out["is_last"].to(self.device)] = 0
+        remaining = (horizon - self.episode_steps).clamp_min(0).float() / horizon
+        out["state"] = torch.cat([out["state"].to(self.device), remaining.unsqueeze(-1)], -1)
+        return out
+
     def _check_consistency(self, env_out: dict) -> None:
         state = env_out["state"]
         reward = env_out["reward"]
@@ -549,19 +587,8 @@ class DreamerTrainer:
 
         # ✅ unified environment interface
         batch_size = self.env.batch_size
-        obs_dim = self.env.obs_dim
+        obs_dim = self.world.flat_obs_dim
         action_dim = self.env.action_dim
-
-        if self.cfg.train.enforce_length_invariants:
-            seq_len = self.cfg.train.seq_len
-            max_steps = self.cfg.env.max_episode_steps
-            collect_steps = self.cfg.train.collect_steps
-
-            if seq_len > max_steps:
-                raise ValueError(f"seq_len={seq_len} must be <= max_episode_steps={max_steps}")
-
-            if seq_len > collect_steps:
-                raise ValueError(f"seq_len={seq_len} must be <= collect_steps={collect_steps}")
 
         if state.shape != (batch_size, obs_dim):
             raise RuntimeError(f"State shape mismatch: got {state.shape}, expected ({batch_size}, {obs_dim})")
@@ -652,6 +679,13 @@ class DreamerTrainer:
         if update_idx < self.cfg.train.freeze_actor_critic_steps:
             return 0.0, 0.0
 
+        remaining_steps = None
+        if self.cfg.env.finite_horizon:
+            obs = batch.get("obs", batch.get("state"))
+            if obs is None:
+                raise KeyError("Batch must contain obs or state")
+            remaining_steps = (obs[..., -1] * self.cfg.env.max_episode_steps).round().long()
+
         if self.cfg.train.use_amp:
             with autocast(device_type="cuda", dtype=torch.float16, enabled=self.cfg.train.use_amp):
                 actor_loss, critic_loss = actor_critic_update(
@@ -666,6 +700,7 @@ class DreamerTrainer:
                     slow_critic=self.slow_critic,
                     slow_critic_scale=self.cfg.ac.slow_critic_scale,
                     entropy_scale=self.cfg.ac.entropy_scale,
+                    remaining_steps=remaining_steps,
                 )
         else:
             actor_loss, critic_loss = actor_critic_update(
@@ -680,6 +715,7 @@ class DreamerTrainer:
                 slow_critic=self.slow_critic,
                 slow_critic_scale=self.cfg.ac.slow_critic_scale,
                 entropy_scale=self.cfg.ac.entropy_scale,
+                remaining_steps=remaining_steps,
             )
 
         # AMP (Automatic Mixed Precision):

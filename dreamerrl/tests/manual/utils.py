@@ -81,6 +81,14 @@ def evaluate_minihack(cfg, world, actor, episode_seeds, random_policy=False):
                         observation = torch.as_tensor(
                             extract_glyphs(obs).reshape(1, -1), dtype=torch.float32, device=device
                         )
+                        if cfg.env.finite_horizon:
+                            observation = torch.cat(
+                                [
+                                    observation,
+                                    torch.tensor([[1 - t / cfg.env.max_episode_steps]], device=device),
+                                ],
+                                -1,
+                            )
                         state = world.observe_step(
                             state,
                             observation,

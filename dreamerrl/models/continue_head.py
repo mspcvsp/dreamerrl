@@ -7,7 +7,7 @@ class ContinueHead(nn.Module):
 
     def __init__(self, *, latent, net):
         super().__init__()
-        self.z_embed = nn.Linear(latent.stoch_size, net.hidden_size)
+        self.z_embed = nn.Linear(latent.z_dim, net.hidden_size)
         self.h_embed = nn.Linear(latent.deter_size, net.hidden_size)
         self.net = nn.Sequential(
             nn.Linear(net.hidden_size, net.hidden_size),
@@ -16,7 +16,7 @@ class ContinueHead(nn.Module):
         )
 
     def forward(self, h, z):
-        return self.net(self.h_embed(h) + self.z_embed(z).sum(dim=1))
+        return self.net(self.h_embed(h) + self.z_embed(z.reshape(z.shape[0], -1)))
 
     def readout(self, logits):
         return logits.sigmoid().squeeze(-1)

@@ -37,7 +37,7 @@ class ReplayBuffer:
     """
     Dreamer-V3 replay buffer:
       - stores full episodes
-      - samples fixed-length sequences
+      - samples unpadded sequences with one shared length per batch
       - supports vectorized envs
     """
 
@@ -56,6 +56,8 @@ class ReplayBuffer:
         self.capacity = self.cfg.replay_capacity
         self.device = device
         self.seq_len = self.cfg.seq_len
+        if self.seq_len < 1:
+            raise ValueError("seq_len must be positive")
 
         self.episodes: List[Dict[str, torch.Tensor]] = []
         self.current_eps: List[Episode] = []
@@ -150,8 +152,12 @@ class ReplayBuffer:
             self.rng.manual_seed(seed)
             np.random.seed(seed)
 
-        valid_indices = [i for i, ep in enumerate(self.episodes) if ep["obs"].shape[0] >= self.seq_len]
-        assert len(valid_indices) > 0, f"No episodes with length >= seq_len ({self.seq_len})"
+        if batch_size < 1:
+            raise ValueError("batch_size must be positive")
+        # Include short episodes instead of silently filtering them out. All
+        # rows share the shortest selected length, with no padding or stitching.
+        indices = torch.randint(0, len(self.episodes), (batch_size,), generator=self.rng).tolist()
+        sample_len = min(self.seq_len, *(self.episodes[i]["obs"].shape[0] for i in indices))
 
         obs_batch = []
         act_batch = []
@@ -160,21 +166,20 @@ class ReplayBuffer:
         terminal_batch = []
         first_batch = []
 
-        for _ in range(batch_size):
-            idx = valid_indices[int(torch.randint(0, len(valid_indices), (1,), generator=self.rng))]
+        for idx in indices:
             ep = self.episodes[idx]
 
             length = ep["obs"].shape[0]
 
-            if length <= self.seq_len:
+            if length <= sample_len:
                 start = 0
             else:
-                start = int(torch.randint(0, length - self.seq_len + 1, (1,), generator=self.rng))
+                start = int(torch.randint(0, length - sample_len + 1, (1,), generator=self.rng))
 
             if self.probe:
                 self.probe.replay_sample(seed=seed, ep_idx=idx, ep_len=length, start=start)
 
-            end = start + self.seq_len
+            end = start + sample_len
 
             obs_batch.append(ep["obs"][start:end])
             act_batch.append(ep["action"][start:end])

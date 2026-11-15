@@ -16,7 +16,7 @@ class ObsDecoder(nn.Module):
         self.net_cfg = net
         self.output_dim = output_dim
 
-        self.z_embed = nn.Linear(latent.stoch_size, net.hidden_size)
+        self.z_embed = nn.Linear(latent.z_dim, net.hidden_size)
         self.h_embed = nn.Linear(latent.deter_size, net.hidden_size)
 
         # Final decoder MLP
@@ -33,16 +33,9 @@ class ObsDecoder(nn.Module):
         h: (B, deter_size)
         z: (B, K, C)
         """
-        # Embed z per factor → (B, K, H)
-        z_e = self.z_embed(z)
-
-        # Sum over factors → (B, H)
-        z_sum = z_e.sum(dim=1)
-
-        # Embed h → (B, H)
+        # Preserve the identity of every categorical factor.
+        z_e = self.z_embed(z.reshape(z.shape[0], -1))
         h_e = self.h_embed(h)
-
-        # Fuse
-        features = h_e + z_sum
+        features = h_e + z_e
 
         return self.net(features)
