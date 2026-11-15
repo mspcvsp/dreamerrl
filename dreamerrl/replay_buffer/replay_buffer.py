@@ -18,9 +18,11 @@ class Episode:
             "reward": [],
             "done": [],
             "is_terminal": [],
+            "is_first": [],
         }
 
-    def add(self, obs, action, reward, done, is_terminal):
+    def add(self, obs, action, reward, done, is_terminal, is_first=False):
+        self.data["is_first"].append(torch.as_tensor(is_first, device=obs.device))
         self.data["obs"].append(obs)
         self.data["action"].append(action)
         self.data["reward"].append(reward)
@@ -71,7 +73,7 @@ class ReplayBuffer:
             self.num_envs = num_envs
             self.current_eps = [Episode() for _ in range(num_envs)]
 
-    def add(self, obs, action, reward, done, is_terminal):
+    def add(self, obs, action, reward, done, is_terminal, initial_obs=None):
         """
         obs: (num_envs, obs_dim)
         action: (num_envs,)
@@ -82,12 +84,21 @@ class ReplayBuffer:
         self._ensure_envs(num_envs)
 
         for i in range(num_envs):
+            if initial_obs is not None and not self.current_eps[i].data["obs"]:
+                self.current_eps[i].add(
+                    initial_obs[i].detach().to(self.device).clone(),
+                    torch.zeros_like(action[i], device=self.device),
+                    torch.zeros_like(reward[i], device=self.device),
+                    torch.zeros_like(done[i], device=self.device),
+                    torch.zeros_like(is_terminal[i], device=self.device),
+                    is_first=True,
+                )
             self.current_eps[i].add(
-                obs[i].detach().to(self.device),
-                action[i].detach().to(self.device),
-                reward[i].detach().to(self.device),
-                done[i].detach().to(self.device),
-                is_terminal[i].detach().to(self.device),
+                obs[i].detach().to(self.device).clone(),
+                action[i].detach().to(self.device).clone(),
+                reward[i].detach().to(self.device).clone(),
+                done[i].detach().to(self.device).clone(),
+                is_terminal[i].detach().to(self.device).clone(),
             )
 
             if bool(done[i]):
@@ -126,6 +137,7 @@ class ReplayBuffer:
         rew_batch = []
         done_batch = []
         terminal_batch = []
+        first_batch = []
 
         for _ in range(batch_size):
             idx = valid_indices[int(torch.randint(0, len(valid_indices), (1,), generator=self.rng))]
@@ -136,7 +148,7 @@ class ReplayBuffer:
             if length <= self.seq_len:
                 start = 0
             else:
-                start = int(torch.randint(0, length - self.seq_len, (1,), generator=self.rng))
+                start = int(torch.randint(0, length - self.seq_len + 1, (1,), generator=self.rng))
 
             if self.probe:
                 self.probe.replay_sample(seed=seed, ep_idx=idx, ep_len=length, start=start)
@@ -147,6 +159,7 @@ class ReplayBuffer:
             act_batch.append(ep["action"][start:end])
             rew_batch.append(ep["reward"][start:end])
             done_batch.append(ep["done"][start:end])
+            first_batch.append(ep["is_first"][start:end])
             terminal_batch.append(ep["is_terminal"][start:end])
 
         return {
@@ -155,4 +168,6 @@ class ReplayBuffer:
             "reward": torch.stack(rew_batch).to(self.device),
             "done": torch.stack(done_batch).to(self.device),
             "is_terminal": torch.stack(terminal_batch).to(self.device),
+            "is_first": torch.stack(first_batch).to(self.device),
+            "is_last": torch.stack(done_batch).to(self.device),
         }

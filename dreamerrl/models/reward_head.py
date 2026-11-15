@@ -2,12 +2,17 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
+from dreamerrl.utils.transforms import symexp, symlog
+from dreamerrl.utils.twohot import twohot_encode
+
 
 class RewardHead(nn.Module):
     """
     Dreamer‑V3 reward model.
     Accepts factored z and produces categorical reward logits over bins.
     """
+
+    bin_values: torch.Tensor
 
     def __init__(self, *, latent, net):
         super().__init__()
@@ -28,15 +33,7 @@ class RewardHead(nn.Module):
 
         self.value_bins = net.value_bins
 
-        # Bins span [-1, +1] in symlog space because symlog compresses magnitudes into a bounded, approximately linear
-        # region around 0. Large raw values map to small symlog values, so a fixed symmetric range [-1, +1] covers
-        # almost all realistic rewards/returns after symlog, making distributional classification stable and
-        # domain‑agnostic.
-        #
-        # smymg: symlog is defined as sign(x) * log(1 + abs(x)), so bin centers in symlog space correspond to nonlinear
-        # bin edges in raw reward space. For example, with 5 bins, the centers are at [-1, -0.5, 0, 0.5, 1] in symlog
-        # space, which correspond to approximately [-0.63, -0.20, 0, 0.20, 0.63] in raw reward space.
-        self.bin_values = torch.linspace(-1, 1, self.value_bins)
+        self.register_buffer("bin_values", torch.linspace(net.bin_min, net.bin_max, self.value_bins))
 
     def _init_weights(self, m):
         if isinstance(m, nn.Linear):
@@ -62,19 +59,15 @@ class RewardHead(nn.Module):
         Use expectation over bin centers.
         """
         probs = torch.softmax(logits, dim=-1)
-        return (probs * self.bin_values.to(logits.device)).sum(dim=-1)
+        return symexp((probs * self.bin_values).sum(dim=-1))
 
     def loss(self, logits: torch.Tensor, reward: torch.Tensor) -> torch.Tensor:
         """
         Distributional cross-entropy loss for symlog-transformed rewards.
         """
-        target = torch.sign(reward) * torch.log1p(torch.abs(reward))
         with torch.no_grad():
-            bin_idx = torch.argmin(
-                torch.abs(target.unsqueeze(-1) - self.bin_values.to(target.device)),
-                dim=-1,
-            )
-        return F.cross_entropy(logits.view(-1, self.value_bins), bin_idx.view(-1))
+            target = twohot_encode(symlog(reward), self.bin_values)
+        return -(target * F.log_softmax(logits, dim=-1)).sum(dim=-1).mean()
 
     def loss_from_logits(self, logits: torch.Tensor, reward: torch.Tensor) -> torch.Tensor:
         return self.loss(logits, reward)

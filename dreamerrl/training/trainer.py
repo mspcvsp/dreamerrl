@@ -197,10 +197,19 @@ class DreamerTrainer:
             wandb.init(project="dreamer_v3", config=cfg.__dict__)
 
         self.env_state: Dict[str, Any] = self.env.reset()
+        with torch.no_grad():
+            self.world_state = self.world.observe_step(
+                self.world_state,
+                self.env_state["state"].to(self.device),
+                torch.zeros(self.env.batch_size, self.action_dim, device=self.device),
+                is_first=torch.ones(self.env.batch_size, dtype=torch.bool, device=self.device),
+            )["post"].detach()
         self.total_env_steps: int = 0
+        self.episode_returns = torch.zeros(self.env.batch_size, device=self.device)
+        self.recent_returns = []
 
         # NOTE:
-        # Dreamer requires seq_len <= collect_steps <= max_episode_steps.
+        # Bound sampled sequence length by the rollout and episode limits.
         # This clamp MUST run at the end of __init__, after all config overrides
         # (including test overrides) have been applied. Running it earlier allows
         # stale default values to leak into the trainer and break invariants.
@@ -225,8 +234,6 @@ class DreamerTrainer:
             lr_floor=0.1,
         )
         lr_schedule = CosineWarmupScheduler(lr_cfg)
-
-        self.recent_returns = []
 
         for update_idx in range(total_updates):
             t0 = time.time()
@@ -278,15 +285,6 @@ class DreamerTrainer:
 
             actor_loss, critic_loss = self.update_actor_critic(batch, update_idx)
 
-            ep_return = 0.0
-            if self.env_state["is_last"].any():
-                ep_return = self.env_state["reward"].sum().item()
-                self.tb.add_scalar("env/ep_return", ep_return, update_idx)
-
-                self.recent_returns.append(ep_return)
-                self.recent_returns = self.recent_returns[-50:]
-                self.tb.add_scalar("env/avg_return_50", np.mean(self.recent_returns), update_idx)
-
             if self.cfg.log.enable_wandb:
                 wandb.log(
                     {
@@ -301,6 +299,7 @@ class DreamerTrainer:
     # -------------------------------------------------------------
     # Collect steps from environment
     # -------------------------------------------------------------
+    @torch.no_grad()
     def collect_env_steps(self) -> None:
         """
         Collect multiple environment steps per call.
@@ -333,25 +332,48 @@ class DreamerTrainer:
                 if torch.is_tensor(v):
                     env_out[k] = v.to(self.device)
 
+            self.episode_returns += env_out["reward"]
+            for i in env_out["is_last"].nonzero(as_tuple=True)[0].tolist():
+                ep_return = self.episode_returns[i].item()
+                self.recent_returns.append(ep_return)
+                self.recent_returns = self.recent_returns[-50:]
+                self.tb.add_scalar("env/ep_return", ep_return, self.total_env_steps + self.env.batch_size)
+                self.episode_returns[i] = 0
+            if env_out["is_last"].any():
+                self.tb.add_scalar(
+                    "env/avg_return_50", np.mean(self.recent_returns), self.total_env_steps + self.env.batch_size
+                )
+
             # 3. One-hot encode actions for RSSMCore
             actions_one_hot = F.one_hot(actions_discrete, num_classes=self.action_dim).float()
 
             # 4. Update latent state
             wm_out = self.world.observe_step(
                 prev_state=self.world_state,
-                obs=env_out["state"],
+                obs=env_out.get("transition_state", env_out["state"]),
                 action=actions_one_hot,
                 reward=env_out["reward"],
-                is_first=env_out["is_first"],
+                is_first=None if "transition_state" in env_out else env_out["is_first"],
                 is_last=env_out["is_last"],
                 is_terminal=env_out["is_terminal"],
             )
 
-            self.world_state = wm_out["post"].to(self.device)
+            self.world_state = wm_out["post"].detach()
+            if "transition_state" in env_out and env_out["is_last"].any():
+                reset = self.world.observe_step(
+                    self.world_state,
+                    env_out["state"],
+                    torch.zeros_like(actions_one_hot),
+                    is_first=env_out["is_last"],
+                )["post"]
+                mask = env_out["is_last"].unsqueeze(-1)
+                self.world_state.h = torch.where(mask, reset.h, self.world_state.h)
+                self.world_state.z = torch.where(mask.unsqueeze(-1), reset.z, self.world_state.z)
 
             # 5. Store raw transition in replay buffer
             self.replay.add(
-                obs=env_out["state"],
+                obs=env_out.get("transition_state", env_out["state"]),
+                initial_obs=self.env_state["state"],
                 action=actions_discrete,
                 reward=env_out["reward"],
                 done=env_out["is_last"].float().to(self.device),
@@ -407,14 +429,9 @@ class DreamerTrainer:
             if flag.dtype != torch.bool:
                 raise RuntimeError(f"{key} must be boolean, got {flag.dtype}")
 
-        if is_last.any() and not is_terminal.any():
-            raise RuntimeError(
-                f"Environment produced early termination; Dreamer requires fixed-length episodes of {max_steps} steps"
-            )
+        if (is_terminal & ~is_last).any():
+            raise RuntimeError("True terminal transitions must also end the episode")
 
-    # -------------------------------------------------------------
-    # World Model Update
-    # -------------------------------------------------------------
     def update_world_model(self, batch: Dict[str, torch.Tensor], update_idx: int) -> WorldModelMetrics:
         # Zero optimizer gradients
         self.model_opt.zero_grad()

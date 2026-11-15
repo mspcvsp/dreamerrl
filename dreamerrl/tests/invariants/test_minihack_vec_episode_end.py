@@ -23,20 +23,9 @@ def test_minihack_vec_episode_end(minihack_vec_env):
 
     assert ended.any()
 
-    # Dreamer requires terminal == last
-    assert torch.equal(
-        out["is_last"],
-        out["is_terminal"],
-    )
-
-    # Reset envs should re-raise is_first on next step
-    next_out = minihack_vec_env.step(
-        torch.zeros(
-            minihack_vec_env.batch_size,
-            dtype=torch.long,
-        )
-    )
-
-    for i in range(minihack_vec_env.batch_size):
-        if bool(ended[i]):
-            assert next_out["is_first"][i]
+    # SAME_STEP resets return the next initial observation immediately.
+    assert torch.equal(out["is_first"], ended)
+    assert (~out["is_terminal"] | ended).all()
+    assert "transition_state" in out
+    next_out = minihack_vec_env.step(torch.zeros(minihack_vec_env.batch_size, dtype=torch.long))
+    assert not next_out["is_first"].any()

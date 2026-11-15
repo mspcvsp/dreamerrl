@@ -7,8 +7,8 @@ import torch
 def test_terminal_flags(minihack_env):
     """
     Check that terminal semantics are consistent:
-    - is_terminal is true when either terminated or truncated
-    - is_last matches is_terminal
+    - is_terminal implies is_last
+    - time-limit truncations end the episode without being terminal
     """
     minihack_env.reset()
     actions = torch.zeros(minihack_env.batch_size, dtype=torch.long)
@@ -23,8 +23,9 @@ def test_terminal_flags(minihack_env):
     is_terminal = out["is_terminal"]
     is_last = out["is_last"]
 
-    # is_last should be exactly is_terminal
-    assert torch.equal(is_last, is_terminal)
+    assert (~is_terminal | is_last).all()
+    assert is_last.any()
+    assert not is_terminal.any()
 
     # Flags are boolean
     assert is_terminal.dtype == torch.bool

@@ -52,7 +52,9 @@ class AuxObjectiveConfig:
 @dataclass(frozen=True)
 class KLConfig:
     scale: float = 1.0
-    free_nats: float = 3.0
+    free_nats: float = 1.0
+    dynamics_scale: float = 0.5
+    representation_scale: float = 0.1
     max_kl: float = 100.0
     min_kl: float = -1e-6
     require_nonzero: bool = True
@@ -100,38 +102,8 @@ class WorldModelConfig:
     # Distributional value/reward bins.
     value_bins: int = 41
 
-    # -----------------------------------------------------------------------------
-    # AuxObjectiveConfig design notes
-    # -----------------------------------------------------------------------------
-    # Auxiliary objectives in Dreamer‑V3 must be *environment‑agnostic* and computed
-    # dynamically from each training batch. They cannot be static tensors because:
-    #
-    #   • Targets depend on the current replay batch (B, L)
-    #   • Targets depend on sequence length L (Crafter vs CAGE2 vs PopGym)
-    #   • Targets depend on discount gamma
-    #   • Targets may require padding (novelty, short‑horizon return)
-    #   • Targets must run on the correct device (CPU/GPU)
-    #   • Targets may use differentiable PyTorch ops
-    #
-    # Examples:
-    #   - novelty[t]      = |obs[t+1] - obs[t]|
-    #   - reachability[t] = 1 - is_terminal[t]
-    #   - affordance[t]   = action_mask[t]
-    #   - resource[t]     = reward[t]
-    #   - skill[t]        = one-hot(action[t])
-    #
-    # Because each auxiliary objective must compute its own (B, L) target from the
-    # batch, the cleanest abstraction is a *callable*:
-    #
-    #       fn(batch: Dict[str, Tensor], gamma: float) -> Tensor(B, L)
-    #
-    # This makes auxiliary objectives:
-    #   • plug‑and‑play
-    #   • environment‑agnostic
-    #   • configurable per environment
-    #   • independent of observation structure (image, dict, discrete)
-    #   • compatible with AMP + determinism
-    # -----------------------------------------------------------------------------
+    # Optional project extensions; baseline DreamerV3 does not require these.
+    # Each callback produces a detached (B, L, D) target from replay.
     aux_objectives: List[AuxObjectiveConfig] = field(default_factory=list)
     aux_reward_scale: float = 0.1
     disable_aux_losses: bool = False

@@ -2,6 +2,9 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
+from dreamerrl.utils.transforms import symexp, symlog
+from dreamerrl.utils.twohot import twohot_encode
+
 
 class ValueHead(nn.Module):
     """
@@ -9,6 +12,8 @@ class ValueHead(nn.Module):
     Consumes factored z and deterministic h.
     Outputs categorical logits over value bins.
     """
+
+    bin_values: torch.Tensor
 
     def __init__(self, *, latent, net, probe=None):
         super().__init__()
@@ -27,9 +32,7 @@ class ValueHead(nn.Module):
         )
 
         self.value_bins = net.value_bins
-        # symmetric bin centers in symlog space
-        self.bin_values = torch.linspace(-1.0, 1.0, self.value_bins)
-
+        self.register_buffer("bin_values", torch.linspace(net.bin_min, net.bin_max, self.value_bins))
         self.apply(self._init_weights)
 
     def _init_weights(self, m: nn.Module) -> None:
@@ -60,22 +63,15 @@ class ValueHead(nn.Module):
         Turn categorical logits into scalar value by expectation over bin centers.
         """
         probs = torch.softmax(logits, dim=-1)
-        return (probs * self.bin_values.to(logits.device)).sum(dim=-1)  # (B,)
+        return symexp((probs * self.bin_values).sum(dim=-1))  # (B,)
 
     def loss(self, logits: torch.Tensor, returns: torch.Tensor) -> torch.Tensor:
         """
-        Distributional cross‑entropy loss for symlog‑transformed returns.
+        Two-hot cross-entropy; returns are in original reward units.
         """
-        target = torch.sign(returns) * torch.log1p(torch.abs(returns))
         with torch.no_grad():
-            bin_idx = torch.argmin(
-                torch.abs(target.unsqueeze(-1) - self.bin_values.to(target.device)),
-                dim=-1,
-            )
-        return F.cross_entropy(
-            logits.view(-1, self.value_bins),
-            bin_idx.view(-1),
-        )
+            target = twohot_encode(symlog(returns), self.bin_values)
+        return -(target * F.log_softmax(logits, dim=-1)).sum(dim=-1).mean()
 
     def loss_from_logits(self, logits: torch.Tensor, returns: torch.Tensor) -> torch.Tensor:
         return self.loss(logits, returns)

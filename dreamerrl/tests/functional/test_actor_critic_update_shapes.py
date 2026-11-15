@@ -33,10 +33,10 @@ def test_actor_critic_update_shapes(dreamer_cfg):
     critic = ValueHead(latent=latent, net=net_critic)
 
     batch = {
-        "state": torch.zeros(T, B, obs_dim),
-        "action": torch.zeros(T, B, action_dim),
-        "reward": torch.zeros(T, B),
-        "is_terminal": torch.zeros(T, B, dtype=torch.bool),
+        "state": torch.zeros(B, T, obs_dim),
+        "action": torch.zeros(B, T, action_dim),
+        "reward": torch.zeros(B, T),
+        "is_terminal": torch.zeros(B, T, dtype=torch.bool),
     }
 
     actor_loss, critic_loss = actor_critic_update(

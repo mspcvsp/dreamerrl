@@ -70,8 +70,8 @@ class WorldModel(nn.Module):
       • Prior / Posterior: factored discrete latents over K×C
       • ObsDecoder: reconstructs observations from (h, z)
       • RewardHead: distributional symlog reward
-      • ContinueHead: distributional continuation (episode continues vs terminates)
-      • KL: structured KL_dyn / KL_rep with per‑factor free‑nats
+      • ContinueHead: Bernoulli continuation (episode continues vs terminates)
+      • KL: structured KL_dyn / KL_rep with aggregate free‑nats
     """
 
     def __init__(
@@ -164,33 +164,36 @@ class WorldModel(nn.Module):
         One environment step:
 
           • encode obs_t
-          • posterior q(z_t | h_{t-1}, embed_t)
-          • prior    p(z_t | h_{t-1})
-          • deterministic transition h_t = f(h_{t-1}, a_{t-1})
+          • posterior q(z_t | h_t, embed_t)
+          • prior    p(z_t | h_t)
+          • deterministic transition h_t = f(h_{t-1}, z_{t-1}, a_{t-1})
           • decode obs_t, reward_t, continue_t
           • compute structured KL with free‑nats
         """
         prev_state = self._ensure_state(prev_state)
-        embed = self.encoder(obs)
-
-        post_stats = self.posterior(prev_state.h, embed)
-        prior_stats = self.prior(prev_state.h)
-
-        z = post_stats["z"]
+        if is_first is not None:
+            keep = (~is_first.bool()).to(prev_state.h.dtype).unsqueeze(-1)
+            prev_state = WorldModelState(
+                h=prev_state.h * keep,
+                z=prev_state.z * keep.unsqueeze(-1),
+            )
+            action = action * keep
         h = self.rssm(prev_state.h, prev_state.z, action)
-
+        embed = self.encoder(obs)
+        post_stats = self.posterior(h, embed)
+        prior_stats = self.prior(h)
+        z = post_stats["z"]
         post_stats = {**post_stats, "h": h}
-        prior_stats = {**prior_stats, "h": prev_state.h}
-
+        prior_stats = {**prior_stats, "h": h}
         post = WorldModelState(h=h, z=z, prior_stats=prior_stats, post_stats=post_stats)
-        prior = WorldModelState(h=prev_state.h, z=prior_stats["z"], prior_stats=prior_stats, post_stats=None)
+        prior = WorldModelState(h=h, z=prior_stats["z"], prior_stats=prior_stats)
 
         recon = self.decoder(h, z)
         reward_main_logits, reward_aux_logits = self.reward_heads(h, z)
         cont_logits = self.continue_head(h, z)
 
         # Disable aux heads in reproducibility mode
-        if getattr(self.net_cfg, "disable_aux_losses", False):
+        if self.cfg.disable_aux_losses:
             aux_logits = {}
         else:
             aux_logits = {name: head(h, z) for name, head in self.aux_heads.items()}
@@ -234,6 +237,7 @@ class WorldModel(nn.Module):
         prev: Any,
         actor: nn.Module,
         deterministic_imagination: bool = False,
+        action: Optional[torch.Tensor] = None,
     ) -> WorldModelState:
         """
         Imagination step in latent space:
@@ -246,11 +250,14 @@ class WorldModel(nn.Module):
         """
         prev_state = self._ensure_state(prev)
 
-        logits = actor(prev_state.h, prev_state.z)
-        a = act_in_imagination(logits, deterministic_imagination=deterministic_imagination)
-
-        assert self.net_cfg.action_dim is not None, "action_dim must be specified in net config for imagine_step"
-        action = F.one_hot(a, num_classes=self.net_cfg.action_dim).float()
+        logits = None
+        if action is None:
+            action_dim = self.net_cfg.action_dim
+            if action_dim is None:
+                raise ValueError("action_dim is required to sample imagined actions")
+            logits = actor(prev_state.h, prev_state.z)
+            a = act_in_imagination(logits, deterministic_imagination=deterministic_imagination)
+            action = F.one_hot(a, num_classes=action_dim).float()
 
         h = self.rssm(prev_state.h, prev_state.z, action)
         prior = self.prior(h)
@@ -262,7 +269,7 @@ class WorldModel(nn.Module):
         - RSSM transition may diverge
         - prior distribution may diverge
         """
-        if self.probe:
+        if self.probe and logits is not None:
             self.probe.wm_imagine(logits, action, h)
 
         if deterministic_imagination:

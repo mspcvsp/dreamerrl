@@ -1,10 +1,4 @@
-"""
-Adaptive skill-learning tests ensure:
-
-    - skill loss decreases when actor chooses correct skill
-    - skill loss increases when actor chooses wrong skill
-    - aux losses propagate gradients into RSSM
-"""
+"""Head-only action prediction check; integrated RSSM gradients are tested in test_learning_contracts."""
 
 import pytest
 import torch

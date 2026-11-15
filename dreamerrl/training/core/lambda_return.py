@@ -50,7 +50,9 @@ def lambda_return(reward, value, discount, lam):
     next_ret = value[-1]  # G_T = V(s_T)
     for t in reversed(range(T)):
         # canonical λ-return recurrence
-        next_ret = reward[t] + discount * ((1 - lam) * value[t + 1] + lam * next_ret)
+        next_ret = reward[t] + (discount[t] if torch.is_tensor(discount) and discount.ndim else discount) * (
+            (1 - lam) * value[t + 1] + lam * next_ret
+        )
         ret[t] = next_ret
 
     return ret.to(reward.dtype)

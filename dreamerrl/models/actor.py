@@ -17,6 +17,9 @@ class Actor(nn.Module):
         self.latent = latent
         self.net_cfg = net
         self.probe = probe
+        self.register_buffer("return_low", torch.tensor(0.0))
+        self.register_buffer("return_high", torch.tensor(1.0))
+        self.register_buffer("return_norm_initialized", torch.tensor(False))
 
         self.z_embed = nn.Linear(latent.stoch_size, net.hidden_size)
         self.h_embed = nn.Linear(latent.deter_size, net.hidden_size)

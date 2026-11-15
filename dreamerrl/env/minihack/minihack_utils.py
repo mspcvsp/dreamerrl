@@ -13,7 +13,11 @@ def extract_glyphs(obs: Any) -> np.ndarray:
     # Case 1: Single dict
     if isinstance(obs, dict):
         glyph = np.asarray(obs["glyphs"])
-        return glyph.reshape(1, *glyph.shape)
+        if glyph.ndim == 2:
+            return glyph[None]
+        if glyph.ndim == 3:
+            return glyph
+        raise RuntimeError(f"Unexpected glyph shape: {glyph.shape}")
 
     # Case 2: list/tuple of dicts
     if isinstance(obs, (list, tuple)) and len(obs) > 0 and isinstance(obs[0], dict):

@@ -1,3 +1,5 @@
+import argparse
+
 import torch
 
 from dreamerrl.models.aux_objectives import AUX_OBJECTIVES
@@ -6,30 +8,31 @@ from dreamerrl.utils.types import make_default_config
 
 
 def main():
+    parser = argparse.ArgumentParser(description="MiniHack baseline and single-objective ablation")
+    parser.add_argument("--env", default="MiniHack-Room-5x5-v0")
+    parser.add_argument("--aux", choices=["none", "novelty"], default="none")
+    parser.add_argument("--seed", type=int, default=0)
+    parser.add_argument("--updates", type=int, default=1000)
+    parser.add_argument("--cpu", action="store_true")
+    args = parser.parse_args()
     cfg = make_default_config()
 
     # -----------------------------------------------------
     # Environment: MiniHack symbolic mode
     # -----------------------------------------------------
-    cfg.env.env_id = "MiniHack-LockedDoor-v0"
+    cfg.env.env_id = args.env
     cfg.env.num_envs = 8
     cfg.env.max_episode_steps = 200
 
     cfg.env.parallel = False
     cfg.env.deterministic = False
-    cfg.env.seed = 0
+    cfg.env.seed = args.seed
 
     # -----------------------------------------------------
-    # World Model: enable auxiliary losses
+    # World Model: establish the baseline before auxiliary ablations.
     # -----------------------------------------------------
-    cfg.world.disable_aux_losses = False
-
-    # Recommended aux losses for MiniHack symbolic mode
-    cfg.world.aux_objectives = [
-        AUX_OBJECTIVES["novelty"],
-        AUX_OBJECTIVES["reachability"],
-        AUX_OBJECTIVES["resource"],
-    ]
+    cfg.world.disable_aux_losses = args.aux == "none"
+    cfg.world.aux_objectives = [] if args.aux == "none" else [AUX_OBJECTIVES[args.aux]]
 
     # DreamerV3 latent sizes (moderate)
     cfg.world.deter_size = 128
@@ -41,8 +44,8 @@ def main():
     # -----------------------------------------------------
     # Training hyperparameters
     # -----------------------------------------------------
-    cfg.train.seed = 0
-    cfg.train.cuda = torch.cuda.is_available()
+    cfg.train.seed = args.seed
+    cfg.train.cuda = torch.cuda.is_available() and not args.cpu
     cfg.train.batch_size = 16
     cfg.train.collect_steps = 250
     cfg.train.seq_len = 50
@@ -59,7 +62,7 @@ def main():
     # -----------------------------------------------------
     cfg.log.enable_wandb = False
     cfg.log.tb_logdir = "./logs"
-    cfg.log.run_name = "minihack_lockeddoor_aux"
+    cfg.log.run_name = f"{args.env}_{args.aux}_seed{args.seed}"
 
     # -----------------------------------------------------
     # Trainer
@@ -69,7 +72,11 @@ def main():
     # -----------------------------------------------------
     # Train
     # -----------------------------------------------------
-    trainer.train(total_updates=1000)
+    try:
+        trainer.train(total_updates=args.updates)
+    finally:
+        trainer.env.venv.close()
+        trainer.tb.close()
 
 
 if __name__ == "__main__":

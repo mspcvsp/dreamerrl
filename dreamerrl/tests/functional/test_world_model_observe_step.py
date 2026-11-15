@@ -58,8 +58,8 @@ def test_world_model_observe_step_keys_and_shapes():
     # Reward head is distributional in V3
     assert out["reward_logits"].shape == (B, net.value_bins)
 
-    # Continue head is binary categorical in V3
-    assert out["cont_logits"].shape == (B, net.value_bins)
+    # Continuation is a Bernoulli logit
+    assert out["cont_logits"].shape == (B, 1)
 
     # KL is aggregated in V3 → shape (B,)
     assert out["kl"].shape == (B,)

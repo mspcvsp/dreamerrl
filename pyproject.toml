@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "dreamerrl"
 version = "0.1.1"
-description = "Research-grade LSTM PPO implementation with diagnostics"
+description = "DreamerV3 implementation with diagnostics"
 authors = [{ name = "Sean" }]
 readme = "README.md"
 requires-python = ">=3.10"
@@ -13,7 +13,7 @@ requires-python = ">=3.10"
 dependencies = [
     "torch>=2.0",
     "numpy>=1.23",
-    "gymnasium>=0.29",
+    "gymnasium>=1.1",
     "popgym>=0.1.0",
     "matplotlib>=3.7",
     "tqdm>=4.65",

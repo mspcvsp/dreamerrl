@@ -3,9 +3,12 @@ from __future__ import annotations
 import torch
 from torch.distributions import Categorical
 
+from dreamerrl.models.world_model import WorldModelState
 from dreamerrl.training.core.imagination import imagine_trajectory_for_training
 from dreamerrl.training.core.lambda_return import lambda_return
+from dreamerrl.training.core.world_model_update import observe_batch
 from dreamerrl.utils.transforms import symlog
+from dreamerrl.utils.twohot import twohot_encode
 
 
 def actor_critic_update(
@@ -13,111 +16,55 @@ def actor_critic_update(
     actor,
     critic,
     batch,
-    imagination_horizon: int,
-    discount: float,
-    lam: float,
-    deterministic_imagination: bool = False,
+    imagination_horizon,
+    discount,
+    lam,
+    deterministic_imagination=False,
 ):
-    # Determine batch size
-    if "state" in batch:
-        B = batch["state"].shape[0]
-    elif "obs" in batch:
-        B = batch["obs"].shape[0]
-    else:
-        raise KeyError("Batch must contain 'state' or 'obs'")
-
-    # Start from zero state (smoke test)
-    start_state = world_model.init_state(B)
-
-    # Imagination rollout
+    # Use every replay posterior as an imagination start, without model gradients.
+    with torch.no_grad():
+        posts = observe_batch(world_model, batch)
+        h = torch.stack([p["h"] for p in posts], dim=1)
+        z = torch.stack([p["z"] for p in posts], dim=1)
+        B, L = h.shape[:2]
+        start = WorldModelState(h.reshape(B * L, -1), z.reshape(B * L, *z.shape[2:]))
+        terminal = batch.get("is_terminal", torch.zeros(B, L, device=h.device))
+        start_weight = 1.0 - terminal.to(h.device).float().reshape(-1)
     traj = imagine_trajectory_for_training(
-        world_model=world_model,
-        actor=actor,
-        critic=critic,
-        state=start_state,
-        horizon=imagination_horizon,
-        deterministic_imagination=deterministic_imagination,
+        world_model,
+        actor,
+        critic,
+        start,
+        imagination_horizon,
+        deterministic_imagination,
     )
-
-    # After imagination rollout
-    h = traj["h"]
-    z = traj["z"]
-    reward = traj["reward"]
-    action = traj["action"]
-
-    # ---------------------------------------------------------
-    # Detach imagination for critic update
-    # ---------------------------------------------------------
-    h_det = h.detach()
-    z_det = z.detach()
-    reward_det = reward.detach()
-
-    T, B = reward.shape
-    _, _, K, C = z.shape
-
-    # ---------------------------------------------------------
-    # Compute returns in symlog space
-    # ---------------------------------------------------------
-    def compute_returns_symlog():
-        with torch.no_grad():
-            # Flatten time & batch, preserve factored z
-            h_tb = h.reshape(T * B, -1)
-            z_tb = z.reshape(T * B, K, C)
-
-            critic_logits = critic(h_tb, z_tb)
-            values = critic.readout(critic_logits).reshape(T, B)
-
-            # Bootstrap from final state
-            bootstrap_logits = critic(h[-1], z[-1])
-            bootstrap_value = critic.readout(bootstrap_logits)
-
-            value_seq = torch.zeros(T + 1, B, device=values.device, dtype=values.dtype)
-            value_seq[1:] = values
-            value_seq[-1] = bootstrap_value
-
-            returns = lambda_return(reward_det, value_seq, discount, lam)
-            return symlog(returns)
-
-    returns_symlog = compute_returns_symlog()
-
-    # ---------------------------------------------------------
-    # Critic loss
-    # ---------------------------------------------------------
-    def compute_critic_loss():
-        h_tb = h_det.reshape(T * B, -1)
-        z_tb = z_det.reshape(T * B, K, C)
-
-        critic_logits = critic(h_tb, z_tb).reshape(T, B, -1)
-        return critic.loss(critic_logits, returns_symlog)
-
-    critic_loss = compute_critic_loss()
-
-    # ---------------------------------------------------------
-    # Actor loss
-    # ---------------------------------------------------------
-    def compute_actor_loss():
-        # Critic must NOT backprop into actor
-        with torch.no_grad():
-            h_tb = h.reshape(T * B, -1)
-            z_tb = z.reshape(T * B, K, C)
-
-            critic_logits = critic(h_tb, z_tb)
-            value_pred = critic.readout(critic_logits).reshape(T, B)
-
-            adv = returns_symlog - symlog(value_pred)
-
-            flat = adv.reshape(-1)
-            p5, p95 = torch.quantile(flat, torch.tensor([0.05, 0.95], device=flat.device))
-            scale = torch.clamp(p95 - p5, min=1.0)
-            adv_norm = adv / scale
-
-        logits = actor(h.reshape(T * B, -1), z.reshape(T * B, K, C)).reshape(T, B, -1)
-        dist = Categorical(logits=logits)
-
-        logp = dist.log_prob(action)
-        entropy = dist.entropy()
-
-        return -(logp * adv_norm.detach()).mean() - 1e-3 * entropy.mean()
-
-    actor_loss = compute_actor_loss()
+    h, z = traj["h"], traj["z"]
+    T, N = h.shape[:2]
+    h_flat, z_flat = h.reshape(T * N, -1), z.reshape(T * N, *z.shape[2:])
+    with torch.no_grad():
+        values = critic.readout(critic(h_flat, z_flat)).reshape(T, N)
+        value_seq = torch.cat([values, traj["bootstrap_value"].unsqueeze(0)])
+        discounts = discount * traj["continue"]
+        returns = lambda_return(traj["reward"], value_seq, discounts, lam)
+        weights = torch.cumprod(torch.cat([start_weight.unsqueeze(0), discounts[:-1]]), dim=0)
+        live_returns = returns[weights > 0].float()
+        if live_returns.numel() == 0:
+            live_returns = torch.zeros(1, device=h.device)
+        lo, hi = torch.quantile(live_returns, torch.tensor([0.05, 0.95], device=h.device))
+        if hasattr(actor, "return_low"):
+            if not actor.return_norm_initialized:
+                actor.return_low.copy_(lo)
+                actor.return_high.copy_(hi)
+                actor.return_norm_initialized.fill_(True)
+            else:
+                actor.return_low.lerp_(lo, 0.01)
+                actor.return_high.lerp_(hi, 0.01)
+            lo, hi = actor.return_low, actor.return_high
+        advantage = (returns - values) / (hi - lo).clamp_min(1.0)
+    critic_logits = critic(h_flat, z_flat).reshape(T, N, -1)
+    # Keep per-example weights while reusing the head's two-hot target convention.
+    targets = twohot_encode(symlog(returns), critic.bin_values)
+    critic_loss = -(weights * (targets * critic_logits.log_softmax(-1)).sum(-1)).mean()
+    dist = Categorical(logits=actor(h_flat, z_flat).reshape(T, N, -1))
+    actor_loss = -(weights * (dist.log_prob(traj["action"]) * advantage + 1e-3 * dist.entropy())).mean()
     return actor_loss, critic_loss

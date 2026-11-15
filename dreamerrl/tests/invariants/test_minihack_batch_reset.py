@@ -26,25 +26,8 @@ def test_per_env_reset(minihack_env):
     assert out["is_last"].any()
 
     last_mask = out["is_last"]
-    prev_before = out["prev_action"].clone()
-
-    # One more step to trigger per-env reset logic
+    assert torch.equal(out["is_first"], last_mask)
+    assert (out["prev_action"][last_mask] == 0).all()
     out2 = minihack_env.step(actions)
-    prev_after = out2["prev_action"]
-    is_first_after = out2["is_first"]
-
-    for i in range(minihack_env.batch_size):
-        if last_mask[i]:
-            # Terminated env: is_first should be True again
-            assert is_first_after[i]
-
-            # MiniHack always emits a MOVE_NOP action after reset
-            assert prev_after[i].sum() == 1.0
-
-        else:
-            # Non-terminated env: is_first should be False
-            assert not is_first_after[i]
-
-            # Action should advance normally
-            assert prev_after[i].sum() == 1.0
-            assert not torch.allclose(prev_after[i], prev_before[i])
+    assert not out2["is_first"].any()
+    assert (out2["prev_action"].sum(-1) == 1).all()

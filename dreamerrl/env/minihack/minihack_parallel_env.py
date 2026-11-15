@@ -4,7 +4,7 @@ import gymnasium as gym
 import numpy as np
 import torch
 from gymnasium.spaces import Box, Discrete
-from gymnasium.vector import AsyncVectorEnv
+from gymnasium.vector import AsyncVectorEnv, AutoresetMode
 from gymnasium.wrappers import TimeLimit
 
 from dreamerrl.env.env import EnvInterface
@@ -14,7 +14,7 @@ from dreamerrl.utils.types import EnvironmentConfig
 
 def make_mhack_env(env_cfg: EnvironmentConfig, idx: int) -> Callable[[], gym.Env]:
     def thunk():
-        seed = env_cfg.seed + idx if env_cfg.deterministic else None
+        seed = env_cfg.seed + idx
         env = gym.make(env_cfg.env_id)
         env = TimeLimit(env, max_episode_steps=env_cfg.max_episode_steps)
         env.reset(seed=seed)
@@ -37,10 +37,13 @@ class MiniHackParallelEnv(EnvInterface):
         self.base_seed = env_cfg.seed
 
         # Async vectorized MiniHack
-        self.venv = AsyncVectorEnv([make_mhack_env(env_cfg, i) for i in range(self._batch_size)])
+        self.venv = AsyncVectorEnv(
+            [make_mhack_env(env_cfg, i) for i in range(self._batch_size)],
+            autoreset_mode=AutoresetMode.SAME_STEP,
+        )
 
         # Infer observation shape from real reset
-        obs, _ = self.venv.reset()
+        obs, _ = self.venv.reset(seed=self.base_seed)
         glyphs = extract_glyphs(obs)  # ALWAYS returns (B, H, W)
         glyphs = np.asarray(glyphs)
 
@@ -104,7 +107,7 @@ class MiniHackParallelEnv(EnvInterface):
     # Reset
     # -------------------------------------------------------------------------
     def reset(self, seed: Optional[int] = None) -> Dict[str, Any]:
-        obs, info = self.venv.reset(seed=seed)
+        obs, info = self.venv.reset(seed=self.base_seed if seed is None else seed)
 
         glyphs = extract_glyphs(obs)
         glyphs = np.asarray(glyphs)
@@ -146,31 +149,20 @@ class MiniHackParallelEnv(EnvInterface):
         truncated_t = torch.tensor(truncated, dtype=torch.bool, device=self.device)
 
         is_last = terminated_t | truncated_t
-        is_terminal = is_last
-        is_first = self._needs_first.clone()
-
-        # One-hot prev action
-        actions_t = actions.long().to(self.device)
-        prev = torch.zeros((self._batch_size, self._action_dim), dtype=torch.float32, device=self.device)
-        prev[torch.arange(self._batch_size), actions_t] = 1.0
-        self._prev_action = prev
-
-        # Per-environment reset
+        is_terminal = terminated_t
+        # SAME_STEP autoreset returns reset observations in state. Preserve the
+        # actual transition observations separately for reward/model supervision.
+        transition_state = state.clone()
         for i in range(self._batch_size):
             if is_last[i]:
-                seed = self.base_seed + i if self.deterministic else None
-
-                # Gymnasium's AsyncVectorEnv creates `.envs` dynamically, but the type stubs don't declare it.
-                #
-                # Pylance warns even though the attribute exists at runtime. We intentionally suppress this because
-                # per‑env reset *requires* envs[i].reset().
-                obs_i, _ = self.venv.envs[i].reset(seed=seed)  # type: ignore[attr-defined]
-                glyphs_i = extract_glyphs(obs_i)
-                state[i] = self._flatten_single(glyphs_i)[0]
-                self._prev_action[i] = torch.zeros(self._action_dim, device=self.device)
-                self._needs_first[i] = True
-            else:
-                self._needs_first[i] = False
+                final = info["final_obs"][i]
+                transition_state[i] = self._flatten_single(extract_glyphs(final))[0]
+        is_first = is_last.clone()
+        actions_t = actions.reshape(-1).long().to(self.device)
+        prev = torch.nn.functional.one_hot(actions_t, self._action_dim).float()
+        prev[is_last] = 0
+        self._prev_action = prev
+        self._needs_first = is_first.clone()
 
         if self.probe:
             self.probe.env_step(
@@ -183,6 +175,7 @@ class MiniHackParallelEnv(EnvInterface):
 
         return {
             "state": state,
+            "transition_state": transition_state,
             "prev_action": self._prev_action.clone(),
             "reward": reward_t,
             "is_first": is_first,

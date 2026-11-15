@@ -52,6 +52,6 @@ def test_reward_continue_finite():
     cont = wm.continue_head(h, z)
 
     assert reward.shape == (4, wm.net_cfg.value_bins)
-    assert cont.shape == (4, wm.net_cfg.value_bins)
+    assert cont.shape == (4, 1)
     assert torch.isfinite(reward).all()
     assert torch.isfinite(cont).all()

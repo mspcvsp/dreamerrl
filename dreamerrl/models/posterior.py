@@ -11,7 +11,7 @@ from dreamerrl.utils.types import LatentConfig, NetworkConfig
 
 class Posterior(nn.Module):
     """
-    Dreamer‑V3 factored discrete posterior q(z_t | h_{t-1}, embed_t).
+    Dreamer‑V3 factored discrete posterior q(z_t | h_t, embed_t).
 
     Produces:
         logits: (B, K, C)

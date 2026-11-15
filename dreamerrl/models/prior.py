@@ -11,7 +11,7 @@ from dreamerrl.utils.types import LatentConfig, NetworkConfig
 
 class Prior(nn.Module):
     """
-    Dreamer‑V3 factored discrete prior p(z_t | h_{t-1}).
+    Dreamer‑V3 factored discrete prior p(z_t | h_t).
 
     Produces:
         logits: (B, K, C)
