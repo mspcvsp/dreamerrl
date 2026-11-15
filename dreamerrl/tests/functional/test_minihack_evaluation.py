@@ -5,9 +5,10 @@ import numpy as np
 import pytest
 import torch
 
+from dreamerrl.eval.minihack_eval import evaluate_minihack
 from dreamerrl.models.actor import Actor
 from dreamerrl.models.world_model import WorldModel
-from dreamerrl.tests.manual.utils import evaluate_minihack, minihack_config
+from dreamerrl.tests.manual.utils import minihack_config
 
 
 class RewardSentinel(gym.Env):
@@ -51,7 +52,7 @@ def test_held_out_evaluation_counts_final_reward_and_restores_state(
     finite,
 ):
     env = RewardSentinel(terminal)
-    monkeypatch.setattr("dreamerrl.tests.manual.utils.gym.make", lambda *args, **kwargs: env)
+    monkeypatch.setattr("dreamerrl.eval.minihack_eval.gym.make", lambda *args, **kwargs: env)
     cfg = minihack_config(0, tmp_path)
     cfg.env.finite_horizon = finite
     if finite:

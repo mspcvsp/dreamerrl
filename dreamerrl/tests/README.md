@@ -252,3 +252,14 @@ latents, actions, and GRU parameters. Existing reset, observe/imagine timing,
 batch-order, no-input-mutation, and CPU/GPU tests also exercise the GRU.
 Checkpoint/repeatability tests include its parameters and optimizer states;
 MLP-RSSM v3 files are rejected before loading. Current checkpoints use v4.
+
+## 20. Offline runs and improvement measurement
+
+`functional/test_offline_monitor.py` covers durable JSONL append/torn-tail recovery,
+Rich rendering and redirected-output fallback, paired return comparisons, baseline
+identity across resume, final-test/validation seed separation, full RNG preservation,
+and real CLI SIGTERM handling at a completed-update checkpoint boundary. The
+production evaluator is in `eval/minihack_eval.py`; manual experiments reuse it.
+
+See [offline MiniHack operations](../../docs/minihack_offline.md) for tmux, DGX Spark,
+run artifacts, graceful stop/resume, and final policy-versus-baselines evaluation.

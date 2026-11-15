@@ -7,7 +7,7 @@ import random
 import tempfile
 import time
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any, Callable, Dict
 
 import numpy as np
 import torch
@@ -17,7 +17,6 @@ from torch import autocast
 from torch.amp.grad_scaler import GradScaler
 from torch.utils.tensorboard import SummaryWriter
 
-import wandb
 from dreamerrl.debug.probe import DeterminismProbe
 from dreamerrl.env.env_factory import make_env
 from dreamerrl.logging.repo_logger import create_repro_logger
@@ -81,6 +80,10 @@ class DreamerTrainer:
                 raise ValueError(f"{name} must be positive")
         self.cfg = cfg
         self.sample_step = 0
+        self.completed_episodes = 0
+        self.run_state: dict[str, Any] = {}
+        self.on_episode: Callable[[dict[str, Any]], None] | None = None
+        self.on_checkpoint: Callable[[dict[str, Any]], None] | None = None
         self.completed_updates = 0
         self.total_updates_target: int | None = None
 
@@ -216,8 +219,11 @@ class DreamerTrainer:
         # -----------------------------------------------------
         # Logging
         # -----------------------------------------------------
+        self.wandb_run = None
         if cfg.log.enable_wandb:
-            wandb.init(project="dreamer_v3", config=cfg.__dict__)
+            import wandb
+
+            self.wandb_run = wandb.init(project="dreamer_v3", config=cfg.__dict__)
 
         self.env_state: Dict[str, Any] = self.prepare_env_output(self.env.reset(), reset=True)
         with torch.no_grad():
@@ -258,6 +264,8 @@ class DreamerTrainer:
             "total_updates_target": self.total_updates_target,
             "total_env_steps": self.total_env_steps,
             "sample_step": self.sample_step,
+            "completed_episodes": self.completed_episodes,
+            "run_state": self.run_state,
             "recent_returns": self.recent_returns,
             "replay": self.replay.state_dict(),
             "rng": {
@@ -281,13 +289,30 @@ class DreamerTrainer:
             if temporary is not None:
                 temporary.unlink(missing_ok=True)
 
+        if self.on_checkpoint is not None:
+            self.on_checkpoint(
+                dict(
+                    event="checkpoint",
+                    update=self.completed_updates,
+                    env_steps=self.total_env_steps,
+                    path=str(path),
+                    bytes=path.stat().st_size,
+                )
+            )
+
     def load_checkpoint(self, path: str | Path) -> None:
         """Load a checkpoint produced by this project; only load files you trust."""
         payload = torch.load(path, map_location="cpu", weights_only=False)
         self._restore_checkpoint(payload)
 
     @classmethod
-    def from_checkpoint(cls, path: str | Path, *, cuda: bool | None = None) -> DreamerTrainer:
+    def from_checkpoint(
+        cls,
+        path: str | Path,
+        *,
+        cuda: bool | None = None,
+        log_dir: str | Path | None = None,
+    ) -> DreamerTrainer:
         """Construct from the saved configuration, optionally selecting CPU/CUDA."""
         payload = torch.load(path, map_location="cpu", weights_only=False)
         if payload.get("version") in (1, 2):
@@ -299,6 +324,9 @@ class DreamerTrainer:
         if payload.get("version") != 4:
             raise ValueError("Unsupported Dreamer checkpoint version")
         cfg = payload["config"]
+        if log_dir is not None:
+            cfg.log.tb_logdir = str(Path(log_dir) / "tensorboard")
+            cfg.log.run_name = "train"
         if cuda is not None:
             cfg.train.cuda = cuda
         if not cfg.train.cuda or not torch.cuda.is_available():
@@ -343,6 +371,8 @@ class DreamerTrainer:
         self.total_updates_target = payload["total_updates_target"]
         self.total_env_steps = payload["total_env_steps"]
         self.sample_step = payload["sample_step"]
+        self.completed_episodes = payload.get("completed_episodes", len(self.replay.episodes))
+        self.run_state = payload.get("run_state", {})
         self.recent_returns = list(payload["recent_returns"])
         self.episode_returns.zero_()
         # The simulator cannot be snapshotted. Reset both collector and RSSM.
@@ -374,6 +404,7 @@ class DreamerTrainer:
         *,
         checkpoint_path: str | Path | None = None,
         checkpoint_every: int = 100,
+        on_update: Callable[[dict[str, Any]], bool | None] | None = None,
     ) -> None:
         """Train to an absolute update count, saving after completed updates."""
         if total_updates < self.completed_updates:
@@ -390,7 +421,8 @@ class DreamerTrainer:
         lr_schedule = CosineWarmupScheduler(lr_cfg)
 
         for update_idx in range(self.completed_updates, total_updates):
-            t0 = time.time()
+            t0 = time.perf_counter()
+            previous_env_steps = self.total_env_steps
 
             lr = lr_schedule(update_idx)
             for pg in self.model_opt.param_groups:
@@ -421,7 +453,7 @@ class DreamerTrainer:
 
             wm_metrics = self.update_world_model(batch, update_idx)
 
-            if update_idx % self.cfg.train.console_log_interval == 0:
+            if on_update is None and update_idx % self.cfg.train.console_log_interval == 0:
                 print(
                     f"[train] "
                     f"update={update_idx}/{total_updates} "
@@ -450,22 +482,57 @@ class DreamerTrainer:
 
             actor_loss, critic_loss = self.update_actor_critic(batch, update_idx)
 
-            if self.cfg.log.enable_wandb:
-                wandb.log(
+            if self.wandb_run is not None:
+                self.wandb_run.log(
                     {
                         "loss/model": wm_metrics.total_loss.item(),
                         "loss/actor": actor_loss,
                         "loss/critic": critic_loss,
-                        "time/update": time.time() - t0,
+                        "time/update": time.perf_counter() - t0,
                     },
                     step=update_idx,
                 )
 
             self.completed_updates = update_idx + 1
+            elapsed = time.perf_counter() - t0
+            record = dict(
+                event="train",
+                update=self.completed_updates,
+                target_updates=total_updates,
+                env_steps=self.total_env_steps,
+                episodes=self.completed_episodes,
+                replay_size=self.replay.size,
+                replay_episodes=len(self.replay.episodes),
+                sequence_length=batch["obs"].shape[1],
+                learning_rate=lr,
+                model_tokens_per_env_step=batch["obs"].shape[0]
+                * batch["obs"].shape[1]
+                / max(1, self.total_env_steps - previous_env_steps),
+                update_seconds=elapsed,
+                env_steps_per_second=(self.total_env_steps - previous_env_steps) / max(elapsed, 1e-9),
+                recent_return_mean=float(np.mean(self.recent_returns)) if self.recent_returns else None,
+                world_loss=wm_metrics.total_loss.item(),
+                recon_loss=wm_metrics.recon_loss.item(),
+                reward_loss=wm_metrics.reward_loss.item(),
+                continuation_loss=wm_metrics.cont_loss.item(),
+                kl_dyn=wm_metrics.kl_dyn.item(),
+                kl_rep=wm_metrics.kl_rep.item(),
+                actor_loss=actor_loss,
+                critic_loss=critic_loss,
+                aux_losses={
+                    cfg.name: loss.item() for cfg, loss in zip(self.world.aux_objectives, wm_metrics.aux_losses)
+                },
+                cuda_memory_mb=torch.cuda.memory_allocated(self.device) / 2**20 if self.device.type == "cuda" else None,
+            )
+            keep_running = on_update(record) if on_update is not None else None
             if checkpoint_path is not None and (
-                self.completed_updates % checkpoint_every == 0 or self.completed_updates == total_updates
+                self.completed_updates % checkpoint_every == 0
+                or self.completed_updates == total_updates
+                or keep_running is False
             ):
                 self.save_checkpoint(checkpoint_path)
+            if keep_running is False:
+                break
 
     # -------------------------------------------------------------
     # Collect steps from environment
@@ -506,6 +573,17 @@ class DreamerTrainer:
             self.episode_returns += env_out["reward"]
             for i in env_out["is_last"].nonzero(as_tuple=True)[0].tolist():
                 ep_return = self.episode_returns[i].item()
+                self.completed_episodes += 1
+                if self.on_episode is not None:
+                    self.on_episode(
+                        dict(
+                            event="episode",
+                            env_index=i,
+                            episode=self.completed_episodes,
+                            env_steps=self.total_env_steps + self.env.batch_size,
+                            episode_return=ep_return,
+                        )
+                    )
                 self.recent_returns.append(ep_return)
                 self.recent_returns = self.recent_returns[-50:]
                 self.tb.add_scalar("env/ep_return", ep_return, self.total_env_steps + self.env.batch_size)

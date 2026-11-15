@@ -14,11 +14,13 @@ The baseline disables auxiliary objectives; the ablation adds only novelty,
 a prediction of next-observation change. Novelty is representation supervision,
 not an intrinsic reward added to the actor's return.
 
-Compare episode returns at equal environment-step budgets in TensorBoard under
-`logs/<environment>_<aux>_seed<seed>`. Returns now accumulate each environment's
-whole episode, including episodes ending inside a collection call. Repeat with
-seeds 1 and 2 before drawing conclusions. Establish Room-5x5 learning first, then
-try a harder task; a passing smoke test does not demonstrate learning.
+Use [the offline/tmux workflow](minihack_offline.md) for persistent JSONL metrics,
+a Rich dashboard, periodic paired evaluations, and fresh-seed final testing.
+The runner writes a unique `runs/<environment>_<aux>_seed<seed>_<timestamp>/`
+directory unless `--run-dir` is specified. TensorBoard events are under that run's
+`tensorboard/train/` directory. Repeat training with seeds 1 and 2 before drawing
+conclusions. Establish Room-5x5 learning first, then try a harder task; a passing
+smoke test does not demonstrate learning.
 
 The other auxiliary heads remain available for experiments, with narrower claims:
 
@@ -94,8 +96,9 @@ the regular suite. See the test README for its separate benchmark command.
 
 ## Checkpoint and resume
 
-The MiniHack runner saves `checkpoints/<run_name>/latest.pt` every 100 completed
-updates and at normal completion. Saves replace the prior file atomically, so an
+The MiniHack runner saves `<run_dir>/latest.pt` every 100 completed
+updates and at normal completion. The offline runner also saves update-zero
+`initial.pt` and validation-selected `best.pt` snapshots. Saves replace the prior file atomically, so an
 interrupted or failed write leaves the last complete checkpoint available.
 
 ```bash
@@ -110,14 +113,15 @@ python -m dreamerrl.scripts.run_minihack --cpu --resume checkpoints/room.pt --up
 ```
 
 Resume uses the saved environment, seed, model, auxiliary objectives, and training
-configuration; `--env`, `--aux`, and `--seed` apply to new runs. `--cpu` can select
+configuration; environment, model and training flags apply to new runs. `--cpu` can select
 CPU on resume. `--checkpoint` can select a new destination. With no new destination,
 resume updates the source checkpoint. Extending `--updates` also extends the cosine
 learning-rate schedule horizon; resuming to the original target preserves its
 schedule and completed-update position.
 
 Checkpoints include all three models, optimizer states, AMP scaler when active,
-completed replay episodes, replay RNG, Python/NumPy/PyTorch RNG states, update and
+completed replay episodes, original evaluation baselines/monitor state, replay RNG,
+Python/NumPy/PyTorch RNG states, update and
 environment-step counters, replay sample counter, and recent episode returns.
 Replay data can make checkpoint files large. The format includes Python objects;
 load only trusted checkpoints produced by this project.

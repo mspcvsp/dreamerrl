@@ -11,7 +11,8 @@ from typing import Any
 import pytest
 import torch
 
-from dreamerrl.tests.manual.utils import evaluate_minihack, minihack_config
+from dreamerrl.eval.minihack_eval import evaluate_minihack
+from dreamerrl.tests.manual.utils import minihack_config
 from dreamerrl.training.trainer import DreamerTrainer
 
 
