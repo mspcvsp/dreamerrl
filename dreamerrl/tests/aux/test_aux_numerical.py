@@ -8,7 +8,7 @@ import torch
 
 @pytest.mark.invariants
 @pytest.mark.aux_losses
-def test_novelty_loss_increases_on_repetition(aux_world_model, latent_cluster):
+def test_novelty_head_output_shape(aux_world_model, latent_cluster):
     wm = aux_world_model
     novelty_head = wm.aux_heads["novelty"]
 

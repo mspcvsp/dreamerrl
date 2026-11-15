@@ -23,3 +23,25 @@ def create_repro_logger(train_seed, env_seed, log_dir):
     logger.addHandler(sh)
 
     return logger
+
+
+def create_run_logger(run_dir, console):
+    """Local rotating diagnostics; metrics are written independently as JSONL."""
+    from logging.handlers import RotatingFileHandler
+    from pathlib import Path
+
+    from rich.logging import RichHandler
+
+    path = Path(run_dir)
+    path.mkdir(parents=True, exist_ok=True)
+    logger = logging.getLogger(f"dreamerrl.run.{path.resolve()}")
+    logger.setLevel(logging.INFO)
+    logger.propagate = False
+    for handler in logger.handlers:
+        handler.close()
+    logger.handlers.clear()
+    file_handler = RotatingFileHandler(path / "run.log", maxBytes=5 * 1024 * 1024, backupCount=3, encoding="utf-8")
+    file_handler.setFormatter(logging.Formatter("%(asctime)s %(levelname)s %(message)s"))
+    logger.addHandler(file_handler)
+    logger.addHandler(RichHandler(console=console, show_path=False, markup=False))
+    return logger

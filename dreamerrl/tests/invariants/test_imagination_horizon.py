@@ -5,7 +5,7 @@ import torch
 
 from dreamerrl.models.world_model import WorldModel, WorldModelState
 from dreamerrl.tests.conftest import DummyActor
-from dreamerrl.utils.types import LatentConfig, NetworkConfig
+from dreamerrl.utils.types import DreamerConfig, LatentConfig, NetworkConfig
 
 
 def _build_world_model(device: torch.device) -> WorldModel:
@@ -17,7 +17,7 @@ def _build_world_model(device: torch.device) -> WorldModel:
     )
     latent = LatentConfig(deter_size=200, stoch_size=30, num_classes=32)
     net = NetworkConfig(hidden_size=256, action_dim=5, value_bins=41)
-    return WorldModel(obs_space=obs_space, latent=latent, net=net, device=device)
+    return WorldModel(dreamer_cfg=DreamerConfig(), obs_space=obs_space, latent=latent, net=net, device=device)
 
 
 @pytest.mark.invariants

@@ -1,95 +1,45 @@
-# rl_dashboard.py
-from rich.text import Text
-from textual.app import App, ComposeResult
-from textual.containers import Container, Horizontal, VerticalScroll
-from textual.reactive import reactive
-from textual.widgets import Static
+"""Rich Live dashboard with automatic plain-output fallback under redirection."""
+
+from typing import Any
+
+from rich.console import Console
+from rich.live import Live
+
+from dreamerrl.utils.trainer_renderers import render_dashboard
 
 
-class MetricPanel(Static):
-    """Wrapper for Rich-rendered panels/tables."""
-    data = reactive(None)
-
-    def render(self):
-        # Safely handle the initial None before the trainer has populated anything
-        if self.data is None:
-            return Text("Waiting...")
-
-        return self.data
-
-
-class RLDashboard(App):
-    CSS = """
-    Screen {
-        layout: vertical;
-    }
-
-    #top-row {
-        height: 25%;
-        layout: horizontal;
-    }
-
-    #middle-row {
-        height: 25%;
-        layout: horizontal;
-    }
-
-    #bottom-row {
-        height: 50%;
-        overflow: auto;
-    }
-
-    Static {
-        border: solid green;
-        padding: 1;
-    }
-    """
-
-    def __init__(self, trainer):
-        super().__init__()
-        self.trainer = trainer
-
-    def compose(self) -> ComposeResult:
-        yield Container(
-            Horizontal(
-                MetricPanel(id="ppo"),
-                MetricPanel(id="episodes"),
-                MetricPanel(id="trends"),
-                id="top-row"
-            ),
-            Horizontal(
-                MetricPanel(id="policy"),
-                MetricPanel(id="value"),
-                MetricPanel(id="hist"),
-                id="middle-row"
-            ),
-            VerticalScroll(
-                MetricPanel(id="envs"),
-                id="bottom-row"
-            )
+class RLDashboard:
+    def __init__(self, run_dir, device, mode="auto", console=None):
+        self.console = console or Console()
+        self.run_dir, self.device = run_dir, str(device)
+        self.state: dict[str, Any] = {}
+        self.evaluation: dict[str, Any] | None = None
+        self.phase = "starting"
+        self.enabled = mode != "off" and self.console.is_terminal
+        self.live = (
+            Live(get_renderable=self.render, console=self.console, refresh_per_second=2, screen=False)
+            if self.enabled
+            else None
         )
 
-    def on_mount(self):
-        self.set_interval(0.25, self.refresh_panels)
+    def render(self):
+        return render_dashboard(self.state, self.evaluation, self.phase, self.run_dir, self.device)
 
-    def refresh_panels(self):
-        # PPO Metrics
-        self.query_one("#ppo", MetricPanel).data = self.trainer.render_ppo_table()
+    def __enter__(self):
+        if self.live:
+            self.live.start()
+        return self
 
-        # Episode Stats
-        self.query_one("#episodes", MetricPanel).data = self.trainer.render_episode_table()
+    def update(self, state=None, evaluation=None, phase=None):
+        if state is not None:
+            self.state = state
+        if evaluation is not None:
+            self.evaluation = evaluation
+        if phase is not None:
+            self.phase = phase
+        if self.live:
+            self.live.refresh()
 
-        # Episode Trends
-        self.query_one("#trends", MetricPanel).data = self.trainer.render_episode_trends()
-
-        # Policy Stability
-        self.query_one("#policy", MetricPanel).data = self.trainer.render_policy_stability()
-
-        # Value Drift
-        self.query_one("#value", MetricPanel).data = self.trainer.render_value_drift()
-
-        # Histogram
-        self.query_one("#hist", MetricPanel).data = self.trainer.render_histogram()
-
-        # Per-env timelines
-        self.query_one("#envs", MetricPanel).data = self.trainer.render_env_timelines()
+    def __exit__(self, *args):
+        if self.live:
+            self.live.stop()

@@ -13,7 +13,7 @@ from dreamerrl.utils.types import LatentConfig, NetworkConfig
 @pytest.mark.invariants
 @pytest.mark.rssm
 @pytest.mark.skipif(not torch.cuda.is_available(), reason="CUDA not available")
-def test_rssm_core_cpu_gpu_determinism():
+def test_rssm_core_cpu_gpu_determinism(dreamer_cfg):
     """
     RSSMCore should produce numerically identical outputs on CPU and GPU when
     given identical parameters and inputs. This test verifies that determinism.
@@ -32,8 +32,12 @@ def test_rssm_core_cpu_gpu_determinism():
     latent = LatentConfig(deter_size=200, stoch_size=30, num_classes=32)
     net = NetworkConfig(hidden_size=256, action_dim=3, value_bins=41)
 
-    wm_cpu = WorldModel(obs_space=obs_space, latent=latent, net=net, device=torch.device("cpu"))
-    wm_gpu = WorldModel(obs_space=obs_space, latent=latent, net=net, device=torch.device("cuda"))
+    wm_cpu = WorldModel(
+        dreamer_cfg=dreamer_cfg, obs_space=obs_space, latent=latent, net=net, device=torch.device("cpu")
+    )
+    wm_gpu = WorldModel(
+        dreamer_cfg=dreamer_cfg, obs_space=obs_space, latent=latent, net=net, device=torch.device("cuda")
+    )
 
     # Copy parameters exactly
     wm_gpu.load_state_dict(wm_cpu.state_dict())
@@ -42,6 +46,13 @@ def test_rssm_core_cpu_gpu_determinism():
 
     # Explicit dtype + device for Pylance
     h_cpu = torch.randn(B, latent.deter_size, dtype=torch.float32, device="cpu")
+
+    z_cpu = torch.randn(
+        B,
+        latent.stoch_size * latent.num_classes,
+        dtype=torch.float32,
+        device="cpu",
+    )
 
     # Pylance requires explicit int for high and num_classes
     assert net.action_dim is not None, "action_dim must be specified in net config for reproducibility check"
@@ -61,6 +72,7 @@ def test_rssm_core_cpu_gpu_determinism():
 
     # Move to GPU
     h_gpu = h_cpu.to("cuda")
+    z_gpu = z_cpu.to("cuda")
     a_gpu = a_cpu.to("cuda")
 
     # RSSMCore is exposed as wm.core
@@ -68,8 +80,8 @@ def test_rssm_core_cpu_gpu_determinism():
     core_gpu = cast(RSSMCore, wm_gpu.rssm)
 
     with torch.no_grad():
-        h_next_cpu = core_cpu(h_cpu, a_cpu)
-        h_next_gpu = core_gpu(h_gpu, a_gpu).to("cpu")
+        h_next_cpu = core_cpu(h_cpu, z_cpu, a_cpu)
+        h_next_gpu = core_gpu(h_gpu, z_gpu, a_gpu).to("cpu")
 
     assert h_next_cpu.shape == h_next_gpu.shape
 

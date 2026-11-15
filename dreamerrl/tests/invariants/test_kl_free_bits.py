@@ -9,7 +9,7 @@ import torch
 from dreamerrl.models.categorical_kl import structured_kl
 from dreamerrl.models.posterior import Posterior
 from dreamerrl.models.prior import Prior
-from dreamerrl.utils.types import LatentConfig, NetworkConfig
+from dreamerrl.utils.types import KLConfig, LatentConfig, NetworkConfig
 
 
 @pytest.mark.invariants
@@ -20,7 +20,7 @@ def test_structured_kl_free_nats_invariants(free_nats: float) -> None:
 
     1. kl_total, kl_dyn, kl_rep are all >= 0.
     2. kl_total == kl_dyn + kl_rep (within tolerance).
-    3. Increasing free_nats never increases *per‑factor* KL.
+    3. Free-nats floors the summed KL per example.
     """
 
     torch.manual_seed(0)
@@ -41,7 +41,7 @@ def test_structured_kl_free_nats_invariants(free_nats: float) -> None:
     q_probs = post_stats["probs"]  # (B, K, C)
     p_probs = prior_stats["probs"]
 
-    kl = structured_kl(q_probs=q_probs, p_probs=p_probs, free_nats=free_nats)
+    kl = structured_kl(q_probs=q_probs, p_probs=p_probs, kl_cfg=KLConfig(free_nats=free_nats))
 
     kl_total = kl["kl_total"]
     kl_dyn = kl["kl_dyn"]
@@ -63,25 +63,9 @@ def test_structured_kl_free_nats_effect():
     Free-nats should modify the *per-factor* KL unless raw KL is already above threshold.
     """
 
-    torch.manual_seed(1)
-
-    latent = LatentConfig(deter_size=64, stoch_size=4, num_classes=8)
-    net = NetworkConfig(hidden_size=128, action_dim=None, value_bins=None)
-
-    prior = Prior(latent=latent, net=net)
-    posterior = Posterior(latent=latent, net=net)
-
-    B = 16
-    h = torch.randn(B, latent.deter_size)
-    embed = torch.randn(B, net.hidden_size)
-
-    post_stats = posterior(h, embed)
-    prior_stats = prior(h)
-
-    q_probs = post_stats["probs"]
-    p_probs = prior_stats["probs"]
-
-    kl0 = structured_kl(q_probs=q_probs, p_probs=p_probs, free_nats=0.0)["kl_total"]
-    kl1 = structured_kl(q_probs=q_probs, p_probs=p_probs, free_nats=1.0)["kl_total"]
-
-    assert not torch.allclose(kl0, kl1, atol=1e-6)
+    q = torch.tensor([[[0.5, 0.5], [0.5, 0.5]]])
+    kl0 = structured_kl(q, q, KLConfig(free_nats=0.0))
+    kl1 = structured_kl(q, q, KLConfig(free_nats=1.0))
+    assert torch.equal(kl0["kl_total"], torch.tensor([0.0]))
+    assert torch.equal(kl1["kl_dyn"], torch.tensor([1.0]))
+    assert torch.equal(kl1["kl_rep"], torch.tensor([1.0]))

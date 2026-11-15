@@ -2,12 +2,14 @@ import gymnasium as gym
 import numpy as np
 import pytest
 import torch
+import torch.nn.functional as F
 from gymnasium.spaces import Box
 
+from dreamerrl.env.env_factory import make_env
 from dreamerrl.models.aux_objectives import AUX_OBJECTIVES
 from dreamerrl.models.world_model import WorldModel
 from dreamerrl.models.world_model_core import RSSMCore as RSSM
-from dreamerrl.utils.types import LatentConfig, NetworkConfig
+from dreamerrl.utils.types import DreamerConfig, EnvironmentConfig, LatentConfig, NetworkConfig
 
 
 @pytest.fixture
@@ -25,7 +27,12 @@ def dummy_batch():
 
 
 @pytest.fixture
-def world_model():
+def dreamer_cfg():
+    return DreamerConfig()
+
+
+@pytest.fixture
+def world_model(dreamer_cfg):
     """
     Minimal world model fixture for invariants testing.
     Matches the latent + network config used in your tests.
@@ -52,6 +59,7 @@ def world_model():
 
     wm = WorldModel(
         obs_space=obs_space,
+        dreamer_cfg=dreamer_cfg,
         latent=latent,
         net=net,
         device=torch.device("cpu"),
@@ -139,12 +147,29 @@ def _set_determinism():
 # ---------------------------------------------------------------------------
 # RSSM fixture (matches your WorldModel latent config)
 # ---------------------------------------------------------------------------
-@pytest.fixture(scope="session")
+@pytest.fixture
 def rssm(latent, net):
-    """
-    Minimal RSSM instance matching the latent + network config.
-    """
-    return RSSM(latent=latent, net=net).eval()
+    return RSSM(
+        latent=latent,
+        net=net,
+    ).eval()
+
+
+@pytest.fixture
+def sample_z(latent):
+    def _sample(batch_size):
+        idx = torch.randint(
+            0,
+            latent.stoch_size,
+            (batch_size, latent.num_classes),
+        )
+
+        return F.one_hot(
+            idx,
+            num_classes=latent.stoch_size,
+        ).float()
+
+    return _sample
 
 
 # ---------------------------------------------------------------------------
@@ -161,11 +186,8 @@ def dummy_h(latent):
 
 
 @pytest.fixture
-def dummy_z_actor(latent):
-    """
-    Stochastic latent z for actor (B, K, C).
-    """
-    return torch.randn(8, latent.num_classes, latent.stoch_size)
+def dummy_z_actor(sample_z):
+    return sample_z(8)
 
 
 # ---------------------------------------------------------------------------
@@ -268,6 +290,14 @@ def pytest_addoption(parser):
         help="Number of training steps",
     )
 
+    parser.addoption(
+        "--eval-episodes",
+        action="store",
+        default=10,
+        type=int,
+        help="Held-out episodes per seed and arm in the manual MiniHack learning experiment",
+    )
+
 
 def pytest_collection_modifyitems(config, items):
     if config.getoption("--run-manual"):
@@ -292,27 +322,26 @@ def aux_world_model():
     """
     obs_space = DummyObsSpace(obs_dim=8)
 
+    cfg = DreamerConfig()
+
+    cfg.world.aux_objectives = [
+        AUX_OBJECTIVES["novelty"],
+        AUX_OBJECTIVES["skill"],
+    ]
+
     latent = LatentConfig(
         deter_size=200,
         stoch_size=30,
         num_classes=32,
     )
 
-    net = NetworkConfig(
-        hidden_size=256,
-        action_dim=5,
-        value_bins=41,
-        disable_aux_losses=False,
-    )
+    net = NetworkConfig(hidden_size=256, action_dim=5, value_bins=41)
 
     wm = WorldModel(
         obs_space=obs_space,
+        dreamer_cfg=cfg,
         latent=latent,
         net=net,
-        aux_objectives=[
-            AUX_OBJECTIVES["novelty"],
-            AUX_OBJECTIVES["skill"],
-        ],
         device=torch.device("cpu"),
     )
 
@@ -332,21 +361,21 @@ def world_model_aux_losses_disabled():
         num_classes=32,
     )
 
-    net = NetworkConfig(
-        hidden_size=256,
-        action_dim=5,
-        value_bins=41,
-        disable_aux_losses=True,
-    )
+    net = NetworkConfig(hidden_size=256, action_dim=5, value_bins=41)
+
+    cfg = DreamerConfig()
+    cfg.world.disable_aux_losses = True
+
+    cfg.world.aux_objectives = [
+        AUX_OBJECTIVES["novelty"],
+        AUX_OBJECTIVES["skill"],
+    ]
 
     wm = WorldModel(
         obs_space=obs_space,
+        dreamer_cfg=cfg,
         latent=latent,
         net=net,
-        aux_objectives=[
-            AUX_OBJECTIVES["novelty"],
-            AUX_OBJECTIVES["skill"],
-        ],
         device=torch.device("cpu"),
     )
 
@@ -371,3 +400,29 @@ def latent_cluster(latent):
         return z.view(batch * L, latent.num_classes * latent.stoch_size)
 
     return _make
+
+
+@pytest.fixture
+def minihack_vec_env():
+    cfg = EnvironmentConfig(
+        env_id="MiniHack-Room-5x5-v0",
+        num_envs=4,
+        max_episode_steps=50,
+        seed=123,
+        deterministic=True,
+        parallel=False,
+    )
+    return make_env(cfg, device=torch.device("cpu"))
+
+
+@pytest.fixture
+def minihack_parallel_env():
+    cfg = EnvironmentConfig(
+        env_id="MiniHack-Room-5x5-v0",
+        num_envs=4,
+        max_episode_steps=50,
+        seed=123,
+        deterministic=True,
+        parallel=True,
+    )
+    return make_env(cfg, device=torch.device("cpu"))

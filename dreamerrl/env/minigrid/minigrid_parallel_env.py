@@ -1,10 +1,10 @@
-from typing import Callable
+from typing import Any, Callable
 
 import gymnasium as gym
 import minigrid  # noqa: F401  # ensures Minigrid registers its environments
 import numpy as np
 import torch
-from gymnasium.spaces import Discrete
+from gymnasium.spaces import Box, Discrete
 from gymnasium.vector import SyncVectorEnv
 from gymnasium.wrappers import TimeLimit
 from minigrid.wrappers import ImgObsWrapper
@@ -59,6 +59,14 @@ class MinigridParallelEnv:
         self.single_observation_space = self.venv.single_observation_space
         self.single_action_space = self.venv.single_action_space
 
+        shape = self.single_observation_space.shape
+        self._obs_space = Box(
+            low=0,
+            high=255,
+            shape=shape,
+            dtype=np.float32,
+        )
+
         if not isinstance(self.single_action_space, Discrete):
             raise RuntimeError(
                 f"MinigridParallelEnv only supports Discrete action spaces, got {type(self.single_action_space)}"
@@ -67,7 +75,7 @@ class MinigridParallelEnv:
         # Track "first step" markers for Dreamer-style streaming
         self._needs_first = torch.ones(self.num_envs, dtype=torch.bool, device=self.device)
 
-    def reset(self, seed=None):
+    def reset(self, seed=None) -> dict[str, Any]:
         obs, info = self.venv.reset(seed=seed)
 
         # ImgObsWrapper already gives (B, H, W, C) float32
@@ -85,7 +93,7 @@ class MinigridParallelEnv:
             "info": info,
         }
 
-    def step(self, actions: torch.Tensor):
+    def step(self, actions: torch.Tensor) -> dict[str, Any]:
         # Normalize actions to shape (B,)
         if actions.dim() == 2 and actions.size(-1) == 1:
             actions_np = actions.squeeze(-1).detach().cpu().numpy()
@@ -143,6 +151,10 @@ class MinigridParallelEnv:
         if shape is None:
             raise RuntimeError("single_observation_space.shape is None")
         return int(np.prod(shape))
+
+    @property
+    def obs_space(self):
+        return self._obs_space
 
     @property
     def action_dim(self) -> int:

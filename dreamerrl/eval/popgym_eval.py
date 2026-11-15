@@ -1,228 +1,143 @@
-"""
-PopGym → Dreamer Evaluation Contract
+"""Whole-episode PopGym evaluation and a small training harness.
 
-This file implements deterministic evaluation of Dreamer-V3 agents on PopGym environments. Evaluation uses:
-
-    - Dreamer's latent state (h, z)
-    - Greedy actor policy (argmax over logits)
-   - No exploration, no replay, no randomness
-
-PopGym environments return dict observations containing:
-    - "state":       flattened environment state
-    - "prev_action": previous action taken (added by our wrapper)
-
-The evaluation loop passes the *full* observation dict directly into world.observe_step(), allowing Dreamer to encode
-both the current state and the previous action. This is REQUIRED for PopGym's RepeatPrevious* tasks, whose reward
-depends on:
-
-    reward = +1 if action_t == action_{t-1}
-
-The evaluation loop runs until all vectorized environments report is_terminal=True, accumulating per-env episodic
-returns. Because the wrapper auto-resets environments internally, evaluation always receives valid transitions and
-never encounters dead envs.
-
-The result dictionary includes:
-    - mean return across episodes
-    - std return
-    - per-env return vector
-
-This file provides a stable, deterministic benchmark for Dreamer functional correctness on PopGym tasks.
+Returns use the environment's native reward scale. Cross-seed loss CV and policy
+KL on unrelated states are intentionally not treated as learning evidence.
 """
 
-import time
+from typing import TypedDict
 
 import numpy as np
 import torch
-from scipy.stats import entropy
+from numpy.typing import NDArray
 
-# ============================================================
-# 1. Deterministic Evaluation
-# ============================================================
+
+class PopGymTrainingResult(TypedDict):
+    wm_loss: NDArray[np.float64]
+    actor_loss: NDArray[np.float64]
+    critic_loss: NDArray[np.float64]
+    returns: NDArray[np.float64]
+    env_steps: int
 
 
 @torch.no_grad()
-def evaluate_popgym(env, world, actor, episodes=10, device="cpu"):
-    """
-    Deterministic Dreamer-V3 evaluation on PopGym environments.
-    Uses latent state + greedy actor policy (no exploration).
-    """
+def evaluate_popgym(env, world, actor, episodes=10, device=None, seed=10000, task_horizon=None):
+    """Evaluate episodes per vector row, latching each row's first episode end."""
+    if task_horizon is not None and task_horizon < 1:
+        raise ValueError("task_horizon must be positive")
+    if episodes < 1:
+        raise ValueError("episodes must be positive")
+    model_device = next(world.parameters()).device
+    if device is not None and torch.device(device) != model_device:
+        raise ValueError("Evaluation device must match the world model")
+    action_dim = world.net_cfg.action_dim
+    if action_dim is None:
+        raise ValueError("Evaluation requires a discrete action dimension")
+    devices = [model_device.index or 0] if model_device.type == "cuda" else []
+    world_training, actor_training = world.training, actor.training
+    posterior_mode = world.posterior.deterministic_latent_for_tests
     returns = []
-    batch_size = env.batch_size
+    try:
+        world.eval()
+        actor.eval()
+        world.posterior.deterministic_latent_for_tests = True
+        with torch.random.fork_rng(devices=devices):
+            for episode in range(episodes):
+                obs = env.reset(seed=seed + episode * env.batch_size)
+                state = world.init_state(env.batch_size)
+                action = torch.zeros(env.batch_size, action_dim, device=model_device)
+                done = torch.zeros(env.batch_size, dtype=torch.bool, device=model_device)
+                total = torch.zeros(env.batch_size, device=model_device)
+                elapsed = torch.zeros(env.batch_size, device=model_device)
+                while not done.all():
+                    observation = obs["state"].to(model_device)
+                    if task_horizon is not None:
+                        clock = (1 - elapsed / task_horizon).clamp_min(0).unsqueeze(-1)
+                        observation = torch.cat([observation, clock], -1)
+                    state = world.observe_step(state, observation, action, is_first=obs["is_first"].to(model_device))[
+                        "post"
+                    ]
+                    ids = actor(state.h, state.z).argmax(-1)
+                    obs = env.step(ids)
+                    elapsed.add_(1)
+                    elapsed[obs["is_first"].to(model_device)] = 0
+                    total += obs["reward"].to(model_device) * (~done)
+                    done |= obs["is_last"].to(model_device)
+                    if task_horizon is not None:
+                        done |= elapsed >= task_horizon
+                    action = torch.nn.functional.one_hot(ids, action_dim).float()
+                returns.append(total.cpu())
+    finally:
+        world.posterior.deterministic_latent_for_tests = posterior_mode
+        world.train(world_training)
+        actor.train(actor_training)
+    values = torch.stack(returns)
+    return dict(
+        mean=values.mean().item(),
+        std=values.std(unbiased=False).item(),
+        per_env=values.mean(0).tolist(),
+        episode_returns=values.tolist(),
+    )
 
-    for _ in range(episodes):
-        obs = env.reset()
-        world_state = world.init_state(batch_size).to(device)
-        done = torch.zeros(batch_size, dtype=torch.bool, device=device)
-        ep_return = torch.zeros(batch_size, device=device)
 
-        while not torch.all(done):
-            out = world.observe_step(world_state, obs)
-            world_state = out["post"]
-
-            logits = actor(world_state.h, world_state.z)
-            action = torch.argmax(logits, dim=-1)
-
-            obs = env.step(action)
-            reward = obs["reward"]
-            done = obs["is_terminal"]
-
-            ep_return += reward * (~done)
-
-        returns.append(ep_return.cpu())
-
-    returns = torch.stack(returns, dim=0)
-    return {
-        "mean": returns.mean().item(),
-        "std": returns.std().item(),
-        "per_env": returns.mean(dim=0).tolist(),
-    }
-
-
-# ============================================================
-# 2. Training Harness (single seed)
-# ============================================================
-
-
-def train_popgym_seed(trainer, steps=1000):
-    """
-    Fast PopGym functional training harness.
-    - collect_steps = 1 for predictable runtime
-    - warmup ensures replay buffer is non-empty
-    - logits collected periodically (not only at end)
-    """
-
-    # Make PopGym fast + predictable
-    trainer.cfg.train.collect_steps = 10
-    trainer.cfg.train.random_exploration_steps = 100
-    trainer.cfg.train.warmup_steps = 50
-
-    wm_losses = []
-    actor_losses = []
-    critic_losses = []
-    action_logits = []
+def train_popgym_seed(trainer, steps: int = 1000) -> PopGymTrainingResult:
+    """Train without changing the caller's configuration; record full episodes."""
+    if steps < 1:
+        raise ValueError("steps must be positive")
+    losses = []
     returns = []
+    running = torch.zeros(trainer.env.batch_size, device=trainer.device)
+    original_step = trainer.env.step
 
-    # Warm up replay buffer so sampling works
-    for _ in range(200):
-        trainer.collect_env_steps()
+    def recording_step(actions):
+        out = original_step(actions)
+        running.add_(out["reward"].to(trainer.device))
+        for i in out["is_last"].nonzero(as_tuple=True)[0].tolist():
+            returns.append(running[i].item())
+            running[i] = 0
+        return out
 
-    start = time.time()
-
-    for step in range(steps):
-        trainer.collect_env_steps()
-
-        batch = trainer.replay.sample(trainer.cfg.train.batch_size)
-
-        wm_losses.append(trainer.update_world_model(batch, step))
-        a_loss, c_loss = trainer.update_actor_critic(batch, step)
-        actor_losses.append(a_loss)
-        critic_losses.append(c_loss)
-
-        # Episodic returns
-        if trainer.env_state["is_last"].any() or trainer.env_state["is_terminal"].any():
-            ep_return = trainer.env_state["reward"].sum().item()
-            returns.append(ep_return)
-
-        if step % 100 == 0:
-            avg_ret = np.mean(returns) if len(returns) > 0 else 0.0
-            print(f"[learning] step={step}/{steps} avg_return={avg_ret:.3f}", flush=True)
-
-        # ETA heartbeat
-        if step % 10 == 0 and step > 0:
-            elapsed = time.time() - start
-            eta = elapsed / step * (steps - step)
-            print(f"[popgym] step={step}/{steps} elapsed={elapsed:.1f}s eta={eta:.1f}s", flush=True)
-
-        # Collect logits every 100 steps (robust)
-        if step % 100 == 0:
-            with torch.no_grad():
-                logits = trainer.actor(trainer.world_state.h, trainer.world_state.z)
-                action_logits.append(logits.cpu())
-
-    # Fallback: ensure we have ~30 logits for KL
-    if len(action_logits) < 30:
-        with torch.no_grad():
-            for _ in range(30 - len(action_logits)):
-                logits = trainer.actor(trainer.world_state.h, trainer.world_state.z)
-                action_logits.append(logits.cpu())
-
-    # Prevent nan returns if no episodes finished (e.g. PopGym's "hard" envs)
-    if len(returns) == 0:
-        returns.append(0.0)
-
+    trainer.env.step = recording_step
+    try:
+        # At most one configured episode is needed to populate replay on these
+        # fixed-length memory tasks. Do not silently spin on ineligible episodes.
+        for _ in range(
+            max(
+                1,
+                (trainer.cfg.env.max_episode_steps + trainer.cfg.train.collect_steps - 1)
+                // trainer.cfg.train.collect_steps,
+            )
+        ):
+            trainer.collect_env_steps()
+        for update in range(steps):
+            trainer.collect_env_steps()
+            batch = trainer.replay.sample(trainer.cfg.train.batch_size)
+            metrics = trainer.update_world_model(batch, update)
+            a, c = trainer.update_actor_critic(batch, update)
+            row = [metrics.total_loss.item(), a, c]
+            if not np.isfinite(row).all():
+                raise ValueError("Non-finite training loss")
+            losses.append(row)
+            if update % 100 == 0:
+                print(f"[popgym] update={update}/{steps} env_steps={trainer.total_env_steps}", flush=True)
+    finally:
+        trainer.env.step = original_step
+    values = np.asarray(losses, dtype=np.float64)
     return {
-        "wm_loss": np.array(wm_losses),
-        "actor_loss": np.array(actor_losses),
-        "critic_loss": np.array(critic_losses),
-        "returns": np.array(returns),
-        "action_logits": torch.stack(action_logits),
+        "wm_loss": values[:, 0],
+        "actor_loss": values[:, 1],
+        "critic_loss": values[:, 2],
+        "returns": np.asarray(returns, dtype=np.float64),
+        "env_steps": trainer.total_env_steps,
     }
 
 
-# ============================================================
-# 3. Multi-seed Aggregator
-# ============================================================
-
-
-def kl_between_seeds(logits_a, logits_b):
-    pa = torch.softmax(logits_a, dim=-1).view(-1)
-    pb = torch.softmax(logits_b, dim=-1).view(-1)
-    pa_np = pa[::10].numpy()
-    pb_np = pb[::10].numpy()
-    return float(entropy(pa_np, pb_np))
-
-
-def summarize(arr_list):
-    arr = np.stack(arr_list)
-    mean = arr.mean(axis=0)
-    std = arr.std(axis=0)
-    cv = std.mean() / abs(mean.mean())
-    return mean, std, cv
-
-
-def summarize_metrics(metrics_list):
-    """
-    metrics_list: list of lists of WorldModelMetrics
-    Returns mean/std/cv for each metric curve.
-    """
-    # Convert list-of-dataclasses → dict of numpy arrays
-    curves = {
-        "total_loss": np.stack([m.total_loss.item() for m in metrics_list]),
-        "recon_loss": np.stack([m.recon_loss.item() for m in metrics_list]),
-        "reward_loss": np.stack([m.reward_loss.item() for m in metrics_list]),
-        "cont_loss": np.stack([m.cont_loss.item() for m in metrics_list]),
-        "kl_dyn": np.stack([m.kl_dyn.item() for m in metrics_list]),
-        "kl_rep": np.stack([m.kl_rep.item() for m in metrics_list]),
-    }
-
-    # Compute summary stats for each curve
-    summary = {}
-    for key, arr in curves.items():
-        mean = arr.mean()
-        std = arr.std()
-        cv = std / abs(mean) if mean != 0 else 0.0
-        summary[key] = (mean, std, cv)
-
-    return summary
-
-
-def aggregate_popgym_results(results):
-    wm_mean, wm_std, wm_cv = summarize([[m.total_loss.item() for m in r["wm_loss"]] for r in results])
-
-    actor_mean, actor_std, actor_cv = summarize([r["actor_loss"] for r in results])
-    critic_mean, critic_std, critic_cv = summarize([r["critic_loss"] for r in results])
-
-    kl_vals = []
-    for i in range(len(results)):
-        for j in range(i + 1, len(results)):
-            kl_vals.append(kl_between_seeds(results[i]["action_logits"], results[j]["action_logits"]))
-
-    mean_return = np.mean([r["returns"].mean() for r in results])
-
-    return {
-        "wm_cv": wm_cv,
-        "actor_cv": actor_cv,
-        "critic_cv": critic_cv,
-        "action_kl": float(np.mean(kl_vals)),
-        "mean_return": float(mean_return),
-    }
+def aggregate_popgym_results(results: list[PopGymTrainingResult]) -> dict[str, float]:
+    """Descriptive training metrics; held-out evaluation is reported separately."""
+    if not results:
+        raise ValueError("At least one seed is required")
+    return dict(
+        wm_loss_mean=float(np.mean([r["wm_loss"].mean() for r in results])),
+        actor_loss_mean=float(np.mean([r["actor_loss"].mean() for r in results])),
+        critic_loss_mean=float(np.mean([r["critic_loss"].mean() for r in results])),
+        mean_return=float(np.mean([r["returns"].mean() for r in results])),
+    )

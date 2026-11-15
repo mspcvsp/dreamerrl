@@ -17,13 +17,17 @@ class Episode:
             "action": [],
             "reward": [],
             "done": [],
+            "is_terminal": [],
+            "is_first": [],
         }
 
-    def add(self, obs, action, reward, done):
+    def add(self, obs, action, reward, done, is_terminal, is_first=False):
+        self.data["is_first"].append(torch.as_tensor(is_first, device=obs.device))
         self.data["obs"].append(obs)
         self.data["action"].append(action)
         self.data["reward"].append(reward)
         self.data["done"].append(done)
+        self.data["is_terminal"].append(is_terminal)
 
     def finalize(self) -> Dict[str, torch.Tensor]:
         return {k: torch.stack(v, dim=0) for k, v in self.data.items()}
@@ -33,7 +37,7 @@ class ReplayBuffer:
     """
     Dreamer-V3 replay buffer:
       - stores full episodes
-      - samples fixed-length sequences
+      - samples unpadded sequences with one shared length per batch
       - supports vectorized envs
     """
 
@@ -52,6 +56,8 @@ class ReplayBuffer:
         self.capacity = self.cfg.replay_capacity
         self.device = device
         self.seq_len = self.cfg.seq_len
+        if self.seq_len < 1:
+            raise ValueError("seq_len must be positive")
 
         self.episodes: List[Dict[str, torch.Tensor]] = []
         self.current_eps: List[Episode] = []
@@ -69,7 +75,7 @@ class ReplayBuffer:
             self.num_envs = num_envs
             self.current_eps = [Episode() for _ in range(num_envs)]
 
-    def add(self, obs, action, reward, done):
+    def add(self, obs, action, reward, done, is_terminal, initial_obs=None):
         """
         obs: (num_envs, obs_dim)
         action: (num_envs,)
@@ -80,11 +86,21 @@ class ReplayBuffer:
         self._ensure_envs(num_envs)
 
         for i in range(num_envs):
+            if initial_obs is not None and not self.current_eps[i].data["obs"]:
+                self.current_eps[i].add(
+                    initial_obs[i].detach().to(self.device).clone(),
+                    torch.zeros_like(action[i], device=self.device),
+                    torch.zeros_like(reward[i], device=self.device),
+                    torch.zeros_like(done[i], device=self.device),
+                    torch.zeros_like(is_terminal[i], device=self.device),
+                    is_first=True,
+                )
             self.current_eps[i].add(
-                obs[i].detach().to(self.device),
-                action[i].detach().to(self.device),
-                reward[i].detach().to(self.device),
-                done[i].detach().to(self.device),
+                obs[i].detach().to(self.device).clone(),
+                action[i].detach().to(self.device).clone(),
+                reward[i].detach().to(self.device).clone(),
+                done[i].detach().to(self.device).clone(),
+                is_terminal[i].detach().to(self.device).clone(),
             )
 
             if bool(done[i]):
@@ -108,6 +124,27 @@ class ReplayBuffer:
                 total_size=self.size,
             )
 
+    def state_dict(self):
+        """Persist completed episodes only; live environments cannot be restored."""
+        return {
+            "episodes": [{k: v.detach().cpu() for k, v in ep.items()} for ep in self.episodes],
+            "rng": self.rng.get_state(),
+            "seq_len": self.seq_len,
+            "obs_dim": self.obs_dim,
+            "action_dim": self.action_dim,
+            "capacity": self.capacity,
+        }
+
+    def load_state_dict(self, state):
+        for key in ("seq_len", "obs_dim", "action_dim", "capacity"):
+            if state[key] != getattr(self, key):
+                raise ValueError(f"Checkpoint replay {key} does not match the current configuration")
+        self.episodes = [{k: v.to(self.device) for k, v in ep.items()} for ep in state["episodes"]]
+        self.size = sum(ep["obs"].shape[0] for ep in self.episodes)
+        self.rng.set_state(state["rng"].cpu())
+        self.current_eps = []
+        self.num_envs = None
+
     def sample(self, batch_size: int, seed: int | None = None) -> Dict[str, torch.Tensor]:
         assert len(self.episodes) > 0, "Replay buffer is empty"
 
@@ -115,35 +152,48 @@ class ReplayBuffer:
             self.rng.manual_seed(seed)
             np.random.seed(seed)
 
+        if batch_size < 1:
+            raise ValueError("batch_size must be positive")
+        # Include short episodes instead of silently filtering them out. All
+        # rows share the shortest selected length, with no padding or stitching.
+        indices = torch.randint(0, len(self.episodes), (batch_size,), generator=self.rng).tolist()
+        sample_len = min(self.seq_len, *(self.episodes[i]["obs"].shape[0] for i in indices))
+
         obs_batch = []
         act_batch = []
         rew_batch = []
         done_batch = []
+        terminal_batch = []
+        first_batch = []
 
-        for _ in range(batch_size):
-            idx = int(torch.randint(0, len(self.episodes), (1,), generator=self.rng))
+        for idx in indices:
             ep = self.episodes[idx]
 
             length = ep["obs"].shape[0]
 
-            if length <= self.seq_len:
+            if length <= sample_len:
                 start = 0
             else:
-                start = int(torch.randint(0, length - self.seq_len, (1,), generator=self.rng))
+                start = int(torch.randint(0, length - sample_len + 1, (1,), generator=self.rng))
 
             if self.probe:
                 self.probe.replay_sample(seed=seed, ep_idx=idx, ep_len=length, start=start)
 
-            end = start + self.seq_len
+            end = start + sample_len
 
             obs_batch.append(ep["obs"][start:end])
             act_batch.append(ep["action"][start:end])
             rew_batch.append(ep["reward"][start:end])
             done_batch.append(ep["done"][start:end])
+            first_batch.append(ep["is_first"][start:end])
+            terminal_batch.append(ep["is_terminal"][start:end])
 
         return {
             "obs": torch.stack(obs_batch).to(self.device),
             "action": torch.stack(act_batch).to(self.device),
             "reward": torch.stack(rew_batch).to(self.device),
             "done": torch.stack(done_batch).to(self.device),
+            "is_terminal": torch.stack(terminal_batch).to(self.device),
+            "is_first": torch.stack(first_batch).to(self.device),
+            "is_last": torch.stack(done_batch).to(self.device),
         }

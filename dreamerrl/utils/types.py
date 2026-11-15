@@ -47,6 +47,20 @@ class AuxObjectiveConfig:
 
 
 # ---------------------------------------------------------
+# KL Config (used in invariants + world model update)
+# ---------------------------------------------------------
+@dataclass(frozen=True)
+class KLConfig:
+    scale: float = 1.0
+    free_nats: float = 1.0
+    dynamics_scale: float = 1.0
+    representation_scale: float = 0.1
+    max_kl: float = 100.0
+    min_kl: float = -1e-6
+    require_nonzero: bool = True
+
+
+# ---------------------------------------------------------
 # World Model Config (RSSM + Encoder/Decoder)
 # ---------------------------------------------------------
 @dataclass
@@ -70,10 +84,13 @@ class WorldModelConfig:
     # Reward head hidden size.
     reward_hidden: int = 256
 
-    # KL regularization.
-    kl_scale: float = 1.0
-    free_nats: float = 3.0
-    kl_balance: float = 0.8
+    kl_cfg: KLConfig = field(
+        default_factory=lambda: KLConfig(
+            max_kl=100.0,
+            min_kl=-1e-6,
+            require_nonzero=True,
+        )
+    )
 
     # Encoder/decoder MLP widths.
     encoder_hidden: int = 256
@@ -82,42 +99,16 @@ class WorldModelConfig:
     # Imagination horizon for actor/critic rollout.
     imagination_horizon: int = 15
 
+    unimix: float = 0.01
+
     # Distributional value/reward bins.
     value_bins: int = 41
 
-    # -----------------------------------------------------------------------------
-    # AuxObjectiveConfig design notes
-    # -----------------------------------------------------------------------------
-    # Auxiliary objectives in Dreamer‑V3 must be *environment‑agnostic* and computed
-    # dynamically from each training batch. They cannot be static tensors because:
-    #
-    #   • Targets depend on the current replay batch (B, L)
-    #   • Targets depend on sequence length L (Crafter vs CAGE2 vs PopGym)
-    #   • Targets depend on discount gamma
-    #   • Targets may require padding (novelty, short‑horizon return)
-    #   • Targets must run on the correct device (CPU/GPU)
-    #   • Targets may use differentiable PyTorch ops
-    #
-    # Examples:
-    #   - novelty[t]      = |obs[t+1] - obs[t]|
-    #   - reachability[t] = 1 - is_terminal[t]
-    #   - affordance[t]   = action_mask[t]
-    #   - resource[t]     = reward[t]
-    #   - skill[t]        = one-hot(action[t])
-    #
-    # Because each auxiliary objective must compute its own (B, L) target from the
-    # batch, the cleanest abstraction is a *callable*:
-    #
-    #       fn(batch: Dict[str, Tensor], gamma: float) -> Tensor(B, L)
-    #
-    # This makes auxiliary objectives:
-    #   • plug‑and‑play
-    #   • environment‑agnostic
-    #   • configurable per environment
-    #   • independent of observation structure (image, dict, discrete)
-    #   • compatible with AMP + determinism
-    # -----------------------------------------------------------------------------
+    # Optional project extensions; baseline DreamerV3 does not require these.
+    # Each callback produces a detached (B, L, D) target from replay.
     aux_objectives: List[AuxObjectiveConfig] = field(default_factory=list)
+    aux_reward_scale: float = 0.1
+    disable_aux_losses: bool = False
 
 
 # ---------------------------------------------------------
@@ -140,6 +131,10 @@ class ActorCriticConfig:
 
     discount: float = 0.99
     lambda_: float = 0.95  # λ‑return smoothing
+    unimix: float = 0.01
+    entropy_scale: float = 3e-4
+    slow_critic_rate: float = 0.02
+    slow_critic_scale: float = 1.0
 
 
 # ---------------------------------------------------------
@@ -160,7 +155,7 @@ class TrainingConfig:
 
     # Replay buffer + sequence sampling.
     replay_capacity: int = 200_000
-    seq_len: int = 50
+    seq_len: int = 16
     batch_size: int = 64
     collect_steps: int = 100
 
@@ -205,20 +200,14 @@ class TrainingConfig:
     cuda: bool = True
     seed: int = 0
 
-    # Dreamer‑V3 only needs that invariant for reproducibility tests (KL dynamics, bit‑for‑bit determinism). It is not
-    # required for:
-    #
-    # - PopGym functional tests
-    # - Atari training
-    # - DMControl training
-    # - Robotics
-    # - Any normal Dreamer training loop
+    # Legacy compatibility flag; positive lengths are always checked. Replay
+    # windows may span collection calls and shorten to fit selected episodes.
     enforce_length_invariants: bool = False
     enable_repro_log: bool = False  # Set to true to enable reproducibility logging (repro.log)
     repro_log_every_n: int = 100
 
     freeze_actor_critic_steps: int = 2000
-    disable_aux_losses: bool = False
+    console_log_interval: int = 10
 
 
 # ---------------------------------------------------------
@@ -241,6 +230,9 @@ class EnvironmentConfig:
     deterministic: bool = False
     parallel: bool = False  # reproducibility mode
     seed: int = 0
+    # True: episode ends define the task return, not a continuing-task cutoff.
+    # The trainer appends a remaining-time feature and bounds imagined returns.
+    finite_horizon: bool = False
 
 
 # ---------------------------------------------------------
@@ -307,16 +299,6 @@ def make_default_config() -> DreamerConfig:
 
 
 # ---------------------------------------------------------
-# KL Config (used in invariants + world model update)
-# ---------------------------------------------------------
-@dataclass(frozen=True)
-class KLConfig:
-    max_kl: float = 100.0
-    min_kl: float = -1e-6
-    require_nonzero: bool = True
-
-
-# ---------------------------------------------------------
 # LatentConfig (shared latent geometry)
 # ---------------------------------------------------------
 @dataclass(frozen=True)
@@ -357,13 +339,11 @@ class NetworkConfig:
     value_bins: int | None = None
     bin_min: float = -10.0
     bin_max: float = 10.0
-
     discount: float = 0.99
-    aux_reward_scale: float = 0.1
-    disable_aux_losses: bool = False  # Disable auxiliary losses for reproducibility tests
 
     # Action dimension is required for Actor, optional for Critic.
     action_dim: int | None = None
+    unimix: float = 0.01
 
     def make_bins(self, device=None):
         symlog_bins = torch.linspace(self.bin_min, self.bin_max, steps=self.value_bins)
@@ -399,6 +379,8 @@ class WorldModelMetrics:
     recon_loss: torch.Tensor
     reward_loss: torch.Tensor
     cont_loss: torch.Tensor
+    raw_kl_dyn: torch.Tensor
+    raw_kl_rep: torch.Tensor
     kl_dyn: torch.Tensor
     kl_rep: torch.Tensor
     aux_losses: List

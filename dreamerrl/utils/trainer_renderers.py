@@ -1,194 +1,73 @@
-# trainer_renderers.py
-import numpy as np
-from rich.columns import Columns
+"""Compact Rich rendering for Dreamer training and held-out evaluation."""
+
+from rich.console import Group
 from rich.panel import Panel
+from rich.progress_bar import ProgressBar
 from rich.table import Table
 from rich.text import Text
 
 
-def sparkline(data, width=30, style="cyan"):
-    if not data:
-        return Text(" " * width)
-
-    mn = min(data)
-    mx = max(data)
-    rng = mx - mn if mx != mn else 1.0
-    norm = [(x - mn) / rng for x in data]
-
-    blocks = "▁▂▃▄▅▆▇█"
-    chars = [blocks[int(v * (len(blocks) - 1))] for v in norm]
-
-    if len(chars) < width:
-        chars = [" "] * (width - len(chars)) + chars
-    else:
-        chars = chars[-width:]
-
-    return Text("".join(chars), style=style)
+def number(value, precision=3):
+    return "—" if value is None else f"{value:,.{precision}f}"
 
 
-def histogram(data, bins=10, width=30, style="cyan"):
-    if not data:
-        return Text(" " * width)
-
-    hist = np.histogram(data, bins=bins)[0]
-    max_count = max(hist) if max(hist) > 0 else 1
-    blocks = " ▁▂▃▄▅▆▇█"
-    norm = [int((count / max_count) * (len(blocks) - 1)) for count in hist]
-    chars = [blocks[n] for n in norm]
-
-    if len(chars) < width:
-        chars = [" "] * (width - len(chars)) + chars
-    else:
-        chars = chars[:width]
-
-    return Text("".join(chars), style=style)
-
-
-def render_ppo_table(self):
-    table = Table(title="PPO Metrics")
-    table.add_column("Metric")
-    table.add_column("Value", justify="right")
-
-    for k in [
-        "policy_loss",
-        "value_loss",
-        "entropy",
-        "approx_kl",
-        "clip_frac",
-        "explained_var",
-        "grad_norm",
-    ]:
-        if k in self.state.stats:
-            table.add_row(k, f"{float(self.state.stats[k]):.4f}")
-
-    return table
+def render_training(state):
+    table = Table.grid(expand=True, padding=(0, 1))
+    table.add_column()
+    table.add_column(justify="right")
+    table.add_column()
+    table.add_column(justify="right")
+    fields = [
+        ("Environment steps", "env_steps", 0),
+        ("Episodes", "episodes", 0),
+        ("Replay frames", "replay_size", 0),
+        ("Sample length", "sequence_length", 0),
+        ("Recent train return", "recent_return_mean", 3),
+        ("World loss", "world_loss", 3),
+        ("Actor loss", "actor_loss", 3),
+        ("Critic loss", "critic_loss", 3),
+        ("Dynamics KL", "kl_dyn", 3),
+        ("Representation KL", "kl_rep", 3),
+        ("Env steps/s", "env_steps_per_second", 1),
+        ("Update seconds", "update_seconds", 2),
+        ("Training ETA (s)", "eta_training_seconds", 0),
+        ("Model tokens/env step", "model_tokens_per_env_step", 2),
+    ]
+    rows = [(name, number(state.get(key), precision)) for name, key, precision in fields]
+    if "learning_rate" in state:
+        rows.append(("Learning rate", f"{state['learning_rate']:.2e}"))
+    if state.get("cuda_memory_mb") is not None:
+        rows.append(("CUDA allocated MiB", number(state["cuda_memory_mb"], 0)))
+    for i in range(0, len(rows), 2):
+        right = rows[i + 1] if i + 1 < len(rows) else ("", "")
+        table.add_row(*rows[i], *right)
+    return Panel(table, title="Dreamer training")
 
 
-def render_episode_table(self):
-    table = Table(title="Episode Stats")
-    table.add_column("Metric")
-    table.add_column("Value", justify="right")
-
-    for k in [
-        "episodes",
-        "alive_envs",
-        "max_ep_len",
-        "avg_ep_len",
-        "max_ep_returns",
-        "avg_ep_returns",
-        "avg_ep_len_ema",
-        "avg_ep_returns_ema",
-    ]:
-        if k in self.state.stats:
-            table.add_row(k, f"{float(self.state.stats[k]):.3f}")
-
-    return table
-
-
-def render_episode_trends(self):
-
-    if not self.state.ep_len_history and not self.state.ep_return_history:
-
-        return Panel(Text("Waiting for data..."),
-                     title="Episode Trends")
-
-    table = Table.grid()
-    table.add_column(width=12)
-    table.add_column(width=32)
-
-    table.add_row(
-        "avg_ep_len",
-        sparkline(self.state.ep_len_history, width=30, style="green"),
-    )
-    table.add_row(
-        "avg_ep_returns",
-        sparkline(self.state.ep_return_history, width=30, style="magenta"),
-    )
-
-    return Panel(table, title="Episode Trends")
-
-
-def render_policy_stability(self):
-
-    if not self.state.kl_history and not self.state.entropy_history:
-
-        return Panel(Text("Waiting for data..."),
-                     title="Policy Stability")
-
-    table = Table.grid()
-    table.add_column(width=12)
-    table.add_column(width=32)
-
-    table.add_row(
-        "KL", sparkline(self.state.kl_history, width=30, style="cyan")
-    )
-    table.add_row(
-        "Entropy",
-        sparkline(self.state.entropy_history, width=30, style="magenta"),
-    )
-
-    return Panel(table, title="Policy Stability")
-
-
-def render_value_drift(self):
-
-    if not self.state.ev_history:
-
-        return Panel(Text("Waiting for data..."),
-                     title="Value Function Drift")
-
-    table = Table.grid()
-    table.add_column(width=20)
-    table.add_column(width=32)
-
-    table.add_row(
-        "Explained Var",
-        sparkline(self.state.ev_history, width=30, style="green"),
-    )
-
-    return Panel(table, title="Value Function Drift")
-
-
-def render_histogram(self):
-
-    if not self.env.completed_ep_returns:
-        return Panel(Text("Waiting for data..."), title="Recent Returns")
-
+def render_evaluation(evaluation):
+    if not evaluation:
+        return Panel("Waiting for fixed-seed evaluation", title="Validation returns")
+    table = Table.grid(expand=True)
+    table.add_column()
+    table.add_column(justify="right")
+    for name, key in [("Random", "random_mean"), ("Untrained", "untrained_mean"), ("Trained", "trained_mean")]:
+        table.add_row(name, number(evaluation.get(key)))
+    for label, key in [("Δ vs random", "vs_random"), ("Δ vs untrained", "vs_untrained")]:
+        result = evaluation.get(key)
+        if result:
+            ci = "n<2" if result["ci95_low"] is None else f"[{result['ci95_low']:.3f}, {result['ci95_high']:.3f}]"
+            table.add_row(label, f"{result['mean_difference']:+.3f}  95% CI {ci}")
     return Panel(
-        histogram(
-            self.env.completed_ep_returns,
-            bins=10,
-            width=30,
-            style="green",
-        ),
-        title="Recent Returns",
+        Group(table, Text("Validation diagnostics; confirm across seeds on separate final test levels.", style="dim")),
+        title=f"Validation • update {evaluation.get('update', 0)}",
     )
 
 
-def render_env_timelines(self):
-
-    if not self.state.ep_len_history:
-
-        return Panel(Text("Waiting for data..."),
-                     title="Per-Env Timelines")
-
-    colors = ["cyan", "green", "magenta", "yellow", "red", "blue"]
-    env_panels = []
-
-    for i, hist in enumerate(self.env.ep_len_history):
-        style = colors[i % len(colors)]
-        spark = sparkline(hist, width=30, style=style)
-        current = int(self.env.ep_len[i].cpu().item())
-
-        t = Table.grid()
-        t.add_column(justify="right", width=4)
-        t.add_column(justify="left", width=32)
-        t.add_column(justify="right", width=4)
-        t.add_row(str(i), spark, str(current))
-
-        env_panels.append(Panel(t, padding=0))
-
-    return Panel(
-        Columns(env_panels, equal=True),
-        title="Per‑Env Episode Timelines",
+def render_dashboard(state, evaluation, phase, run_dir, device):
+    update, target = state.get("update", 0), state.get("target_updates", 1)
+    progress = Group(
+        Text(f"{phase} • {device} • update {update}/{target}", style="bold cyan"),
+        ProgressBar(total=max(target, 1), completed=update),
+        Text(str(run_dir), style="dim"),
     )
+    return Group(Panel(progress, title="MiniHack offline run"), render_training(state), render_evaluation(evaluation))

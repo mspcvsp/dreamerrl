@@ -1,67 +1,21 @@
-# Dreamer‑V3: Stochastic Latent Sampling (Intuition & Rationale)
+# Stochastic latent sampling
 
-The RSSM state is (h, z):
+The RSSM uses factored categorical probabilities with a 1% uniform mixture:
 
-    h — deterministic recurrent state (transition model)
+```python
+probs = 0.99 * softmax(logits) + 0.01 / categories
+hard = one_hot(Categorical(probs).sample())
+z = hard + (probs - probs.detach())
+```
 
-    z — discrete stochastic latent capturing unpredictable dynamics
+Forward values are hard one-hot samples. Backward gradients follow the mixed
+probabilities, not a noisy Gumbel-softmax relaxation. There is no temperature
+parameter in the prior/posterior. This matches the pinned official
+[one-hot estimator](https://github.com/danijar/dreamerv3/blob/e01491fad6434b2245a3b8ca201dd7faedcc458c/embodied/jax/outs.py#L228-L253).
 
-Dreamer‑V3 uses factored categorical latents:
+The deterministic test mode uses the probability argmax for the forward pass and
+retains the same backward rule. It makes latent selection repeatable, but does not
+promise bit-identical floating-point operations across devices or PyTorch versions.
 
-    z = [z¹, z², …, z^K], each zᵢ ∈ {1..num_classes}
-
-Benefits of factored discrete latents:
-
-    higher expressiveness than a single categorical
-
-    stable per‑factor KL (prevents collapse)
-
-    better long‑horizon credit assignment
-
-    more stable imagination rollouts
-
-# Why add Gumbel noise?
-
-During training we need a differentiable approximation to categorical sampling.
-The Gumbel‑Softmax trick provides this:
-
-y = softmax((logits + gumbel_noise) / temperature)
-
-y is a soft sample that is differentiable with respect to logits.
-Why divide by temperature?
-
-Temperature τ controls sample sharpness:
-
-    τ < 1 → sharper, more discrete‑like samples
-
-    τ > 1 → smoother, more exploratory samples
-
-Lower τ encourages confident, stable latents during training.
-
-# Why return a hard one‑hot z?
-
-The RSSM forward pass uses a discrete latent:
-
-z_hard = one_hot(argmax(y))
-
-This ensures:
-
-    stable imagination rollouts
-
-    compatibility with prior/posterior KL
-
-    clean inputs for decoder, reward head, and actor
-
-# Straight‑through estimator:
-
-z = z_hard + (y - y.detach())
-
-keeps the forward pass discrete while allowing gradients to flow.
-
-# Why deterministic_latent_for_tests?
-
-For invariants (CPU/GPU determinism, batch‑size invariance, pure‑function behavior), we disable sampling entirely:
-
-z = one_hot(argmax(probs))
-
-This yields bit‑exact reproducibility for unit tests.
+Implementation: `categorical.py`, `prior.py`, and `posterior.py`.
+Regression coverage: `tests/invariants/test_dreamer_fidelity.py`.

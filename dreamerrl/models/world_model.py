@@ -9,7 +9,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 from dreamerrl.models.actor import act_in_imagination
-from dreamerrl.utils.types import KLConfig, LatentConfig, NetworkConfig
+from dreamerrl.utils.types import DreamerConfig, LatentConfig, NetworkConfig
 
 from .aux_heads import make_aux_heads
 from .categorical_kl import structured_kl
@@ -66,47 +66,39 @@ class WorldModel(nn.Module):
     Dreamer‑V3 world model:
 
       • ObsEncoder: symlog‑MLP encoder
-      • RSSMCore: deterministic transition h_{t+1} = f(h_t, a_t)
+      • RSSMCore: gated transition h_{t+1} = GRU(embed(z_t, a_t), h_t)
       • Prior / Posterior: factored discrete latents over K×C
       • ObsDecoder: reconstructs observations from (h, z)
       • RewardHead: distributional symlog reward
-      • ContinueHead: distributional continuation (episode continues vs terminates)
-      • KL: structured KL_dyn / KL_rep with per‑factor free‑nats
+      • ContinueHead: Bernoulli continuation (episode continues vs terminates)
+      • KL: structured KL_dyn / KL_rep with aggregate free‑nats
     """
 
     def __init__(
         self,
         *,
         obs_space: gym.Space,
+        dreamer_cfg: DreamerConfig,
         latent: LatentConfig,
         net: NetworkConfig,
-        free_nats: float = 3.0,
-        kl_cfg: Optional[KLConfig] = None,
-        aux_objectives=None,
         device: Optional[torch.device] = None,
-        deterministic_latent_for_tests: bool = False,
         probe=None,
     ):
         super().__init__()
 
         self.device = device or torch.device("cpu")
+        self.cfg = dreamer_cfg.world
         self.latent = latent
         self.net_cfg = net
-        self.free_nats = free_nats
         self.probe = probe
-
-        self.kl_cfg = kl_cfg or KLConfig(
-            max_kl=100.0,
-            min_kl=-1e-6,
-            require_nonzero=True,
-        )
-
         self.obs_space = obs_space
         self.flat_obs_dim = get_flat_obs_dim(obs_space)
         self.embed_size = net.hidden_size
 
         self.encoder = build_obs_encoder(obs_space, embed_dim=self.embed_size).to(self.device)
         self.rssm: RSSMCore = RSSMCore(latent=latent, net=net).to(self.device)
+
+        deterministic_latent_for_tests = dreamer_cfg.train.deterministic_env
 
         self.prior: Prior = Prior(
             latent=latent, net=net, deterministic_latent_for_tests=deterministic_latent_for_tests
@@ -129,7 +121,7 @@ class WorldModel(nn.Module):
         # -------------------------------------------------------------
         # Auxiliary heads (novelty, reachability, affordance, skill, resource)
         # -------------------------------------------------------------
-        if self.net_cfg.disable_aux_losses:
+        if self.cfg.disable_aux_losses:
             # Disable auxiliary losses entirely
             self.aux_heads = nn.ModuleDict({}).to(self.device)
             self.aux_objectives = []
@@ -142,11 +134,11 @@ class WorldModel(nn.Module):
                 hidden=net.hidden_size,
             )
 
-            self.aux_heads = nn.ModuleDict({cfg.name: all_aux_heads[cfg.name] for cfg in (aux_objectives or [])}).to(
+            self.aux_objectives = dreamer_cfg.world.aux_objectives or []
+
+            self.aux_heads = nn.ModuleDict({cfg.name: all_aux_heads[cfg.name] for cfg in self.aux_objectives}).to(
                 self.device
             )
-
-            self.aux_objectives = aux_objectives or []
 
         # Backward‑compatibility alias for invariants + actor/critic tests
         self.reward_head = self.reward_heads.main
@@ -172,49 +164,47 @@ class WorldModel(nn.Module):
         One environment step:
 
           • encode obs_t
-          • posterior q(z_t | h_{t-1}, embed_t)
-          • prior    p(z_t | h_{t-1})
-          • deterministic transition h_t = f(h_{t-1}, a_{t-1})
+          • posterior q(z_t | h_t, embed_t)
+          • prior    p(z_t | h_t)
+          • deterministic transition h_t = f(h_{t-1}, z_{t-1}, a_{t-1})
           • decode obs_t, reward_t, continue_t
           • compute structured KL with free‑nats
         """
         prev_state = self._ensure_state(prev_state)
+        if is_first is not None:
+            keep = (~is_first.bool()).to(prev_state.h.dtype).unsqueeze(-1)
+            prev_state = WorldModelState(
+                h=prev_state.h * keep,
+                z=prev_state.z * keep.unsqueeze(-1),
+            )
+            action = action * keep
+        h = self.rssm(prev_state.h, prev_state.z, action)
         embed = self.encoder(obs)
-
-        post_stats = self.posterior(prev_state.h, embed)
-        prior_stats = self.prior(prev_state.h)
-
+        post_stats = self.posterior(h, embed)
+        prior_stats = self.prior(h)
         z = post_stats["z"]
-        h = self.rssm(prev_state.h, action)
-
         post_stats = {**post_stats, "h": h}
-        prior_stats = {**prior_stats, "h": prev_state.h}
-
+        prior_stats = {**prior_stats, "h": h}
         post = WorldModelState(h=h, z=z, prior_stats=prior_stats, post_stats=post_stats)
-        prior = WorldModelState(h=prev_state.h, z=prior_stats["z"], prior_stats=prior_stats, post_stats=None)
+        prior = WorldModelState(h=h, z=prior_stats["z"], prior_stats=prior_stats)
 
         recon = self.decoder(h, z)
         reward_main_logits, reward_aux_logits = self.reward_heads(h, z)
         cont_logits = self.continue_head(h, z)
 
         # Disable aux heads in reproducibility mode
-        if getattr(self.net_cfg, "disable_aux_losses", False):
+        if self.cfg.disable_aux_losses:
             aux_logits = {}
         else:
             aux_logits = {name: head(h, z) for name, head in self.aux_heads.items()}
 
-        kl_dict = structured_kl(
-            q_probs=post_stats["probs"],
-            p_probs=prior_stats["probs"],
-            free_nats=self.free_nats,
-            kl_cfg=self.kl_cfg,
-        )
+        kl_dict = structured_kl(q_probs=post_stats["probs"], p_probs=prior_stats["probs"], kl_cfg=self.cfg.kl_cfg)
 
         if self.probe:
             self.probe.wm_observe(embed, post_stats, prior_stats)
             self.probe.wm_kl(kl_dict)
 
-        for key in ["kl_dyn", "kl_rep", "kl_total"]:
+        for key in ["raw_kl_dyn", "kl_dyn", "raw_kl_rep", "kl_rep", "kl_total"]:
             if not torch.isfinite(kl_dict[key]).all():
                 raise ValueError(f"KL divergence {key} is not finite: {kl_dict[key]}")
             post_stats[key] = kl_dict[key]
@@ -247,6 +237,7 @@ class WorldModel(nn.Module):
         prev: Any,
         actor: nn.Module,
         deterministic_imagination: bool = False,
+        action: Optional[torch.Tensor] = None,
     ) -> WorldModelState:
         """
         Imagination step in latent space:
@@ -259,13 +250,16 @@ class WorldModel(nn.Module):
         """
         prev_state = self._ensure_state(prev)
 
-        logits = actor(prev_state.h, prev_state.z)
-        a = act_in_imagination(logits, deterministic_imagination=deterministic_imagination)
+        logits = None
+        if action is None:
+            action_dim = self.net_cfg.action_dim
+            if action_dim is None:
+                raise ValueError("action_dim is required to sample imagined actions")
+            logits = actor(prev_state.h, prev_state.z)
+            a = act_in_imagination(logits, deterministic_imagination=deterministic_imagination)
+            action = F.one_hot(a, num_classes=action_dim).float()
 
-        assert self.net_cfg.action_dim is not None, "action_dim must be specified in net config for imagine_step"
-        action = F.one_hot(a, num_classes=self.net_cfg.action_dim).float()
-
-        h = self.rssm(prev_state.h, action)
+        h = self.rssm(prev_state.h, prev_state.z, action)
         prior = self.prior(h)
 
         """
@@ -275,7 +269,7 @@ class WorldModel(nn.Module):
         - RSSM transition may diverge
         - prior distribution may diverge
         """
-        if self.probe:
+        if self.probe and logits is not None:
             self.probe.wm_imagine(logits, action, h)
 
         if deterministic_imagination:

@@ -1,40 +1,38 @@
-import numpy as np
+"""Small configurations and held-out evaluation for the MiniHack experiments."""
+
+from __future__ import annotations
+
+from dreamerrl.models.aux_objectives import AUX_OBJECTIVES
+from dreamerrl.utils.types import make_default_config
 
 
-def safe_cv(mean, std):
-    if np.allclose(mean, 0):
-        return 0.0
-    return std.mean() / abs(mean.mean())
-
-
-def summarize_curve(curve_list):
-    arr = np.stack(curve_list)
-    mean = arr.mean(axis=0)
-    std = arr.std(axis=0)
-    cv = safe_cv(mean, std)
-    return mean, std, cv
-
-
-def summarize_metrics(results_per_seed):
-    summary = {}
-
-    keys = ["total_loss", "recon_loss", "reward_loss", "cont_loss", "kl_dyn", "kl_rep"]
-
-    for key in keys:
-        # Extract per-seed curves
-        curves = []
-        for seed_metrics in results_per_seed:
-            curve = np.array([getattr(m, key).item() for m in seed_metrics])
-            curves.append(curve)
-
-        curves = np.stack(curves)  # shape: (num_seeds, steps)
-
-        mean = curves.mean(axis=0)
-        std = curves.std(axis=0)
-
-        # CV across seeds
-        cv = std.mean() / abs(mean.mean()) if not np.allclose(mean, 0) else 0.0
-
-        summary[key] = (mean, std, cv)
-
-    return summary
+def minihack_config(seed, logdir, novelty=False):
+    cfg = make_default_config()
+    cfg.env.env_id = "MiniHack-Room-5x5-v0"
+    cfg.env.num_envs = 2
+    cfg.env.max_episode_steps = 6
+    cfg.env.parallel = False
+    cfg.env.seed = seed
+    cfg.world.disable_aux_losses = not novelty
+    cfg.world.aux_objectives = [AUX_OBJECTIVES["novelty"]] if novelty else []
+    cfg.world.deter_size = 16
+    cfg.world.num_classes = 3
+    cfg.world.stoch_size = 4
+    cfg.world.hidden_size = 16
+    cfg.world.imagination_horizon = 3
+    cfg.ac.actor_hidden = cfg.ac.critic_hidden = 16
+    cfg.train.seed = seed
+    cfg.train.cuda = False
+    cfg.train.use_amp = False
+    cfg.train.enable_fused_adamw_kernels = False
+    cfg.train.deterministic_env = False
+    cfg.train.deterministic_imagination = False
+    cfg.train.freeze_actor_critic_steps = 0
+    cfg.train.random_exploration_steps = 0
+    cfg.train.batch_size = 2
+    cfg.train.collect_steps = 12
+    cfg.train.seq_len = 4
+    cfg.log.enable_wandb = False
+    cfg.log.tb_logdir = str(logdir)
+    cfg.log.run_name = f"seed{seed}_{'novelty' if novelty else 'baseline'}"
+    return cfg

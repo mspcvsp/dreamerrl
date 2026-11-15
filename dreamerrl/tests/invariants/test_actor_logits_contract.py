@@ -36,7 +36,7 @@ def test_actor_logits_contract_basic():
     # 2. Finite values
     assert torch.isfinite(logits).all()
 
-    # 3. No softmax inside actor
+    # 3. Actor returns log-probabilities (valid categorical logits), not probabilities
     probs = torch.softmax(logits, dim=-1)
     assert not torch.allclose(logits, probs, atol=1e-5)
 

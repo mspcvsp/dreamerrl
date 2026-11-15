@@ -9,8 +9,9 @@ def test_continue_head_distributional_properties(world_model):
     z = torch.randn(B, world_model.latent.num_classes, world_model.latent.stoch_size)
 
     logits = world_model.continue_head(h, z)
-    probs = logits.softmax(-1)
+    probs = world_model.continue_head.readout(logits)
 
     assert torch.isfinite(logits).all()
     assert torch.isfinite(probs).all()
-    assert torch.allclose(probs.sum(-1), torch.ones(B), atol=1e-6)
+    assert logits.shape == (B, 1)
+    assert ((probs >= 0) & (probs <= 1)).all()
