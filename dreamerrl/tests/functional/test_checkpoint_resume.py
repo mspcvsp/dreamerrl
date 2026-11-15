@@ -150,3 +150,21 @@ def test_periodic_checkpoint_resumes_original_schedule(tmp_path, monkeypatch):
         close(trainer)
         if resumed is not None:
             close(resumed)
+
+
+def test_mlp_checkpoint_is_rejected_before_loading(tmp_path):
+    trainer = DreamerTrainer(minihack_config(0, tmp_path / "logs"))
+    try:
+        path = tmp_path / "old_mlp.pt"
+        trainer.save_checkpoint(path)
+        payload = torch.load(path, weights_only=False, map_location="cpu")
+        payload["version"] = 3
+        torch.save(payload, path)
+        before = {key: value.clone() for key, value in trainer.world.state_dict().items()}
+        with pytest.raises(ValueError, match="MLP-RSSM checkpoint v3"):
+            trainer.load_checkpoint(path)
+        with pytest.raises(ValueError, match="MLP-RSSM checkpoint v3"):
+            DreamerTrainer.from_checkpoint(path, cuda=False)
+        assert_state_equal(before, trainer.world.state_dict())
+    finally:
+        close(trainer)

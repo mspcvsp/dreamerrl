@@ -139,9 +139,9 @@ API manages counters and those boundaries automatically.
 
 See [the bounded fidelity check](dreamerv3_fidelity.md) for the pinned official
 reference, probability-gradient and EMA-critic corrections, and explicit local
-architecture/optimization differences. Checkpoint v3 persists factor-preserving
-heads and the slow critic. Pooled-latent v1/v2 checkpoints are rejected before any
-model state is loaded; their input weight shapes are incompatible. Start a new run
+architecture/optimization differences. Checkpoint v4 persists the GRU transition, factor-preserving
+heads, and slow critic. Pooled-latent v1/v2 and MLP-RSSM v3 checkpoints are rejected
+before any model state is loaded; their architecture/weight shapes are incompatible. Start a new run
 for this architecture. Existing checkpoint files are not modified.
 
 ## Finite trial horizons and collection chunks

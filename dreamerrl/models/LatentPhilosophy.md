@@ -5,7 +5,10 @@ Legacy configuration names put `z` at `(B, num_classes, stoch_size)`; the final
 axis is the number of categories per factor. This naming is retained for existing
 configurations. Sequence latents add a time axis: `(B, L, K, C)`.
 
-The deterministic transition consumes previous `h`, previous `z`, and the action.
+The deterministic transition consumes previous `h`, previous `z`, and the action:
+flattened `z` plus action pass through Linear, LayerNorm, and SiLU, then a standard
+`nn.GRUCell` receives that embedding and previous `h`. Its output is the next `h`.
+State is explicit; the module does not cache hidden state between calls.
 Observe computes that transition before its prior and posterior distributions.
 The posterior also receives encoded observations. Episode starts clear previous
 state and action for the affected batch rows.

@@ -66,7 +66,7 @@ class WorldModel(nn.Module):
     Dreamer‑V3 world model:
 
       • ObsEncoder: symlog‑MLP encoder
-      • RSSMCore: deterministic transition h_{t+1} = f(h_t, a_t)
+      • RSSMCore: gated transition h_{t+1} = GRU(embed(z_t, a_t), h_t)
       • Prior / Posterior: factored discrete latents over K×C
       • ObsDecoder: reconstructs observations from (h, z)
       • RewardHead: distributional symlog reward

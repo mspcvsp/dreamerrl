@@ -244,7 +244,7 @@ class DreamerTrainer:
         path = Path(path)
         path.parent.mkdir(parents=True, exist_ok=True)
         payload = {
-            "version": 3,
+            "version": 4,
             "config": self.cfg,
             "world": self.world.state_dict(),
             "actor": self.actor.state_dict(),
@@ -294,7 +294,9 @@ class DreamerTrainer:
             raise ValueError(
                 "Pooled-latent checkpoint v1/v2 is incompatible with factor-preserving heads; start a new run"
             )
-        if payload.get("version") != 3:
+        if payload.get("version") == 3:
+            raise ValueError("MLP-RSSM checkpoint v3 is incompatible with the GRU transition; start a new run")
+        if payload.get("version") != 4:
             raise ValueError("Unsupported Dreamer checkpoint version")
         cfg = payload["config"]
         if cuda is not None:
@@ -316,7 +318,9 @@ class DreamerTrainer:
             raise ValueError(
                 "Pooled-latent checkpoint v1/v2 is incompatible with factor-preserving heads; start a new run"
             )
-        if payload.get("version") != 3:
+        if payload.get("version") == 3:
+            raise ValueError("MLP-RSSM checkpoint v3 is incompatible with the GRU transition; start a new run")
+        if payload.get("version") != 4:
             raise ValueError("Unsupported Dreamer checkpoint version")
         saved_cfg = payload["config"]
         if self.cfg.world != saved_cfg.world or self.cfg.ac != saved_cfg.ac or self.cfg.env != saved_cfg.env:

@@ -242,3 +242,13 @@ collection chunks. `invariants/test_finite_task_horizon.py` checks finite versus
 continuing termination targets, clock features, bounded imagined returns, and
 checkpoint/evaluation compatibility. MiniHack evaluation regressions exercise the
 same clock feature on both terminated and truncated episodes.
+
+## 19. Standard gated RSSM
+
+`invariants/test_rssm_gru.py` compares the transition to the standard GRU equations,
+checks update-gate memory retention and replacement over 40 steps, verifies
+factored/flattened latent agreement, and checks sequence gradients to initial state,
+latents, actions, and GRU parameters. Existing reset, observe/imagine timing,
+batch-order, no-input-mutation, and CPU/GPU tests also exercise the GRU.
+Checkpoint/repeatability tests include its parameters and optimizer states;
+MLP-RSSM v3 files are rejected before loading. Current checkpoints use v4.
