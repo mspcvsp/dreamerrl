@@ -163,6 +163,7 @@ class TrainingConfig:
     replay_capacity: int = 200_000
     seq_len: int = 16
     burn_in: int = 16  # Preceding replay steps used only to reconstruct recurrent state.
+    acting_context: int = -1  # Refresh after model updates: full live episode; 0 disables, positive caps history.
     batch_size: int = 64
     collect_steps: int = 100
 

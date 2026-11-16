@@ -65,6 +65,11 @@ def main(*, default_env="MiniHack-Room-5x5-v0", default_episode_steps=200):
     parser.add_argument(
         "--burn-in", type=int, default=16, help="Replay context steps before each training window; 0 disables"
     )
+    parser.add_argument(
+        "--acting-context",
+        type=int,
+        help="Refresh acting state: -1 full episode (default), 0 disabled, positive history cap",
+    )
     parser.add_argument("--collect-steps", type=int, default=16, help="Steps per environment between updates")
     parser.add_argument("--episode-steps", type=int, default=default_episode_steps)
     parser.add_argument("--imagination-horizon", type=int, default=15)
@@ -101,6 +106,8 @@ def main(*, default_env="MiniHack-Room-5x5-v0", default_episode_steps=200):
         parser.error("--replay-value-scale must be finite and nonnegative")
     if args.random_exploration_steps is not None and args.random_exploration_steps < 0:
         parser.error("--random-exploration-steps must be nonnegative")
+    if args.acting_context is not None and args.acting_context < -1:
+        parser.error("--acting-context must be -1, 0, or positive")
     if args.burn_in < 0:
         parser.error("--burn-in must be nonnegative")
     if args.action_cost is not None and (not math.isfinite(args.action_cost) or args.action_cost < 0):
@@ -147,6 +154,8 @@ def main(*, default_env="MiniHack-Room-5x5-v0", default_episode_steps=200):
             cfg.train.enable_fused_adamw_kernels = False
             cfg.train.batch_size, cfg.train.seq_len = args.batch_size, args.seq_len
             cfg.train.burn_in = args.burn_in
+            if args.acting_context is not None:
+                cfg.train.acting_context = args.acting_context
             cfg.train.collect_steps, cfg.train.warmup_steps = args.collect_steps, args.warmup_updates
             cfg.train.model_lr = cfg.train.actor_lr = cfg.train.critic_lr = 3e-4
             cfg.train.random_exploration_steps = (
@@ -172,6 +181,7 @@ def main(*, default_env="MiniHack-Room-5x5-v0", default_episode_steps=200):
         if args.resume and args.action_cost is not None and args.action_cost != trainer.cfg.train.action_cost:
             parser.error("--action-cost must match the checkpoint; use a fresh run to change the reward objective")
         for name, saved_value in (
+            ("acting_context", trainer.cfg.train.acting_context),
             ("discount", trainer.cfg.ac.discount),
             ("lambda_return", trainer.cfg.ac.lambda_),
             ("replay_value_scale", trainer.cfg.ac.replay_value_scale),

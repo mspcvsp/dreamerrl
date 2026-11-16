@@ -314,3 +314,41 @@ Measurement covers `train()` cycles only. Evaluation, checkpoint writes, monitor
 callbacks, and standalone calls to collection/update methods are excluded. Phase
 synchronization adds some CUDA measurement overhead. Compare training at equal
 collected environment-step budgets, alongside replay ratio and elapsed time.
+
+
+## Acting state after model updates
+
+New runs refresh the policy's recurrent state after each successful world-model
+optimizer update. The trainer re-observes each environment's unfinished episode
+from zero state using the updated weights. The retained history includes the
+initial observation and the actions leading to subsequent observations, so the
+next policy action uses the posterior for its current observation under the
+updated model. Refresh is detached and does not train the model a second time.
+
+`--acting-context -1` (default) uses the full live episode. This preserves access
+to early episode observations but adds inference work that grows with episode
+length. `--acting-context 64` limits refresh to the latest 64 observations,
+including the current one; this starts from zero at the retained prefix and may
+lose information from earlier observations. `--acting-context 0` disables refresh
+and restores carrying the previously computed state across model updates.
+
+Same-step autoreset rows have an empty unfinished episode. They are rebuilt from
+the new reset observation with zero previous action, never the preceding terminal
+observation. Other rows retain their own live histories. Finite-horizon clock
+features are included in this history. Refresh sampling runs in an isolated Torch
+RNG scope, leaving the training/action RNG stream and replay sampler unchanged.
+A skipped model optimizer update does not refresh state.
+
+JSONL events include an `acting_state_refresh` object; TensorBoard logs its fields
+under `acting/`: valid `context_tokens`, padded `computed_tokens`,
+`max_context_length`, `truncated_rows`, `hidden_rms_change`, and
+`latent_changed_fraction`. The state-change metrics include posterior resampling
+noise and, for capped histories, context truncation; they are not a pure measure
+of parameter drift. Cadence reports `acting_refresh_tokens` and
+`acting_refresh_computed_tokens` separately from replay posterior work. Refresh
+time is included in `world_model_seconds`.
+
+The selected context policy persists in checkpoints. Older checkpoints without
+this field resume with refresh disabled; new runs default to full history. Live
+histories are not checkpointed because the simulator resets on resume. A resumed
+collector starts with fresh observations and builds new histories.

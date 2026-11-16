@@ -22,9 +22,10 @@ from dreamerrl.env.env_factory import make_env
 from dreamerrl.logging.repo_logger import create_repro_logger
 from dreamerrl.models.actor import Actor
 from dreamerrl.models.value_head import ValueHead
-from dreamerrl.models.world_model import WorldModel
+from dreamerrl.models.world_model import WorldModel, WorldModelState
 from dreamerrl.replay_buffer.replay_buffer import ReplayBuffer
 from dreamerrl.training.core import actor_critic_update, world_model_training_step
+from dreamerrl.training.core.world_model_update import observe_batch
 from dreamerrl.utils.seed import set_global_seeds
 from dreamerrl.utils.types import DreamerConfig, LatentConfig, LRScheduleConfig, NetworkConfig, WorldModelMetrics
 
@@ -84,6 +85,9 @@ class DreamerTrainer:
             raise ValueError("lambda_ must be finite and in [0, 1]")
         if not math.isfinite(cfg.ac.replay_value_scale) or cfg.ac.replay_value_scale < 0:
             raise ValueError("replay_value_scale must be finite and nonnegative")
+        if cfg.train.acting_context < -1:
+            raise ValueError("acting_context must be -1 (full episode), 0 (disabled), or positive")
+        self.acting_refresh_metrics: dict[str, int | float] = {}
         self.cadence_totals: dict[str, int | float] = {}
         self.ac_metrics: dict[str, torch.Tensor] = {}
         self.cfg = cfg
@@ -379,6 +383,7 @@ class DreamerTrainer:
         if payload.get("version") != 4:
             raise ValueError("Unsupported Dreamer checkpoint version")
         saved_cfg = payload["config"]
+        self.cfg.train.acting_context = vars(saved_cfg.train).get("acting_context", 0)
         if self.cfg.world != saved_cfg.world or self.cfg.ac != saved_cfg.ac or self.cfg.env != saved_cfg.env:
             raise ValueError("Checkpoint environment/model configuration does not match this trainer")
         # Validate replay dimensions before changing model/optimizer state.
@@ -562,6 +567,8 @@ class DreamerTrainer:
                 "actor_critic_burn_in_tokens": burn_in if actor_critic_active else 0,
                 "posterior_tokens": (tokens + context_tokens) * passes,
                 "burn_in_padding_tokens": (context_tokens - burn_in) * passes,
+                "acting_refresh_tokens": self.acting_refresh_metrics.get("context_tokens", 0),
+                "acting_refresh_computed_tokens": self.acting_refresh_metrics.get("computed_tokens", 0),
                 "imagination_starts": tokens if actor_critic_active else 0,
                 "imagined_transitions": tokens * self.cfg.world.imagination_horizon if actor_critic_active else 0,
                 "world_model_optimizer_steps": self._optimizer_steps["world_model"]
@@ -592,6 +599,7 @@ class DreamerTrainer:
                 replay_episodes=len(self.replay.episodes),
                 replay_positive_reward_steps=self.replay.positive_reward_steps,
                 replay_positive_reward_episodes=self.replay.positive_reward_episodes,
+                acting_state_refresh=dict(self.acting_refresh_metrics),
                 credit_assignment={name: value.item() for name, value in self.ac_metrics.items()},
                 reward_coverage={name: value.item() for name, value in wm_metrics.reward_metrics.items()},
                 sequence_length=batch["obs"].shape[1],
@@ -790,7 +798,74 @@ class DreamerTrainer:
         if (is_terminal & ~is_last).any():
             raise RuntimeError("True terminal transitions must also end the episode")
 
+    @torch.no_grad()
+    def refresh_acting_state(self) -> dict[str, int | float]:
+        """Reconstruct the current policy observation using current model weights.
+
+        Live episode data is collector-owned and intentionally not checkpointed.
+        Same-step autoresets have empty live episodes: reconstruct their fresh
+        policy observation, never the just-finished terminal observation.
+        """
+        limit = self.cfg.train.acting_context
+        if limit == 0:
+            return {}
+        histories = []
+        truncated_rows = 0
+        for row in range(self.env.batch_size):
+            data = self.replay.current_eps[row].data if self.replay.current_eps else None
+            if data is not None and data["obs"]:
+                start = max(0, len(data["obs"]) - limit) if limit > 0 else 0
+                truncated_rows += int(start > 0)
+                obs = torch.stack(data["obs"][start:]).to(self.device)
+                action = F.one_hot(torch.stack(data["action"][start:]).long(), self.action_dim).float().to(self.device)
+                first = torch.stack(data["is_first"][start:]).bool().to(self.device)
+            else:
+                obs = self.env_state["state"][row : row + 1].to(self.device)
+                action = torch.zeros(1, self.action_dim, device=self.device)
+                first = torch.ones(1, dtype=torch.bool, device=self.device)
+            histories.append((obs, action, first))
+        max_length = max(obs.shape[0] for obs, _, _ in histories)
+        B = self.env.batch_size
+        prefix = max_length - 1
+        batch = {
+            "obs": torch.stack([obs[-1] for obs, _, _ in histories]).unsqueeze(1),
+            "action": torch.stack([action[-1] for _, action, _ in histories]).unsqueeze(1),
+            "is_first": torch.stack([first[-1] for _, _, first in histories]).unsqueeze(1),
+            "burn_in_obs": torch.zeros(B, prefix, self.world.flat_obs_dim, device=self.device),
+            "burn_in_action": torch.zeros(B, prefix, self.action_dim, device=self.device),
+            "burn_in_is_first": torch.zeros(B, prefix, dtype=torch.bool, device=self.device),
+            "burn_in_valid": torch.zeros(B, prefix, dtype=torch.bool, device=self.device),
+        }
+        for row, (obs, action, first) in enumerate(histories):
+            length = obs.shape[0] - 1
+            if length:
+                batch["burn_in_obs"][row, -length:] = obs[:-1]
+                batch["burn_in_action"][row, -length:] = action[:-1]
+                batch["burn_in_is_first"][row, -length:] = first[:-1]
+                batch["burn_in_valid"][row, -length:] = True
+        devices = (
+            [self.device.index if self.device.index is not None else torch.cuda.current_device()]
+            if self.device.type == "cuda"
+            else []
+        )
+        with torch.random.fork_rng(devices=devices):
+            post = observe_batch(self.world, batch)[0]
+        previous = self.world_state
+        self.world_state = WorldModelState(h=post["h"].detach(), z=post["z"].detach())
+        return {
+            "context_tokens": sum(obs.shape[0] for obs, _, _ in histories),
+            "computed_tokens": B * max_length,
+            "max_context_length": max_length,
+            "truncated_rows": truncated_rows,
+            "hidden_rms_change": float((self.world_state.h - previous.h).square().mean().sqrt().item()),
+            "latent_changed_fraction": float(
+                (self.world_state.z.argmax(-1) != previous.z.argmax(-1)).float().mean().item()
+            ),
+        }
+
     def update_world_model(self, batch: Dict[str, torch.Tensor], update_idx: int) -> WorldModelMetrics:
+        self.acting_refresh_metrics = {}
+        previous_model_steps = self._optimizer_steps["world_model"]
         # Zero optimizer gradients
         self.model_opt.zero_grad()
 
@@ -830,6 +905,11 @@ class DreamerTrainer:
             loss.backward()
             torch.nn.utils.clip_grad_norm_(self.world.parameters(), self.cfg.train.grad_clip)
             self.model_opt.step()
+
+        if self._optimizer_steps["world_model"] > previous_model_steps:
+            self.acting_refresh_metrics = self.refresh_acting_state()
+        for name, value in self.acting_refresh_metrics.items():
+            self.tb.add_scalar(f"acting/{name}", value, update_idx)
 
         # TensorBoard logging
         step = update_idx
