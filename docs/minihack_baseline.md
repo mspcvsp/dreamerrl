@@ -361,3 +361,96 @@ filtered: `computed_tokens` now equals `context_tokens`. Histories remain full
 length unless explicitly capped. Batched filtering preserves posterior dynamics
 and sampling distributions; regrouping rows and omitting unused prior samples
 can change fixed-seed latent draws compared with the previous refresh path.
+
+
+## Frozen location probes
+
+To check whether position is decodable from a checkpoint's representation:
+
+```bash
+python -m dreamerrl.scripts.probe_minihack_location \
+  --checkpoint runs/corridor_r2_recent_seed0_20261116/latest.pt \
+  --initial-checkpoint runs/corridor_r2_recent_seed0_20261116/initial.pt \
+  --train-episodes 32 --test-episodes 16 --max-steps 256 --epochs 100 \
+  --output runs/corridor_r2_recent_seed0_20261116/location_probe.json
+```
+
+This CPU-only diagnostic loads and freezes model weights without restoring replay,
+optimizers, or the live collector. The training process can continue separately.
+Position labels come from `blstats[:2]`; the world model still receives only its
+usual glyph input and optional clock. Posterior modes make feature extraction
+repeatable. The checkpoint update number is recorded because `latest.pt` may later
+be replaced by the running trainer.
+
+Use `--dataset-output path.pt` to retain CPU features and labels for re-fitting.
+The diagnostic does not save a training-resumable checkpoint; retaining a
+weights-only snapshot separately fixes the model version for repeated comparisons.
+
+Probe fitting uses level seeds starting at 4,000,000 and testing uses seeds
+starting at 5,000,000. Splits must be disjoint. Feature normalization and probe
+optimization use only the fitting split. Nonconstant features use their training
+standard deviation, preserving small-amplitude signals; constant features use
+scale 1. Default random actions are independent
+of checkpoint policy and help cover positions; `--policy sampled` or `greedy`
+measures the corresponding on-policy distribution. Collection filters every step,
+but stores at most four examples per cell per episode to reduce stationary-action
+dominance. `--max-per-cell` and `--max-steps` control this tradeoff.
+
+Linear and 64-unit MLP regressors predict `(x,y)` from `h`, flattened `z`, `(h,z)`,
+the posterior probabilities, and the observation-only encoder output. The optional initial checkpoint observes
+exactly the same trajectories and provides an untrained `(h,z)` control. Constant
+training-mean position and shuffled-training-label probes provide further controls.
+The report includes training/held-out Manhattan error in grid cells, exact-cell
+accuracy, accuracy within one Manhattan cell, R-squared, and per-level macro mean
+error. Predictions are not clipped to the grid before scoring.
+
+Strong held-out decoding establishes position information, not semantic room
+identity, long-term memory use, or the actor's ability to use that information.
+Compare recurrent probes against the observation encoder and initial model;
+position is often directly visible in the glyph grid. Proving memory specifically
+requires a separate test where present observations are ambiguous and history
+distinguishes the correct location. A small probe failing also does not establish
+that all location information is absent.
+
+Use `--sample-latents` to repeat the diagnostic on sampled posteriors, matching the
+stochastic filtering used during collection. Posterior-probability probes help
+identify information that exists in the distribution but is not exposed by its
+hard mode. The actor consumes `(h,z)`, not those probabilities. The optional initial
+model uses an isolated sampling stream so enabling its control does not change
+the trained model's trajectory or latent draws.
+
+
+## Posterior collapse diagnostics
+
+Compare retained checkpoints on the same random-action traces without altering
+training:
+
+```bash
+python -m dreamerrl.scripts.diagnose_posterior \
+  --checkpoint runs/corridor_r2_recent_seed0_20261116/initial.pt \
+  --checkpoint runs/corridor_r2_recent_seed0_20261116/location_probe_weights_update600.pt \
+  --checkpoint runs/corridor_r2_recent_seed0_20261116/posterior_diagnostic_weights_update2100.pt \
+  --episodes 8 --max-steps 128 \
+  --output runs/corridor_r2_recent_seed0_20261116/posterior_diagnostics.json
+```
+
+The CPU-only report includes raw posterior/prior KL before the free-nats floor,
+normalized entropy, mode/sample category usage, dominant-mode fraction, and
+marginal entropy variation across examples. Constant modes alone do not prove
+collapse: a uniform distribution also always chooses the same argmax. Likewise,
+small posterior/prior KL alone does not prove failure if useful history is already
+represented by the prior.
+
+Controlled observation swaps hold deterministic history fixed; history swaps hold
+the current embedding fixed. A second observation control swaps frames only
+within the same level and requires different player positions. These are neural
+sensitivity tests, not guaranteed valid environment transitions or estimates of
+conditional mutual information.
+
+Decoder ablations shuffle latent samples, remove them, substitute prior samples,
+and shuffle deterministic states. Glyph reconstruction is measured on uniformly
+sampled frames/cells plus the actual player cell, whose coordinates are used only
+for scoring. Uniform-cell CE is an estimate of grid-average loss. Zero-latent
+inputs can be out of distribution; shuffling is the more informative control.
+The report includes both mode and sampled posterior trajectories. Terminal
+observations are included, with actions and rewards aligned to their destination.
