@@ -649,3 +649,48 @@ have class reports but no persistence support. Recall is TP/(TP+FN); false-posit
 rate is FP/(FP+TN), not FP divided by all observations. Undefined rates are omitted
 with their zero support counts, rather than emitted as NaN or misleading zeros.
 These helpers do not implement the pending CAGE2 environment adapter.
+
+### Check navigation evidence through imagination
+
+Run a frozen, action-conditioned comparison without changing training:
+
+```bash
+python -m dreamerrl.scripts.probe_minihack_imagination \
+  --checkpoint runs/<run>/latest.pt --sample-latents \
+  --horizons 1 3 5 10 --anchors 64 --episodes 8 \
+  --output runs/<run>/imagination_probe.json
+```
+
+The diagnostic starts from the filtered posterior at each anchor and advances the
+prior using recorded incoming actions at t+1 through t+H. It never encodes future
+observations during the rollout. It compares decoded endpoints with posterior
+reconstruction and a teacher-forced one-step prior at the same endpoints. Those
+controls see the real observation or real intervening history, respectively.
+
+All horizons use the same anchors, with no reset/terminal boundary crossing;
+terminal endpoints are allowed and changed terminal tiles are scored separately.
+The persistence baseline repeats the anchor label. Changed labels are endpoint
+versus anchor differences, so reverted intermediate changes are not counted.
+Long-horizon eligibility favors longer surviving episodes. These are random-action
+prediction diagnostics, not an evaluation of the actor's policy or planning.
+
+Reports include player glyphs, nearby known terrain, changed nonterminal tiles,
+and conditional retention: how many cues decoded correctly by the posterior are
+also decoded by the prior. The conditional rate is omitted when the posterior
+gets none correct; that case cannot establish a separate dynamics failure.
+Repeat across seeds/checkpoints before interpreting a horizon trend.
+
+For CAGE2, `eval.cage2_events.compare_host_rollouts` accepts posterior field
+predictions, per-horizon open-loop field predictions, observed masks and common
+anchors. It reports Activity/Compromised per-class recall and false positives,
+changed-field scores, anchor persistence, and posterior-correct change retention.
+The shared `action_conditioned_rollout` engine can generate recurrent prior states;
+connecting actual CAGE2 observations/actions to the world model still requires
+its environment/encoder adapter. No CAGE2 simulator results are implied.
+
+The frozen update-3500 legacy-objective checkpoint scored 0% player accuracy in
+posterior and prior decoding at horizons 1/3/5/10. Posterior nearby-terrain accuracy
+was about 9%; rollout accuracy was 7–10%. Thus reconstruction already misses most
+navigation cues; this experiment does not isolate an additional long-horizon
+failure. See `runs/corridor_r2_recent_seed0_20261116/imagination_probe_summary.md`
+and its raw JSON report. Re-run after training with informative-cell weighting.

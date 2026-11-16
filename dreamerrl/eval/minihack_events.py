@@ -3,7 +3,7 @@
 import torch
 
 from dreamerrl.env.minihack.minihack_utils import glyph_scoring_schema
-from dreamerrl.eval.field_events import accuracy_counts, previous_label_pairs
+from dreamerrl.eval.field_events import accuracy_counts, evidence_retention, previous_label_pairs
 
 
 @torch.no_grad()
@@ -19,6 +19,7 @@ def score_minihack_events(
     player_ids=None,
     passability_lookup=None,
     score_frames=None,
+    reference_predictions=None,
 ):
     """Inputs are (batch,time,cells); supplied positions are diagnostic labels only.
 
@@ -110,6 +111,28 @@ def score_minihack_events(
     if known.any():
         result["glyph_nearby_passability_predicted_unknown_rate"] = (
             result["glyph_nearby_passability_predicted_unknown"].float() / known.sum()
+        )
+    if reference_predictions is not None:
+        if reference_predictions.shape != targets.shape:
+            raise ValueError("Reference predictions must align with targets")
+        event_masks = {"player": player & paired, "changed": changed}
+        if is_last is not None:
+            event_masks["changed_nonterminal"] = changed & ~is_last.bool().unsqueeze(-1)
+        for name, event_mask in event_masks.items():
+            result.update(
+                {
+                    f"glyph_{name}_retention_{key}": value
+                    for key, value in evidence_retention(
+                        reference_predictions, predictions, targets, event_mask
+                    ).items()
+                }
+            )
+        ref_pass = terrain(reference_predictions.gather(-1, neighbors).long())
+        result.update(
+            {
+                f"glyph_nearby_passability_retention_{key}": value
+                for key, value in evidence_retention(ref_pass, pred_pass, target_pass, neighborhood_pair).items()
+            }
         )
     for name, category in (("passable", 1), ("blocked", 0)):
         add(f"nearby_{name}_recall", pred_pass == category, known & (target_pass == category))

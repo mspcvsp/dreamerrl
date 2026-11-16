@@ -75,11 +75,19 @@ def classification_report(predictions, targets, mask, classes) -> dict[str, Any]
 
 
 @torch.no_grad()
-def categorical_event_scores(predictions, targets, classes, *, observed=None, is_first=None, is_last=None):
+def categorical_event_scores(
+    predictions, targets, classes, *, observed=None, is_first=None, is_last=None, score_frames=None
+):
     if predictions.shape != targets.shape:
         raise ValueError("Predictions and targets must align")
     valid = torch.ones_like(targets, dtype=torch.bool) if observed is None else observed.bool()
     previous, paired, changed = previous_label_pairs(targets, valid, is_first=is_first, is_last=is_last)
+    if score_frames is not None:
+        if score_frames.shape != targets.shape[:-1]:
+            raise ValueError("score_frames must match batch/time dimensions")
+        valid = valid & score_frames.bool().unsqueeze(-1)
+        paired = paired & score_frames.bool().unsqueeze(-1)
+        changed = changed & score_frames.bool().unsqueeze(-1)
     return {
         "all_observed": classification_report(predictions, targets, valid, classes),
         "paired_model": classification_report(predictions, targets, paired, classes),
@@ -99,3 +107,23 @@ def json_metrics(value: Any) -> Any:
     if isinstance(value, (list, tuple)):
         return [json_metrics(item) for item in value]
     return value
+
+
+@torch.no_grad()
+def evidence_retention(reference, prediction, targets, mask):
+    """Accuracy retained among cues the posterior/reference actually decodes."""
+    if reference.shape != targets.shape or prediction.shape != targets.shape or mask.shape != targets.shape:
+        raise ValueError("Retention predictions, targets, and masks must align")
+    ref_correct = (reference == targets) & mask
+    predicted_correct = (prediction == targets) & mask
+    result = {
+        "target_count": mask.sum(),
+        "reference_correct_count": ref_correct.sum(),
+        "prediction_correct_count": predicted_correct.sum(),
+        "retained_count": (ref_correct & predicted_correct).sum(),
+        "lost_count": (ref_correct & ~predicted_correct).sum(),
+        "prediction_only_correct_count": (~ref_correct & predicted_correct).sum(),
+    }
+    if ref_correct.any():
+        result["retention_given_reference"] = result["retained_count"].float() / ref_correct.sum()
+    return result
