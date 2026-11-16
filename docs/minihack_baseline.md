@@ -567,3 +567,85 @@ the change multiplier; both configurable multipliers must be finite and at least
 Each field's CE is normalized by the sum of its valid target weights, then the
 independently weighted field losses are summed. The preset never drops valid
 persistent labels or uses hidden simulator compromise state.
+
+
+## Event-specific scores and previous-label baselines
+
+New training-code invocations log MiniHack reconstruction scores under TensorBoard
+`wm/glyph_*` and JSONL `reconstruction_events`. These are reconstruction scores on
+sampled replay, not held-out task success. Counts and correct counts accompany
+accuracy so aggregation can sum counts instead of averaging unequal batch rates.
+
+- `glyph_player_accuracy`: exact glyph accuracy at the true player cell.
+- `glyph_player_paired_accuracy` versus `glyph_player_persistence_accuracy`: the
+  same player-cell score restricted to frames with a valid previous label.
+- `glyph_changed_accuracy` versus `glyph_changed_persistence_accuracy`: exact
+  glyph accuracy on within-episode changed cells. `glyph_changed_nonterminal_*`
+  and `glyph_changed_terminal_*` separate ordinary motion/observation changes from
+  terminal-screen effects. Persistence is necessarily
+  wrong on an exact categorical change; report its support, not just this zero.
+- `glyph_persistent_accuracy` versus `glyph_persistent_baseline_accuracy`: checks
+  that unchanged labels remain accurate rather than being forgotten.
+- `glyph_nearby_passability_paired_accuracy` versus
+  `glyph_nearby_passability_persistence_accuracy`: observable terrain classes in
+  the eight cells adjacent to the current true player position.
+
+Nearby terrain is a conservative proxy: ordinary floors, corridors, open doors,
+stairs/ladders, and selected fixtures are passable; walls, closed doors, bars,
+trees, and raised bridges are blocked. Dark/unseen cells, actors, objects, water,
+lava, and other ability-dependent terrain are unlabelled. Unknown predicted
+terrain counts as wrong on a known target and is counted separately. This does
+not model NetHack's full diagonal-movement, occupancy, or hazard rules.
+
+Replay currently stores glyphs rather than player coordinates. Training metrics
+infer position only when exactly one standard player-role glyph is visible;
+ambiguous/absent frames are counted under `glyph_player_unresolved_frames` and
+excluded from player/neighborhood scores. The scoring API accepts explicit
+`player_ids` for other characters or diagnostic `player_positions` labels. The
+offline tool uses exact `blstats[:2]` positions only for scoring, never as model
+inputs or training targets. Even with supplied positions, a frame without the
+player glyph at that position is excluded from player/neighborhood scoring; this
+avoids crediting predictions of cleared terminal screens as player accuracy.
+
+For held-out scoring, freeze a spatial checkpoint and run:
+
+```bash
+python -m dreamerrl.scripts.score_minihack_events \
+  --checkpoint runs/corridor_r2_recent_seed0_20261116/latest.pt \
+  --episodes 8 --max-steps 128 --max-frames 128 --sample-latents \
+  --output runs/corridor_r2_recent_seed0_20261116/event_scores.json
+```
+
+Random-action traces use separate level seeds starting at 7,000,000. Uniformly
+selected frames are decoded; previous true observations remain available even
+when those frames were not selected for decoding. `posterior_reconstruction`
+sees the current observation, while `one_step_prior` forecasts the next/resulting
+observation from real past observations and the incoming action. Keep these
+separate when comparing to previous-label persistence. This is teacher-forced
+one-step prediction, not an open-loop imagination benchmark. Level resets always
+break persistence comparisons.
+
+For CAGE2, `eval/cage2_events.py:score_host_fields` accepts categorical predictions,
+targets, and observed masks in stable host order. It reports each field separately:
+confusion matrices, per-class support/recall, false-positive counts and rates,
+changed-field accuracy, and persistent-field accuracy. Model and persistence
+reports use identical masks in `paired_model` and `persistence`; `all_observed`
+also includes first observations where persistence is unavailable. Missing gaps,
+current resets, and previous episode ends exclude temporal comparisons. `Unknown`
+is a valid Compromised class, not missing data.
+
+```python
+from dreamerrl.eval.cage2_events import score_host_fields
+from dreamerrl.eval.field_events import json_metrics
+
+predictions = decoder.predict(host_features)
+report = score_host_fields(predictions, targets, observed,
+                           is_first=is_first, is_last=is_last)
+serializable_report = json_metrics(report)
+```
+
+Temporal field arrays have shape `(batch, time, hosts)`. Single-frame arrays still
+have class reports but no persistence support. Recall is TP/(TP+FN); false-positive
+rate is FP/(FP+TN), not FP divided by all observations. Undefined rates are omitted
+with their zero support counts, rather than emitted as NaN or misleading zeros.
+These helpers do not implement the pending CAGE2 environment adapter.

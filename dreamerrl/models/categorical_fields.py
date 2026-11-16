@@ -175,6 +175,14 @@ class CategoricalFieldDecoder(nn.Module):
     def forward(self, features):
         return {name: head(features) for name, head in self.heads.items()}
 
+    @torch.no_grad()
+    def predict(self, features):
+        result = {}
+        for name, head in self.heads.items():
+            assert isinstance(head, CategoricalFieldHead)
+            result[name] = head.predict(features)
+        return result
+
     def loss(self, features, targets: Mapping, *, observed=None, salient=None, configs=None):
         losses, metrics = [], {}
         for name, head in self.heads.items():

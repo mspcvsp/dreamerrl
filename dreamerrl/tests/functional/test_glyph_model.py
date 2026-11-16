@@ -144,6 +144,11 @@ def test_real_minihack_spatial_update_and_checkpoint(tmp_path, finite):
         metrics = world_model_training_step(trainer.world, batch)
         assert torch.isfinite(metrics.total_loss)
         assert "glyph_accuracy" in metrics.reconstruction_metrics
+        assert metrics.reconstruction_metrics["glyph_player_count"] > 0
+        assert (
+            metrics.reconstruction_metrics["glyph_player_paired_count"]
+            == metrics.reconstruction_metrics["glyph_player_persistence_count"]
+        )
         path = tmp_path / "spatial.pt"
         trainer.save_checkpoint(path)
         resumed = DreamerTrainer.from_checkpoint(path, cuda=False)

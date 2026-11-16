@@ -64,7 +64,7 @@ def posterior_usage(q, prior, z, free_nats):
 
 @torch.no_grad()
 def collect_trace(agent: FrozenAgent, seeds, max_steps=128, sampling_seed=42):
-    observations, actions, firsts, positions, rewards, ranges = [], [], [], [], [], []
+    observations, actions, firsts, positions, rewards, ranges, lasts = [], [], [], [], [], [], []
     with gym.make(agent.cfg.env.env_id) as base:
         assert isinstance(base.action_space, gym.spaces.Discrete)
         action_dim = int(base.action_space.n)
@@ -85,6 +85,7 @@ def collect_trace(agent: FrozenAgent, seeds, max_steps=128, sampling_seed=42):
                 firsts.append(t == 0)
                 positions.append(tuple(int(v) for v in obs["blstats"][:2]))
                 rewards.append(float(reward))
+                lasts.append(done)
                 if done or t == min(max_steps, agent.cfg.env.max_episode_steps):
                     break
                 selected = int(env.action_space.sample())
@@ -98,6 +99,7 @@ def collect_trace(agent: FrozenAgent, seeds, max_steps=128, sampling_seed=42):
         "is_first": torch.tensor(firsts),
         "positions": torch.tensor(positions),
         "reward": torch.tensor(rewards),
+        "is_last": torch.tensor(lasts),
         "ranges": ranges,
     }
 

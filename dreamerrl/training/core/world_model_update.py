@@ -3,6 +3,7 @@ from __future__ import annotations
 import torch
 import torch.nn.functional as F
 
+from dreamerrl.eval.minihack_events import score_minihack_events
 from dreamerrl.models.categorical_fields import CategoricalLossConfig, categorical_field_loss
 from dreamerrl.models.glyph_model import GlyphDecoder
 from dreamerrl.utils.transforms import symlog
@@ -100,8 +101,18 @@ def world_model_training_step(world_model, batch, kl_scale=None) -> WorldModelMe
         if clock is not None:
             recon_loss = recon_loss + F.mse_loss(clock.reshape(B, L), obs[..., -1])
         with torch.no_grad():
-            correct = decoder.predict(decoded).reshape(B, L, -1) == obs[..., : decoder.cells].long()
+            predictions = decoder.predict(decoded).reshape(B, L, -1)
+            correct = predictions == obs[..., : decoder.cells].long()
             reconstruction_metrics = {"glyph_accuracy": correct.float().mean(), "glyph_changed_cells": changed.sum()}
+            reconstruction_metrics.update(
+                score_minihack_events(
+                    predictions,
+                    obs[..., : decoder.cells].long(),
+                    decoder.shape,
+                    is_first=batch.get("is_first"),
+                    is_last=batch.get("is_last", batch.get("done")),
+                )
+            )
             reconstruction_metrics.update({f"glyph_{name}": value for name, value in reduced.metrics.items()})
             reconstruction_metrics["glyph_foreground_cells"] = foreground.sum()
             if foreground.any():

@@ -600,6 +600,7 @@ class DreamerTrainer:
                 replay_positive_reward_episodes=self.replay.positive_reward_episodes,
                 acting_state_refresh=dict(self.acting_refresh_metrics),
                 credit_assignment={name: value.item() for name, value in self.ac_metrics.items()},
+                reconstruction_events={name: value.item() for name, value in wm_metrics.reconstruction_metrics.items()},
                 reward_coverage={name: value.item() for name, value in wm_metrics.reward_metrics.items()},
                 sequence_length=batch["obs"].shape[1],
                 cadence=cadence,
