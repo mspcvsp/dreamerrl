@@ -9,6 +9,7 @@ from dreamerrl.eval.location_probe import load_frozen_agent
 from dreamerrl.eval.posterior_diagnostics import (
     collect_trace,
     conditional_sensitivity,
+    diagnose_training_replay,
     filter_trace,
     posterior_usage,
     reconstruction_ablations,
@@ -19,6 +20,9 @@ from dreamerrl.training.run_monitor import write_json
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--checkpoint", type=Path, action="append", required=True)
+    parser.add_argument(
+        "--replay-checkpoint", type=Path, help="Optional full trainer checkpoint for actual replay usage"
+    )
     parser.add_argument("--episodes", type=int, default=8)
     parser.add_argument("--max-steps", type=int, default=128)
     parser.add_argument("--seed-start", type=int, default=6000000)
@@ -70,6 +74,14 @@ def main():
             )
         report["checkpoints"].append(checkpoint)
         write_json(args.output, report)
+    if args.replay_checkpoint:
+        report["training_replay"] = diagnose_training_replay(args.replay_checkpoint, seed=args.seed)
+        write_json(args.output, report)
+        print(
+            f"Replay update={report['training_replay']['update']}: "
+            f"KL={report['training_replay']['usage']['raw_kl_total_mean_nats']:.5f}",
+            flush=True,
+        )
     print(f"Report: {args.output}")
 
 

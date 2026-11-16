@@ -454,3 +454,10 @@ for scoring. Uniform-cell CE is an estimate of grid-average loss. Zero-latent
 inputs can be out of distribution; shuffling is the more informative control.
 The report includes both mode and sampled posterior trajectories. Terminal
 observations are included, with actions and rewards aligned to their destination.
+
+Add `--replay-checkpoint path/to/latest.pt` to measure raw KL and category usage
+through the actual saved replay sampler and burn-in path. This reads the payload
+once so weights and replay come from the same update; it does not resume training.
+The report records that update, sampled sequence lengths, and positive-reward
+coverage. Replay and held-out random trajectories can have different distributions,
+so compare both before interpreting a KL floor as posterior collapse.

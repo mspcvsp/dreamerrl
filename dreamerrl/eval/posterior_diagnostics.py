@@ -219,3 +219,62 @@ def reconstruction_ablations(world, states, trace, *, frames=64, cells=64, seed=
         for name, (hh, zz) in variants.items():
             result[name] = {"observation_symlog_mse": float(F.mse_loss(world.decoder(hh, zz), symlog(obs)))}
     return {"frames": len(indices), "uniform_cells_per_frame": min(cells, obs.shape[1]), "variants": result}
+
+
+@torch.no_grad()
+def _diagnose_training_replay(path, *, batches=16, batch_size=8, seed=42):
+    """Match the actual replay-window/burn-in path on a single frozen payload."""
+    from pathlib import Path
+    from tempfile import TemporaryDirectory
+
+    from dreamerrl.eval.location_probe import load_frozen_agent
+    from dreamerrl.replay_buffer.replay_buffer import ReplayBuffer
+    from dreamerrl.training.core.world_model_update import observe_batch
+
+    saved = torch.load(path, map_location="cpu", weights_only=False)
+    if saved.get("version") != 4 or not saved.get("replay", {}).get("episodes"):
+        raise ValueError("Replay diagnostics need a v4 trainer checkpoint with completed episodes")
+    with TemporaryDirectory(prefix="dreamerrl-posterior-replay-") as directory:
+        weights = Path(directory) / "weights.pt"
+        torch.save({key: saved[key] for key in ("version", "config", "world", "actor", "completed_updates")}, weights)
+        agent = load_frozen_agent(weights, sample_latents=True)
+    replay_state = saved["replay"]
+    replay = ReplayBuffer(
+        saved["config"].train, replay_state["obs_dim"], replay_state["action_dim"], torch.device("cpu")
+    )
+    replay.load_state_dict(replay_state)
+    qs, ps, zs, lengths = [], [], [], []
+    positives, tokens = 0, 0
+    with torch.random.fork_rng(devices=[]):
+        torch.default_generator.manual_seed(seed)
+        for index in range(batches):
+            batch = replay.sample(batch_size, seed=seed + index)
+            posts = observe_batch(agent.world, batch)
+            B, L = batch["obs"].shape[:2]
+            q = torch.stack([post["probs"] for post in posts], 1).flatten(0, 1)
+            z = torch.stack([post["z"] for post in posts], 1).flatten(0, 1)
+            h = torch.stack([post["h"] for post in posts], 1).flatten(0, 1)
+            qs.append(q)
+            zs.append(z)
+            ps.append(agent.world.prior(h)["probs"])
+            lengths.append(L)
+            positives += int((batch["reward"] > 0).sum())
+            tokens += B * L
+    return {
+        "checkpoint": str(Path(path).resolve()),
+        "update": agent.update,
+        "batches": batches,
+        "batch_size": batch_size,
+        "sequence_lengths": lengths,
+        "positive_reward_fraction": positives / tokens,
+        "usage": posterior_usage(torch.cat(qs), torch.cat(ps), torch.cat(zs), agent.cfg.world.kl_cfg.free_nats),
+    }
+
+
+@torch.no_grad()
+def diagnose_training_replay(path, *, batches=16, batch_size=8, seed=42):
+    """Read-only replay measurement, including RNG isolation during construction."""
+    if batches < 1 or batch_size < 1:
+        raise ValueError("Replay diagnostic batch counts must be positive")
+    with torch.random.fork_rng(devices=[]):
+        return _diagnose_training_replay(path, batches=batches, batch_size=batch_size, seed=seed)

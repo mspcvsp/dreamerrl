@@ -97,3 +97,27 @@ def test_terminal_alignment_freezing_sensitivity_and_ablations(world_model, monk
     assert ablations == reconstruction_ablations(world_model, states, trace, frames=4, cells=4)
     for name, value in world_model.state_dict().items():
         torch.testing.assert_close(value, before[name], rtol=0, atol=0)
+
+
+def test_replay_diagnostic_matches_saved_window_configuration(tmp_path):
+    from dreamerrl.eval.posterior_diagnostics import diagnose_training_replay
+    from dreamerrl.tests.manual.utils import minihack_config
+    from dreamerrl.training.trainer import DreamerTrainer
+
+    trainer = DreamerTrainer(minihack_config(0, tmp_path))
+    try:
+        trainer.train(1)
+        path = tmp_path / "posterior_replay.pt"
+        trainer.save_checkpoint(path)
+        rng = torch.get_rng_state().clone()
+        report = diagnose_training_replay(path, batches=2, batch_size=2)
+        assert torch.equal(torch.get_rng_state(), rng)
+        assert report["update"] == 1
+        assert report["sequence_lengths"] == [4, 4]
+        assert report["usage"]["observations"] == 16
+        assert 0 <= report["positive_reward_fraction"] <= 1
+        assert report == diagnose_training_replay(path, batches=2, batch_size=2)
+        assert trainer.completed_updates == 1
+    finally:
+        trainer.env.venv.close()
+        trainer.tb.close()
