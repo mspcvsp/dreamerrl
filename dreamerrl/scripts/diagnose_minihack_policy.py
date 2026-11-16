@@ -5,11 +5,12 @@ import math
 from pathlib import Path
 from statistics import mean
 from tempfile import TemporaryDirectory
-from typing import Any
+from typing import Any, cast
 from unittest.mock import patch
 
 import gymnasium as gym
 import numpy as np
+from minihack import MiniHack
 
 from dreamerrl.eval.minihack_eval import evaluate_minihack
 from dreamerrl.training.run_monitor import write_json
@@ -80,7 +81,8 @@ def diagnose(checkpoint, seeds, sampling_seed):
 
             def record_env(*args, **kwargs):
                 env = make_env(*args, **kwargs)
-                action_names[:] = [str(a.name) for a in env.unwrapped.actions]
+                minihack_env = cast(MiniHack, env.unwrapped)
+                action_names[:] = [str(a.name) for a in minihack_env.actions]
                 return RecordEnvironment(env)
 
             modes = []
