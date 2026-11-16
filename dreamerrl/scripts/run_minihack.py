@@ -1,6 +1,7 @@
 """Offline MiniHack runs with Rich, JSONL, checkpoints and fixed-seed evaluation."""
 
 import argparse
+import math
 import signal
 import traceback
 from datetime import datetime, timezone
@@ -17,6 +18,12 @@ from dreamerrl.utils.types import make_default_config
 def main(*, default_env="MiniHack-Room-5x5-v0", default_episode_steps=200):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--env", default=default_env)
+    parser.add_argument(
+        "--action-cost",
+        type=float,
+        default=None,
+        help="Nonnegative cost per training action; default 0, resume uses saved cost",
+    )
     parser.add_argument("--aux", choices=["none", "novelty"], default="none")
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--updates", type=int, default=None, help="Total desired updates, including resumed updates")
@@ -57,6 +64,8 @@ def main(*, default_env="MiniHack-Room-5x5-v0", default_episode_steps=200):
     ]:
         if getattr(args, name) < 1:
             parser.error(f"--{name.replace('_', '-')} must be positive")
+    if args.action_cost is not None and (not math.isfinite(args.action_cost) or args.action_cost < 0):
+        parser.error("--action-cost must be finite and nonnegative")
     if args.updates is not None and args.updates < 1:
         parser.error("--updates must be positive")
     if args.warmup_updates < 0 or (args.eval_every is not None and args.eval_every < 0):
@@ -93,6 +102,7 @@ def main(*, default_env="MiniHack-Room-5x5-v0", default_episode_steps=200):
             cfg.world.aux_objectives = [] if args.aux == "none" else [AUX_OBJECTIVES[args.aux]]
             cfg.world.deter_size, cfg.world.stoch_size, cfg.world.num_classes = 128, 32, 32
             cfg.world.hidden_size, cfg.world.imagination_horizon = 256, args.imagination_horizon
+            cfg.train.action_cost = args.action_cost if args.action_cost is not None else 0.0
             cfg.train.seed, cfg.train.cuda = args.seed, torch.cuda.is_available() and not args.cpu
             cfg.train.use_amp = args.amp and cfg.train.cuda
             cfg.train.enable_fused_adamw_kernels = False
@@ -103,6 +113,8 @@ def main(*, default_env="MiniHack-Room-5x5-v0", default_episode_steps=200):
             cfg.log.enable_wandb = False
             cfg.log.tb_logdir, cfg.log.run_name = str(run_dir / "tensorboard"), "train"
             trainer = DreamerTrainer(cfg)
+        if args.resume and args.action_cost is not None and args.action_cost != trainer.cfg.train.action_cost:
+            parser.error("--action-cost must match the checkpoint; use a fresh run to change the reward objective")
         target = args.updates if args.updates is not None else (trainer.total_updates_target or 10000)
         if target < trainer.completed_updates:
             parser.error("--updates is below the checkpoint's completed update count")

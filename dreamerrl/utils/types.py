@@ -159,6 +159,9 @@ class TrainingConfig:
     batch_size: int = 64
     collect_steps: int = 100
 
+    # Optional per-decision reward shaping; environment-return metrics stay raw.
+    action_cost: float = 0.0
+
     # Learning rates for world model, actor, critic.
     model_lr: float = 3e-4
     actor_lr: float = 3e-4

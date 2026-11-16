@@ -82,6 +82,9 @@ class DreamerTrainer:
         self.sample_step = 0
         self.completed_episodes = 0
         self.run_state: dict[str, Any] = {}
+        if not math.isfinite(cfg.train.action_cost) or cfg.train.action_cost < 0:
+            raise ValueError("action_cost must be finite and nonnegative")
+
         self.on_episode: Callable[[dict[str, Any]], None] | None = None
         self.on_checkpoint: Callable[[dict[str, Any]], None] | None = None
         self.completed_updates = 0
@@ -593,6 +596,8 @@ class DreamerTrainer:
                     "env/avg_return_50", np.mean(self.recent_returns), self.total_env_steps + self.env.batch_size
                 )
 
+            training_reward = env_out["reward"] - self.cfg.train.action_cost
+
             # 3. One-hot encode actions for RSSMCore
             actions_one_hot = F.one_hot(actions_discrete, num_classes=self.action_dim).float()
 
@@ -601,7 +606,7 @@ class DreamerTrainer:
                 prev_state=self.world_state,
                 obs=env_out.get("transition_state", env_out["state"]),
                 action=actions_one_hot,
-                reward=env_out["reward"],
+                reward=training_reward,
                 is_first=None if "transition_state" in env_out else env_out["is_first"],
                 is_last=env_out["is_last"],
                 is_terminal=env_out["is_terminal"],
@@ -619,12 +624,12 @@ class DreamerTrainer:
                 self.world_state.h = torch.where(mask, reset.h, self.world_state.h)
                 self.world_state.z = torch.where(mask.unsqueeze(-1), reset.z, self.world_state.z)
 
-            # 5. Store raw transition in replay buffer
+            # 5. Store transition with the shaped training reward in replay.
             self.replay.add(
                 obs=env_out.get("transition_state", env_out["state"]),
                 initial_obs=self.env_state["state"],
                 action=actions_discrete,
-                reward=env_out["reward"],
+                reward=training_reward,
                 done=env_out["is_last"].float().to(self.device),
                 is_terminal=env_out["is_terminal"].float().to(self.device),
             )

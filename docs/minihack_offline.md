@@ -250,3 +250,27 @@ trained and initial checkpoints with the corrected evaluator for fresh paired
 comparisons. Resuming an old run retains its cached baselines; those historical
 baseline comparisons should not be treated as paired with corrected evaluations.
 Training environment collection seeding is unchanged by this evaluation fix.
+
+## Optional per-action training cost
+
+`--action-cost` subtracts a fixed nonnegative cost from every collected action's
+reward, including the final action. It defaults to zero. Replay stores these
+shaped rewards, so world-model reward learning and imagined policy/value learning
+use the cost. Initial reset observations incur no cost. Reported training episode
+returns and all evaluation returns remain the original environment rewards.
+This is reward shaping, not an auxiliary prediction loss.
+
+For a separate corridor experiment:
+
+```bash
+python -m dreamerrl.scripts.run_minihack_corridor \
+  --require-cuda --updates 10000 --eval-every 500 \
+  --action-cost 0.001 --run-dir runs/corridor_r2_cost001_seed0
+```
+
+The value above is an experimental starting point, not a tuned recommendation.
+The saved configuration retains the cost on resume. An explicit cost that differs
+from the checkpoint is rejected: use a fresh run to change the objective without
+mixing differently shaped rewards in replay. Older checkpoints default to zero.
+A per-action cost encourages shorter episodes and may also encourage early
+failure; assess goal success and episode lengths alongside original returns.
