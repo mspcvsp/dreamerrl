@@ -172,3 +172,26 @@ python -m dreamerrl.scripts.run_minihack --cpu --updates 2 \
   --imagination-horizon 3 --eval-episodes 2 --eval-every 1 \
   --run-dir runs/smoke --dashboard off
 ```
+
+## Diagnose greedy versus sampled policies
+
+Keep action selection and posterior latent selection independent when a high
+training return disagrees with deterministic validation:
+
+```bash
+python -m dreamerrl.scripts.evaluate_minihack_modes --cpu \
+  --checkpoint runs/room_seed0/latest.pt \
+  --checkpoint runs/room_seed1/latest.pt \
+  --checkpoint runs/room_seed2/latest.pt \
+  --episodes 100 --seed-start 1000000 --sampling-seed 42 \
+  --output runs/room_evaluation_modes.json
+```
+
+This evaluates greedy/mode, sampled/mode, greedy/sampled, and sampled/sampled
+policies. Each episode uses its level seed plus the fixed sampling seed for Torch
+sampling, independently of caller RNG position. All RNG states are restored.
+Default training validation remains greedy/mode. The report retains all episode
+returns, checkpoint budgets, settings, and paired differences versus random.
+One fixed sampling seed is a diagnostic comparison, not an estimate of variation
+across sampling seeds. These test levels have now been inspected: use new levels
+for confirmation after making any changes based on the results.

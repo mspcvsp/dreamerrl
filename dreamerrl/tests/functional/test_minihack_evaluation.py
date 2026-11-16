@@ -80,3 +80,64 @@ def test_held_out_evaluation_counts_final_reward_and_restores_state(
     assert world_model.posterior.deterministic_latent_for_tests == posterior_mode
     assert torch.equal(torch.get_rng_state(), rng)
     assert all(p.grad is None for p in world_model.parameters())
+
+
+@pytest.mark.parametrize("sample_actions", [False, True])
+@pytest.mark.parametrize("sample_latents", [False, True])
+def test_evaluation_modes_are_independent_repeatable_and_restore_rng(
+    world_model, tmp_path, monkeypatch, sample_actions, sample_latents
+):
+    env = RewardSentinel(True)
+    monkeypatch.setattr("dreamerrl.eval.minihack_eval.gym.make", lambda *args, **kwargs: env)
+    actor = Actor(latent=world_model.latent, net=world_model.net_cfg)
+    original_act = actor.act
+    choices = []
+
+    def act(state, deterministic=False):
+        assert deterministic == (not sample_actions)
+        assert world_model.posterior.deterministic_latent_for_tests == (not sample_latents)
+        action, logits = original_act(state, deterministic=deterministic)
+        choices.append((action.clone(), state.z.clone()))
+        return action, logits
+
+    monkeypatch.setattr(actor, "act", act)
+    cfg = minihack_config(0, tmp_path)
+    original_mode = world_model.posterior.deterministic_latent_for_tests
+    rng = torch.get_rng_state().clone()
+    first = evaluate_minihack(
+        cfg,
+        world_model,
+        actor,
+        [10001, 10002],
+        sample_actions=sample_actions,
+        sample_latents=sample_latents,
+        sampling_seed=42,
+    )
+    first_choices = list(choices)
+    choices.clear()
+    torch.rand(17)  # Evaluation sampling must not depend on caller RNG position.
+    second = evaluate_minihack(
+        cfg,
+        world_model,
+        actor,
+        [10001, 10002],
+        sample_actions=sample_actions,
+        sample_latents=sample_latents,
+        sampling_seed=42,
+    )
+    assert first == second == [5.0, 5.0]
+    assert len(choices) == len(first_choices) == 4
+    for (a, z), (expected_a, expected_z) in zip(choices, first_choices):
+        assert torch.equal(a, expected_a) and torch.equal(z, expected_z)
+    assert world_model.posterior.deterministic_latent_for_tests == original_mode
+    torch.set_rng_state(rng)
+    evaluate_minihack(
+        cfg,
+        world_model,
+        actor,
+        [10001],
+        sample_actions=sample_actions,
+        sample_latents=sample_latents,
+        sampling_seed=42,
+    )
+    assert torch.equal(torch.get_rng_state(), rng)

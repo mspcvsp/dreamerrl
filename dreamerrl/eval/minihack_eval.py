@@ -17,13 +17,26 @@ from dreamerrl.env.minihack.minihack_utils import extract_glyphs
 
 
 @torch.no_grad()
-def evaluate_minihack(cfg, world, actor, episode_seeds, random_policy=False, should_stop=None):
+def evaluate_minihack(
+    cfg,
+    world,
+    actor,
+    episode_seeds,
+    random_policy=False,
+    should_stop=None,
+    *,
+    sample_actions=False,
+    sample_latents=False,
+    sampling_seed=0,
+):
     """Whole episode returns on held-out seeds, including the final reward.
 
     Use a separate, single environment to avoid vector autoreset ambiguities.
     Evaluation restores training modes and torch RNG state. Latent modes and
     greedy actions give a repeatable policy evaluation; random actions use the
-    independently seeded environment action space.
+    independently seeded environment action space. Action and latent sampling can
+    be enabled independently. Each episode gets a fixed Torch sampling seed;
+    caller RNG states are restored even when evaluation is interrupted.
     """
     device = next(world.parameters()).device
     devices = (
@@ -39,10 +52,14 @@ def evaluate_minihack(cfg, world, actor, episode_seeds, random_policy=False, sho
             env = TimeLimit(gym.make(cfg.env.env_id), max_episode_steps=cfg.env.max_episode_steps)
             world.eval()
             actor.eval()
-            world.posterior.deterministic_latent_for_tests = True
+            world.posterior.deterministic_latent_for_tests = not sample_latents
             for seed in episode_seeds:
                 if should_stop is not None and should_stop():
                     raise InterruptedError("Evaluation stop requested")
+                torch.default_generator.manual_seed(sampling_seed + seed)
+                if device.type == "cuda":
+                    with torch.cuda.device(device):
+                        torch.cuda.manual_seed(sampling_seed + seed)
                 obs, _ = env.reset(seed=seed)
                 env.action_space.seed(seed)
                 state = world.init_state(1)
@@ -74,7 +91,8 @@ def evaluate_minihack(cfg, world, actor, episode_seeds, random_policy=False, sho
                             action,
                             is_first=torch.tensor([t == 0], device=device),
                         )["post"]
-                        action_id = int(actor(state.h, state.z).argmax(-1).item())
+                        selected, _ = actor.act(state, deterministic=not sample_actions)
+                        action_id = int(selected.item())
                     obs, reward, terminated, truncated, _ = env.step(action_id)
                     total += float(reward)
                     if terminated or truncated:
