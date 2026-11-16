@@ -16,6 +16,23 @@ def observe_batch(world_model, batch):
     obs = obs.to(device)
     B, L, _ = obs.shape
     state = world_model.init_state(B)
+    if "burn_in_obs" in batch:
+        # Reconstruct with current weights, then truncate gradients at the window.
+        with torch.no_grad():
+            for t in range(batch["burn_in_obs"].shape[1]):
+                action = batch["burn_in_action"][:, t].to(device)
+                if action.ndim == 1:
+                    action = F.one_hot(action.long(), world_model.net_cfg.action_dim).float()
+                post = world_model.observe_step(
+                    state,
+                    batch["burn_in_obs"][:, t].to(device),
+                    action,
+                    is_first=batch["burn_in_is_first"][:, t].to(device),
+                )["post"]
+                valid = batch["burn_in_valid"][:, t].to(device).unsqueeze(-1)
+                state.h = torch.where(valid, post.h, state.h)
+                state.z = torch.where(valid.unsqueeze(-1), post.z, state.z)
+        state = state.detach()
     posts = []
     for t in range(L):
         action = batch["action"][:, t].to(device)

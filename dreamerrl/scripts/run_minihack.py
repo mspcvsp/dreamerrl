@@ -48,6 +48,9 @@ def main(*, default_env="MiniHack-Room-5x5-v0", default_episode_steps=200):
     parser.add_argument("--parallel", action="store_true")
     parser.add_argument("--batch-size", type=int, default=16)
     parser.add_argument("--seq-len", type=int, default=16)
+    parser.add_argument(
+        "--burn-in", type=int, default=16, help="Replay context steps before each training window; 0 disables"
+    )
     parser.add_argument("--collect-steps", type=int, default=16, help="Steps per environment between updates")
     parser.add_argument("--episode-steps", type=int, default=default_episode_steps)
     parser.add_argument("--imagination-horizon", type=int, default=15)
@@ -64,6 +67,8 @@ def main(*, default_env="MiniHack-Room-5x5-v0", default_episode_steps=200):
     ]:
         if getattr(args, name) < 1:
             parser.error(f"--{name.replace('_', '-')} must be positive")
+    if args.burn_in < 0:
+        parser.error("--burn-in must be nonnegative")
     if args.action_cost is not None and (not math.isfinite(args.action_cost) or args.action_cost < 0):
         parser.error("--action-cost must be finite and nonnegative")
     if args.updates is not None and args.updates < 1:
@@ -107,6 +112,7 @@ def main(*, default_env="MiniHack-Room-5x5-v0", default_episode_steps=200):
             cfg.train.use_amp = args.amp and cfg.train.cuda
             cfg.train.enable_fused_adamw_kernels = False
             cfg.train.batch_size, cfg.train.seq_len = args.batch_size, args.seq_len
+            cfg.train.burn_in = args.burn_in
             cfg.train.collect_steps, cfg.train.warmup_steps = args.collect_steps, args.warmup_updates
             cfg.train.model_lr = cfg.train.actor_lr = cfg.train.critic_lr = 3e-4
             cfg.train.random_exploration_steps, cfg.train.freeze_actor_critic_steps = 1000, 0

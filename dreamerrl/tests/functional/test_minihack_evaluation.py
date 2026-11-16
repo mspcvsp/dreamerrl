@@ -155,6 +155,7 @@ def test_real_minihack_evaluation_repeats_trajectories(world_model, tmp_path, mo
     """Check actual NLE observations and rewards, not just coincidentally equal returns."""
     make_env = gym.make
     with make_env(env_id) as probe:
+        assert isinstance(probe.action_space, gym.spaces.Discrete)
         world_model.net_cfg = replace(world_model.net_cfg, action_dim=probe.action_space.n)
     trajectories = []
 

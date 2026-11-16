@@ -5,13 +5,14 @@ from __future__ import annotations
 import math
 import random
 from statistics import mean, stdev
-from typing import TypedDict
+from typing import TypedDict, cast
 
 import gymnasium as gym
 import minihack  # noqa: F401
 import numpy as np
 import torch
 from gymnasium.wrappers import TimeLimit
+from minihack import MiniHack
 
 from dreamerrl.env.minihack.minihack_utils import extract_glyphs
 
@@ -61,7 +62,7 @@ def evaluate_minihack(
                     with torch.cuda.device(device):
                         torch.cuda.manual_seed(sampling_seed + seed)
                 # Gymnasium reset seeds its own RNG, not NetHack's separate RNGs.
-                env.unwrapped.seed(core=seed, disp=seed, reseed=False, lgen=seed)
+                cast(MiniHack, env.unwrapped).seed(core=seed, disp=seed, reseed=False, lgen=seed)
                 obs, _ = env.reset(seed=seed)
                 env.action_space.seed(seed)
                 state = world.init_state(1)

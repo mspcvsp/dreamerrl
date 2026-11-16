@@ -55,6 +55,9 @@ class ReplayBuffer:
 
         self.capacity = self.cfg.replay_capacity
         self.device = device
+        self.burn_in = self.cfg.burn_in
+        if self.burn_in < 0:
+            raise ValueError("burn_in must be nonnegative")
         self.seq_len = self.cfg.seq_len
         if self.seq_len < 1:
             raise ValueError("seq_len must be positive")
@@ -130,6 +133,7 @@ class ReplayBuffer:
             "episodes": [{k: v.detach().cpu() for k, v in ep.items()} for ep in self.episodes],
             "rng": self.rng.get_state(),
             "seq_len": self.seq_len,
+            "burn_in": self.burn_in,
             "obs_dim": self.obs_dim,
             "action_dim": self.action_dim,
             "capacity": self.capacity,
@@ -139,6 +143,8 @@ class ReplayBuffer:
         for key in ("seq_len", "obs_dim", "action_dim", "capacity"):
             if state[key] != getattr(self, key):
                 raise ValueError(f"Checkpoint replay {key} does not match the current configuration")
+        self.burn_in = state.get("burn_in", 0)
+        self.cfg.burn_in = self.burn_in
         self.episodes = [{k: v.to(self.device) for k, v in ep.items()} for ep in state["episodes"]]
         self.size = sum(ep["obs"].shape[0] for ep in self.episodes)
         self.rng.set_state(state["rng"].cpu())
@@ -165,6 +171,7 @@ class ReplayBuffer:
         done_batch = []
         terminal_batch = []
         first_batch = []
+        contexts = []
 
         for idx in indices:
             ep = self.episodes[idx]
@@ -179,6 +186,7 @@ class ReplayBuffer:
             if self.probe:
                 self.probe.replay_sample(seed=seed, ep_idx=idx, ep_len=length, start=start)
 
+            contexts.append({k: ep[k][max(0, start - self.burn_in) : start] for k in ("obs", "action", "is_first")})
             end = start + sample_len
 
             obs_batch.append(ep["obs"][start:end])
@@ -188,7 +196,24 @@ class ReplayBuffer:
             first_batch.append(ep["is_first"][start:end])
             terminal_batch.append(ep["is_terminal"][start:end])
 
+        # Left-padding is skipped by observe_batch; it is never a model target.
+        context_len = max(c["obs"].shape[0] for c in contexts)
+        context_batch = {}
+        for key in ("obs", "action", "is_first"):
+            padded = contexts[0][key].new_zeros((batch_size, context_len, *contexts[0][key].shape[1:]))
+            for row, context in enumerate(contexts):
+                length = context[key].shape[0]
+                if length:
+                    padded[row, -length:] = context[key]
+            context_batch[f"burn_in_{key}"] = padded.to(self.device)
+        valid = torch.zeros(batch_size, context_len, dtype=torch.bool, device=self.device)
+        for row, context in enumerate(contexts):
+            length = context["obs"].shape[0]
+            if length:
+                valid[row, -length:] = True
         return {
+            **context_batch,
+            "burn_in_valid": valid,
             "obs": torch.stack(obs_batch).to(self.device),
             "action": torch.stack(act_batch).to(self.device),
             "reward": torch.stack(rew_batch).to(self.device),

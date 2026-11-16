@@ -156,6 +156,7 @@ class TrainingConfig:
     # Replay buffer + sequence sampling.
     replay_capacity: int = 200_000
     seq_len: int = 16
+    burn_in: int = 16  # Preceding replay steps used only to reconstruct recurrent state.
     batch_size: int = 64
     collect_steps: int = 100
 

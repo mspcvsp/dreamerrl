@@ -41,8 +41,15 @@ never cross episodes. Replay selects episodes before choosing a shared batch
 length: the minimum of configured `seq_len` (default 16) and the shortest selected
 episode. Short episodes are retained without padding. Sequence length can vary
 between batches; frequent short episodes reduce context for that whole batch.
-Windows starting mid-episode initialize recurrent state at
-zero without a burn-in prefix.
+Windows starting mid-episode include up to `--burn-in` preceding transitions
+(default 16). The model reconstructs recurrent context with current weights under
+`no_grad`, then detaches state before the training window. Context is excluded
+from world-model losses and actor/critic imagination starts; `--seq-len` still
+controls the supervised window. Short prefixes are left-padded with a validity
+mask so padding never advances state. `--burn-in 0` restores zero-state windows.
+A bounded prefix approximates full episode context; increase it for longer memory
+requirements. Replay checkpoints preserve this setting; older checkpoints without
+it retain disabled burn-in when resumed.
 
 MiniHack uses same-step vector autoreset. `state` is the observation for the next
 policy action, while `transition_state` preserves the observation for the action
