@@ -177,7 +177,8 @@ class TrainingConfig:
     # Gradient clipping.
     grad_clip: float = 100.0
 
-    # Number of world‑model + actor/critic updates per environment step.
+    # Legacy placeholder: only 1 is supported (one update per collection cycle).
+    # Control replay usage with collect_steps, batch_size, and seq_len.
     updates_per_step: int = 1
 
     # Warmup for LR schedule.

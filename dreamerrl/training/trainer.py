@@ -84,6 +84,12 @@ class DreamerTrainer:
             raise ValueError("lambda_ must be finite and in [0, 1]")
         if not math.isfinite(cfg.ac.replay_value_scale) or cfg.ac.replay_value_scale < 0:
             raise ValueError("replay_value_scale must be finite and nonnegative")
+        if cfg.train.updates_per_step != 1:
+            raise ValueError(
+                "updates_per_step is unsupported except for 1; control cadence with collect_steps, "
+                "batch_size, and seq_len (one update per collection cycle)"
+            )
+        self.cadence_totals: dict[str, int | float] = {}
         self.ac_metrics: dict[str, torch.Tensor] = {}
         self.cfg = cfg
         self.sample_step = 0
@@ -226,6 +232,22 @@ class DreamerTrainer:
             self.critic.parameters(), lr=cfg.train.critic_lr, fused=self.cfg.train.enable_fused_adamw_kernels
         )
 
+        self._optimizer_steps = {"world_model": 0, "actor": 0, "critic": 0}
+        self._optimizer_step_handles = []
+        for name, optimizer in (
+            ("world_model", self.model_opt),
+            ("actor", self.actor_opt),
+            ("critic", self.critic_opt),
+        ):
+
+            def count_step(optimizer, args, kwargs, *, name=name):
+                # AMP-aware fused optimizers may be invoked but skip the update.
+                found_inf = getattr(optimizer, "found_inf", None)
+                if found_inf is None or found_inf.item() == 0:
+                    self._optimizer_steps[name] += 1
+
+            self._optimizer_step_handles.append(optimizer.register_step_post_hook(count_step))
+
         # -----------------------------------------------------
         # Logging
         # -----------------------------------------------------
@@ -274,6 +296,7 @@ class DreamerTrainer:
             "total_updates_target": self.total_updates_target,
             "total_env_steps": self.total_env_steps,
             "sample_step": self.sample_step,
+            "cadence_totals": dict(self.cadence_totals),
             "completed_episodes": self.completed_episodes,
             "run_state": self.run_state,
             "recent_returns": self.recent_returns,
@@ -381,6 +404,7 @@ class DreamerTrainer:
         self.total_updates_target = payload["total_updates_target"]
         self.total_env_steps = payload["total_env_steps"]
         self.sample_step = payload["sample_step"]
+        self.cadence_totals = dict(payload.get("cadence_totals", {}))
         self.completed_episodes = payload.get("completed_episodes", len(self.replay.episodes))
         self.run_state = payload.get("run_state", {})
         self.recent_returns = list(payload["recent_returns"])
@@ -408,6 +432,23 @@ class DreamerTrainer:
     # -------------------------------------------------------------
     # Training Loop
     # -------------------------------------------------------------
+    def _cadence_clock(self) -> float:
+        # Include completed CUDA work in phase timings, not just launch overhead.
+        if self.device.type == "cuda":
+            torch.cuda.synchronize(self.device)
+        return time.perf_counter()
+
+    @staticmethod
+    def _cadence_ratios(counts):
+        transitions = max(1, counts["env_transitions"])
+        return {
+            "replay_tokens_per_env_transition": counts["replay_tokens"] / transitions,
+            "world_model_updates_per_env_transition": counts["world_model_optimizer_steps"] / transitions,
+            "actor_updates_per_env_transition": counts["actor_optimizer_steps"] / transitions,
+            "critic_updates_per_env_transition": counts["critic_optimizer_steps"] / transitions,
+            "imagined_transitions_per_env_transition": counts["imagined_transitions"] / transitions,
+        }
+
     def train(
         self,
         total_updates: int,
@@ -431,7 +472,8 @@ class DreamerTrainer:
         lr_schedule = CosineWarmupScheduler(lr_cfg)
 
         for update_idx in range(self.completed_updates, total_updates):
-            t0 = time.perf_counter()
+            t0 = self._cadence_clock()
+            previous_optimizer_steps = dict(self._optimizer_steps)
             previous_env_steps = self.total_env_steps
 
             lr = lr_schedule(update_idx)
@@ -442,6 +484,7 @@ class DreamerTrainer:
             for pg in self.critic_opt.param_groups:
                 pg["lr"] = lr
 
+            collection_start = self._cadence_clock()
             self.collect_env_steps()
             if not self.replay.episodes:
                 warmup_calls = math.ceil(self.cfg.env.max_episode_steps / self.cfg.train.collect_steps)
@@ -455,13 +498,16 @@ class DreamerTrainer:
                         "check environment endings and replay capacity"
                     )
 
+            collection_end = self._cadence_clock()
             batch = self.replay.sample(
                 batch_size=self.cfg.train.batch_size,
                 seed=self.cfg.train.seed + self.sample_step,
             )
             self.sample_step += 1
 
+            replay_sample_end = self._cadence_clock()
             wm_metrics = self.update_world_model(batch, update_idx)
+            world_model_end = self._cadence_clock()
 
             if on_update is None and update_idx % self.cfg.train.console_log_interval == 0:
                 print(
@@ -490,7 +536,9 @@ class DreamerTrainer:
                         + " ".join(f"{name}={loss.item():.4f}" for name, loss in zip(aux_names, wm_metrics.aux_losses))
                     )
 
+            actor_critic_start = self._cadence_clock()
             actor_loss, critic_loss = self.update_actor_critic(batch, update_idx)
+            actor_critic_end = self._cadence_clock()
 
             if self.wandb_run is not None:
                 self.wandb_run.log(
@@ -504,7 +552,41 @@ class DreamerTrainer:
                 )
 
             self.completed_updates = update_idx + 1
-            elapsed = time.perf_counter() - t0
+            elapsed = self._cadence_clock() - t0
+            tokens = batch["obs"].shape[0] * batch["obs"].shape[1]
+            burn_in = int(batch["burn_in_valid"].sum().item()) if "burn_in_valid" in batch else 0
+            actor_critic_active = update_idx >= self.cfg.train.freeze_actor_critic_steps
+            passes = 2 if actor_critic_active else 1
+            context_tokens = (
+                batch["burn_in_obs"].shape[0] * batch["burn_in_obs"].shape[1] if "burn_in_obs" in batch else 0
+            )
+            cadence = {
+                "env_transitions": self.total_env_steps - previous_env_steps,
+                "replay_tokens": tokens,
+                "model_burn_in_tokens": burn_in,
+                "actor_critic_burn_in_tokens": burn_in if actor_critic_active else 0,
+                "posterior_tokens": (tokens + context_tokens) * passes,
+                "burn_in_padding_tokens": (context_tokens - burn_in) * passes,
+                "imagination_starts": tokens if actor_critic_active else 0,
+                "imagined_transitions": tokens * self.cfg.world.imagination_horizon if actor_critic_active else 0,
+                "world_model_optimizer_steps": self._optimizer_steps["world_model"]
+                - previous_optimizer_steps["world_model"],
+                "actor_optimizer_steps": self._optimizer_steps["actor"] - previous_optimizer_steps["actor"],
+                "critic_optimizer_steps": self._optimizer_steps["critic"] - previous_optimizer_steps["critic"],
+                "collection_seconds": collection_end - collection_start,
+                "replay_sample_seconds": replay_sample_end - collection_end,
+                "world_model_seconds": world_model_end - replay_sample_end,
+                "actor_critic_seconds": actor_critic_end - actor_critic_start,
+                "update_seconds": elapsed,
+            }
+            for name, value in cadence.items():
+                self.cadence_totals[name] = self.cadence_totals.get(name, 0) + value
+            cadence.update(self._cadence_ratios(cadence))
+            cumulative_cadence = {**self.cadence_totals, **self._cadence_ratios(self.cadence_totals)}
+            for name, value in cadence.items():
+                self.tb.add_scalar(f"cadence/{name}", value, update_idx)
+            for name, value in cumulative_cadence.items():
+                self.tb.add_scalar(f"cadence_total/{name}", value, update_idx)
             record = dict(
                 event="train",
                 update=self.completed_updates,
@@ -518,10 +600,10 @@ class DreamerTrainer:
                 credit_assignment={name: value.item() for name, value in self.ac_metrics.items()},
                 reward_coverage={name: value.item() for name, value in wm_metrics.reward_metrics.items()},
                 sequence_length=batch["obs"].shape[1],
+                cadence=cadence,
+                cadence_total=cumulative_cadence,
                 learning_rate=lr,
-                model_tokens_per_env_step=batch["obs"].shape[0]
-                * batch["obs"].shape[1]
-                / max(1, self.total_env_steps - previous_env_steps),
+                model_tokens_per_env_step=cadence["replay_tokens_per_env_transition"],
                 update_seconds=elapsed,
                 env_steps_per_second=(self.total_env_steps - previous_env_steps) / max(elapsed, 1e-9),
                 recent_return_mean=float(np.mean(self.recent_returns)) if self.recent_returns else None,

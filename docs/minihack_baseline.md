@@ -270,3 +270,48 @@ value loss, target count/mean and value-target MAE. Corresponding TensorBoard
 scalars are under `wm/` and `ac/`. Value-target MAE is a bootstrap diagnostic,
 not error against a measured full-episode return. If replay has no positive
 outcomes, stronger critic supervision cannot supply an undiscovered reward.
+
+
+## Measuring training cadence
+
+Each collection cycle performs one world-model optimizer update, then one actor
+and critic update unless they are frozen or an AMP update is skipped. No extra
+updates are scheduled by the legacy `updates_per_step` field: only its default
+value 1 is supported; other values now raise an error instead of being ignored.
+Adjust `--collect-steps`, `--batch-size`, and `--seq-len` to change replay usage.
+
+Every JSONL training event includes `cadence` (this cycle) and `cadence_total`
+(cumulative measured cycles). TensorBoard exposes the same scalars under
+`cadence/` and `cadence_total/`. Important fields are:
+
+| Field | Meaning |
+| --- | --- |
+| `env_transitions` | Actual collected transitions across all environments, including extra initial replay warmup. |
+| `replay_tokens` | Batch size times actual supervised sequence length; repeated samples count again. |
+| `replay_tokens_per_env_transition` | Replay tokens divided by newly collected transitions. This is the replay ratio used here. |
+| `world_model_optimizer_steps`, `actor_optimizer_steps`, `critic_optimizer_steps` | Completed optimizer calls, excluding frozen/skipped updates. |
+| `*_updates_per_env_transition` | Corresponding optimizer count divided by collected transitions. |
+| `model_burn_in_tokens`, `actor_critic_burn_in_tokens` | Valid context positions used by each posterior reconstruction pass, excluded from the replay ratio. |
+| `posterior_tokens`, `burn_in_padding_tokens` | All computed posterior positions across both passes, and the subset spent on masked burn-in padding. |
+| `imagination_starts`, `imagined_transitions` | Generated imagination work, including terminal/zero-weight starts; transitions equal starts times imagination horizon. |
+| `collection_seconds`, `replay_sample_seconds`, `world_model_seconds`, `actor_critic_seconds` | Wall time for the named phase. CUDA is synchronized at phase boundaries so timings include completed device work. |
+
+The existing top-level `model_tokens_per_env_step` remains an alias for this
+cycle's replay ratio. The dashboard labels it “Replay tokens/env step” and also
+shows world-model updates and imagined transitions per environment transition.
+Cumulative ratios divide summed tokens/updates by summed transitions; they do
+not average per-cycle ratios, which would misweight warmup and short batches.
+
+For the runner defaults, a full 16-by-16 replay batch processes 256 supervised
+positions after collecting 8 environments times 16 steps (128 transitions): replay
+ratio 2, with one world-model update per 128 transitions (0.0078125). With a
+15-step imagination rollout and active actor/critic, it generates 3,840 imagined
+transitions, or 30 per collected transition. Short length buckets and extra
+warmup collection change these ratios, so use the measured values.
+
+Totals persist in checkpoints. Older checkpoints lacking these measurements start
+empty totals on resume; historical usage is not inferred from update counts.
+Measurement covers `train()` cycles only. Evaluation, checkpoint writes, monitor
+callbacks, and standalone calls to collection/update methods are excluded. Phase
+synchronization adds some CUDA measurement overhead. Compare training at equal
+collected environment-step budgets, alongside replay ratio and elapsed time.
