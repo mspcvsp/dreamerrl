@@ -24,7 +24,7 @@ chunked and recomputed during backward to bound memory use.
 TensorBoard records `wm/glyph_accuracy`, `wm/glyph_changed_cells`, and, when changed
 cells exist, `wm/glyph_changed_loss` and `wm/glyph_changed_accuracy`. Changed cells
 are compared within the supervised window; reset boundaries are excluded. These
-metrics expose navigation errors that whole-grid reconstruction can hide. New spatial runs use the salient/background group budgets described below.
+metrics expose navigation errors that whole-grid reconstruction can hide. New spatial runs use modest informative-cell weighting described below.
 For the legacy weighted objective, `--glyph-loss-balance weighted
 --glyph-changed-weight 4` gives changed cells four times the reconstruction weight,
 normalized by total weight. Supplying the legacy changed-weight option without a
@@ -492,8 +492,8 @@ Vocabulary logits remain chunked/recomputed for memory efficiency. New spatial
 runner jobs default to:
 
 ```text
---glyph-loss-balance groups
---glyph-salient-fraction 0.5
+--glyph-loss-balance weighted
+--glyph-salient-weight 2
 --glyph-foreground entities
 --reconstruction-scale 1
 ```
@@ -503,7 +503,11 @@ foreground glyphs. `entities` uses installed NLE's monster/object glyph taxonomy
 including the visible player; it does not read privileged player coordinates.
 Thus a stationary player remains salient. Use `--glyph-foreground none` for a
 changed-only experiment. The selected foreground glyph IDs are saved in the
-configuration, fixing the taxonomy for checkpoint restoration.
+configuration, fixing the taxonomy for checkpoint restoration. All ordinary terrain
+cells retain weight 1; salient cells receive weight 2 by default. The weighted sum
+is divided by total weight, maintaining supervision on persistent/unchanged cells.
+Use `--glyph-loss-balance groups --glyph-salient-fraction 0.5` for the stronger
+fixed-budget alternative; it is now an explicit experiment rather than the default.
 
 `--glyph-loss-balance weighted --glyph-changed-weight 1 --glyph-foreground none`
 recovers the previous uniform objective. `--glyph-salient-weight` aliases the
@@ -528,18 +532,15 @@ states, including Unknown, for an optional grouped objective.
 
 ```python
 from dreamerrl.env.cage2.categorical_schema import (
-    encode_host_fields, make_cage2_decoder, salient_host_fields,
+    encode_host_fields, make_cage2_decoder, informative_host_loss,
 )
-from dreamerrl.models.categorical_fields import CategoricalLossConfig
 
 targets, observed = encode_host_fields(host_observations, host_order)
 decoder = make_cage2_decoder(feature_dim=64)
-# host_features has shape (..., hosts, 64) and must retain host identity.
+configs, salient = informative_host_loss(targets, observed)
+# host_features has shape (hosts, 64) and retains host identity.
 loss, metrics = decoder.loss(
-    host_features, targets, observed=observed,
-    salient=salient_host_fields(targets, observed),
-    configs={name: CategoricalLossConfig(balance="groups", salient_fraction=0.5)
-             for name in targets},
+    host_features, targets, observed=observed, salient=salient, configs=configs,
 )
 ```
 
@@ -547,3 +548,22 @@ This is a reusable field decoder and observation schema, not a completed CAGE2
 environment integration. The host encoder, RSSM-to-host features, action mapping,
 and simulator adapter still need implementation. Targets describe the BlueTable
 observation/belief, not hidden true compromise state.
+
+
+The CAGE2 informative weighting preset uses Activity class weights
+`None=1, Scan=2, Exploit=2`. These are modest explicit trial weights, not estimates
+of empirical rarity; pass `activity_weight=1` to disable the extra emphasis.
+Compromised targets always receive baseline weight 1, with a multiplier of 2 only
+for genuine observed changes in inferred compromise. Persistent `No`, `Unknown`,
+`User`, and `Privileged` labels remain supervised. `Unknown` is not missing.
+
+For temporal targets shaped `(batch, time, hosts)`, call
+`informative_host_loss(targets, observed, is_first=is_first, is_last=is_last)`.
+A change requires both adjacent labels to be observed, the same stable host order,
+and no intervening episode boundary. There is no bonus at a sequence's first
+observation, across missing-label gaps, or across resets. Single-frame host batches
+`(batch, hosts)` are not interpreted as time. `compromise_change_weight` configures
+the change multiplier; both configurable multipliers must be finite and at least 1.
+Each field's CE is normalized by the sum of its valid target weights, then the
+independently weighted field losses are summed. The preset never drops valid
+persistent labels or uses hidden simulator compromise state.

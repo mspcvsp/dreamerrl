@@ -151,3 +151,55 @@ def test_cage2_schema_rejects_dropped_or_duplicate_host_identity():
         encode_host_fields({"host1": {"Activity": "Scan"}}, ["host2"])
     with pytest.raises(ValueError, match="unique"):
         encode_host_fields({}, ["host1", "host1"])
+
+
+def test_informative_host_weights_preserve_persistence_and_exclude_reset_and_missing_changes():
+    from dreamerrl.env.cage2.categorical_schema import informative_host_loss
+
+    compromised = torch.tensor([[[0, 1], [2, 1], [2, 3], [3, 3], [-1, 0], [0, 0]]])
+    activity = torch.tensor([[[0, 1], [2, 0], [1, 0], [0, 0], [0, 0], [0, 0]]])
+    targets = {"Activity": activity, "Compromised": compromised}
+    observed = {"Activity": torch.ones_like(activity, dtype=torch.bool), "Compromised": compromised >= 0}
+    first = torch.tensor([[True, False, True, False, False, False]])
+    last = torch.tensor([[False, False, True, False, False, False]])
+    configs, salient = informative_host_loss(targets, observed, is_first=first, is_last=last)
+    expected = torch.zeros_like(compromised, dtype=torch.bool)
+    expected[:, 1, 0] = True
+    expected[:, 4, 1] = True
+    assert torch.equal(salient["Compromised"], expected)
+    assert configs["Activity"].class_weights == (1.0, 2.0, 2.0)
+    for name in targets:
+        ce = torch.ones_like(targets[name], dtype=torch.float32, requires_grad=True)
+        result = categorical_field_loss(
+            ce, targets[name], observed=observed[name], salient=salient[name], config=configs[name]
+        )
+        result.loss.backward()
+        assert ce.grad is not None
+        assert (ce.grad[observed[name]] > 0).all()  # persistent labels always train
+        assert ce.grad[~observed[name]].count_nonzero() == 0
+        if name == "Compromised":
+            torch.testing.assert_close(ce.grad[0, 1, 0], 2 * ce.grad[0, 1, 1])
+        else:
+            torch.testing.assert_close(ce.grad[0, 0, 1], 2 * ce.grad[0, 0, 0])
+
+
+def test_weighted_salience_retains_gradient_on_ordinary_cells():
+    ce = torch.tensor([7.0, 1.0, 1.0], requires_grad=True)
+    result = categorical_field_loss(
+        ce, torch.zeros(3), salient=torch.tensor([True, False, False]), config=CategoricalLossConfig(salient_weight=2)
+    )
+    torch.testing.assert_close(result.loss, torch.tensor(4.0))
+    result.loss.backward()
+    assert ce.grad is not None
+    torch.testing.assert_close(ce.grad, torch.tensor([0.5, 0.25, 0.25]))
+
+
+def test_single_frame_host_batches_do_not_imply_temporal_changes():
+    from dreamerrl.env.cage2.categorical_schema import informative_host_loss
+
+    targets = {"Activity": torch.zeros(2, 2, dtype=torch.long), "Compromised": torch.tensor([[0, 0], [2, 3]])}
+    observed = {name: torch.ones_like(value, dtype=torch.bool) for name, value in targets.items()}
+    _, salient = informative_host_loss(targets, observed)
+    assert not salient["Compromised"].any()
+    with pytest.raises(ValueError, match="explicit batch"):
+        informative_host_loss(targets, observed, is_first=torch.tensor([True, False]))

@@ -37,17 +37,17 @@ def main(*, default_env="MiniHack-Room-5x5-v0", default_episode_steps=200):
         "--glyph-salient-weight",
         type=float,
         default=None,
-        help="Weighted-mode multiplier for salient cells (at least 1)",
+        help="Weighted-mode multiplier for salient cells (default 2 for new runs)",
     )
     parser.add_argument(
         "--glyph-foreground",
         choices=["none", "entities"],
-        help="Foreground glyphs: new grouped runs default to entities (player/monsters/objects)",
+        help="Foreground glyphs: new runs default to entities (player/monsters/objects)",
     )
     parser.add_argument(
         "--glyph-loss-balance",
         choices=["weighted", "groups"],
-        help="New runs default to groups: fixed salient/background loss budgets",
+        help="New runs default to weighted: modest extra weight for salient cells",
     )
     parser.add_argument(
         "--glyph-salient-fraction", type=float, help="Changed/foreground-cell budget in groups mode; default 0.5"
@@ -205,15 +205,13 @@ def main(*, default_env="MiniHack-Room-5x5-v0", default_episode_steps=200):
                     rows, columns = observation["glyphs"].shape
                     cfg.world.glyph_shape = (int(rows), int(columns))
                 cfg.world.glyph_vocab_size = glyph_vocab_size()
-                cfg.world.glyph_loss_balance = args.glyph_loss_balance or (
-                    "weighted" if args.glyph_changed_weight is not None else "groups"
-                )
-                foreground_policy = args.glyph_foreground or (
-                    "entities" if cfg.world.glyph_loss_balance == "groups" else "none"
-                )
+                cfg.world.glyph_loss_balance = args.glyph_loss_balance or "weighted"
+                foreground_policy = args.glyph_foreground or "entities"
                 cfg.world.glyph_foreground_ids = glyph_entity_ids() if foreground_policy == "entities" else ()
                 cfg.world.glyph_changed_weight = (
-                    args.glyph_changed_weight if args.glyph_changed_weight is not None else 1.0
+                    args.glyph_changed_weight
+                    if args.glyph_changed_weight is not None
+                    else (1.0 if cfg.world.glyph_loss_balance == "groups" else 2.0)
                 )
                 if args.glyph_salient_fraction is not None:
                     cfg.world.glyph_salient_fraction = args.glyph_salient_fraction
