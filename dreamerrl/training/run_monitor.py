@@ -156,7 +156,15 @@ class MiniHackRunMonitor:
         if baseline is not None:
             # Older runs predate the optional replay critic loss (disabled then).
             baseline["spec"]["actor_critic"].setdefault("replay_value_scale", 0.0)
-            if baseline["spec"] != spec:
+            # Missing fields describe the previous uniform/weighted objective.
+            for name, default in (
+                ("glyph_foreground_ids", ()),
+                ("glyph_loss_balance", "weighted"),
+                ("glyph_salient_fraction", 0.5),
+                ("reconstruction_scale", 1.0),
+            ):
+                baseline["spec"]["world"].setdefault(name, default)
+            if json.loads(json.dumps(baseline["spec"])) != json.loads(json.dumps(spec)):
                 raise ValueError(
                     "Saved baselines use a different evaluation configuration; use the original seeds/episodes"
                 )

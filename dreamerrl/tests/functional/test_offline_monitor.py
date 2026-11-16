@@ -99,6 +99,13 @@ def test_monitor_persists_original_baselines_and_updates(tmp_path, monkeypatch, 
         original = resumed.run_state["minihack_monitor"]["baselines"]
         if legacy_baseline:
             del original["spec"]["actor_critic"]["replay_value_scale"]
+            for name in (
+                "glyph_foreground_ids",
+                "glyph_loss_balance",
+                "glyph_salient_fraction",
+                "reconstruction_scale",
+            ):
+                del original["spec"]["world"][name]
         evaluations.clear()
         with MiniHackRunMonitor(resumed, tmp_path, eval_every=1, eval_episodes=2, dashboard="off") as monitor:
             monitor.initialize()

@@ -185,3 +185,60 @@ def test_changed_cell_weight_uses_normalized_categorical_loss(monkeypatch):
     weights[:, 1, 4] = 4
     torch.testing.assert_close(metrics.recon_loss, (captured[0] * weights).sum() / weights.sum())
     assert metrics.reconstruction_metrics["glyph_changed_cells"] == 1
+
+
+def test_group_balanced_glyph_training_uses_separate_changed_and_static_means(monkeypatch):
+    wm = glyph_world()
+    assert isinstance(wm.decoder, GlyphDecoder)
+    wm.cfg.glyph_loss_balance = "groups"
+    wm.cfg.glyph_salient_fraction = 0.6
+    wm.cfg.reconstruction_scale = 2
+    obs = torch.zeros(1, 3, 15)
+    obs[:, 1:, 4] = 3
+    batch = dict(obs=obs, action=torch.zeros(1, 3, dtype=torch.long), reward=torch.zeros(1, 3))
+    original = wm.decoder.cell_loss
+    captured = []
+
+    def capture(*args):
+        loss = original(*args)
+        captured.append(loss)
+        return loss
+
+    monkeypatch.setattr(wm.decoder, "cell_loss", capture)
+    metrics = world_model_training_step(wm, batch)
+    mask = torch.zeros(1, 3, 15, dtype=torch.bool)
+    mask[:, 1, 4] = True
+    expected = 2 * (0.6 * captured[0][mask].mean() + 0.4 * captured[0][~mask].mean())
+    torch.testing.assert_close(metrics.recon_loss, expected)
+    torch.testing.assert_close(metrics.reconstruction_metrics["glyph_salient_loss_mass"], torch.tensor(0.6))
+    metrics.recon_loss.backward()
+    grad = wm.posterior.fc_logits.weight.grad
+    assert grad is not None and grad.abs().sum() > 0
+
+
+def test_stationary_foreground_gets_salient_budget_without_movement(monkeypatch):
+    wm = glyph_world()
+    assert isinstance(wm.decoder, GlyphDecoder)
+    wm.cfg.glyph_loss_balance = "groups"
+    wm.cfg.glyph_salient_fraction = 0.6
+    wm.cfg.glyph_foreground_ids = (3,)
+    obs = torch.zeros(1, 3, 15)
+    obs[..., 4] = 3
+    captured = []
+    original = wm.decoder.cell_loss
+
+    def capture(*args):
+        ce = original(*args)
+        captured.append(ce)
+        return ce
+
+    monkeypatch.setattr(wm.decoder, "cell_loss", capture)
+    metrics = world_model_training_step(
+        wm, dict(obs=obs, action=torch.zeros(1, 3, dtype=torch.long), reward=torch.zeros(1, 3))
+    )
+    foreground = obs == 3
+    expected = 0.6 * captured[0][foreground].mean() + 0.4 * captured[0][~foreground].mean()
+    torch.testing.assert_close(metrics.recon_loss, expected)
+    assert metrics.reconstruction_metrics["glyph_changed_cells"] == 0
+    assert metrics.reconstruction_metrics["glyph_foreground_cells"] == 3
+    torch.testing.assert_close(metrics.reconstruction_metrics["glyph_salient_loss_mass"], torch.tensor(0.6))

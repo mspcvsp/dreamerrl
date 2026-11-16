@@ -3,6 +3,7 @@ from __future__ import annotations
 import torch
 import torch.nn.functional as F
 
+from dreamerrl.models.categorical_fields import CategoricalLossConfig, categorical_field_loss
 from dreamerrl.models.glyph_model import GlyphDecoder
 from dreamerrl.utils.transforms import symlog
 from dreamerrl.utils.types import WorldModelMetrics
@@ -78,19 +79,41 @@ def world_model_training_step(world_model, batch, kl_scale=None) -> WorldModelMe
             changed[:, 1:] &= ~batch["is_first"][:, 1:].bool().unsqueeze(-1)
         if "is_last" in batch or "done" in batch:
             changed[:, 1:] &= ~batch.get("is_last", batch.get("done"))[:, :-1].bool().unsqueeze(-1)
-        weights = 1 + changed.float() * (world_model.cfg.glyph_changed_weight - 1)
-        recon_loss = (cell_loss * weights).sum() / weights.sum()
+        foreground = torch.zeros_like(changed)
+        if world_model.cfg.glyph_foreground_ids:
+            lookup = torch.zeros(decoder.vocab_size, dtype=torch.bool, device=device)
+            lookup[torch.tensor(world_model.cfg.glyph_foreground_ids, device=device)] = True
+            foreground = lookup[obs[..., : decoder.cells].long()]
+        salient = changed | foreground
+        reduced = categorical_field_loss(
+            cell_loss,
+            obs[..., : decoder.cells],
+            salient=salient,
+            config=CategoricalLossConfig(
+                balance=world_model.cfg.glyph_loss_balance,
+                salient_weight=world_model.cfg.glyph_changed_weight,
+                salient_fraction=world_model.cfg.glyph_salient_fraction,
+            ),
+        )
+        recon_loss = reduced.loss
         clock = decoded["clock"]
         if clock is not None:
             recon_loss = recon_loss + F.mse_loss(clock.reshape(B, L), obs[..., -1])
         with torch.no_grad():
             correct = decoder.predict(decoded).reshape(B, L, -1) == obs[..., : decoder.cells].long()
             reconstruction_metrics = {"glyph_accuracy": correct.float().mean(), "glyph_changed_cells": changed.sum()}
+            reconstruction_metrics.update({f"glyph_{name}": value for name, value in reduced.metrics.items()})
+            reconstruction_metrics["glyph_foreground_cells"] = foreground.sum()
+            if foreground.any():
+                reconstruction_metrics["glyph_foreground_loss"] = cell_loss.detach()[foreground].mean()
+                reconstruction_metrics["glyph_foreground_accuracy"] = correct[foreground].float().mean()
             if changed.any():
                 reconstruction_metrics["glyph_changed_loss"] = cell_loss.detach()[changed].mean()
                 reconstruction_metrics["glyph_changed_accuracy"] = correct[changed].float().mean()
     else:
         recon_loss = F.mse_loss(decoded.reshape(B, L, -1), symlog(obs))
+    reconstruction_metrics["reconstruction_scale"] = obs.new_tensor(world_model.cfg.reconstruction_scale)
+    recon_loss = world_model.cfg.reconstruction_scale * recon_loss
     reward_loss = world_model.reward_heads.main.loss_from_logits(
         reward_logits.reshape(B, L, -1),
         batch["reward"],

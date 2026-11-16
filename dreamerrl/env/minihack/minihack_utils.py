@@ -55,3 +55,12 @@ def extract_glyphs(obs: Any) -> np.ndarray:
         return glyphs
 
     raise RuntimeError(f"Unexpected MiniHack observation format: shape={glyphs.shape}")
+
+
+def glyph_entity_ids() -> tuple[int, ...]:
+    """Observable NLE monster/object glyphs, including the visible player glyph."""
+    from nle import nethack
+
+    is_monster = getattr(nethack, "glyph_is_monster")
+    is_object = getattr(nethack, "glyph_is_object")
+    return tuple(glyph for glyph in range(glyph_vocab_size()) if is_monster(glyph) or is_object(glyph))

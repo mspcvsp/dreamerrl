@@ -85,6 +85,10 @@ class WorldModelConfig:
     glyph_shape: tuple[int, int] | None = None
     glyph_vocab_size: int = 0
     glyph_changed_weight: float = 1.0
+    glyph_foreground_ids: tuple[int, ...] = ()
+    glyph_loss_balance: str = "weighted"  # Legacy-compatible; new runner jobs default to groups.
+    glyph_salient_fraction: float = 0.5
+    reconstruction_scale: float = 1.0
 
     # Reward head hidden size.
     reward_hidden: int = 256

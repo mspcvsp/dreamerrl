@@ -5,10 +5,9 @@ from typing import TypedDict
 
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
-from torch.utils.checkpoint import checkpoint
 
 from dreamerrl.models.base_obs_encoder import BaseEncoder
+from dreamerrl.models.categorical_fields import CategoricalField, CategoricalFieldHead
 
 
 class GlyphReconstruction(TypedDict):
@@ -82,7 +81,7 @@ class GlyphDecoder(nn.Module):
             nn.ConvTranspose2d(32, 16, 4, stride=2, padding=1),
             nn.SiLU(),
         )
-        self.classifier = nn.Linear(16, vocab_size)
+        self.classifier = CategoricalFieldHead(16, CategoricalField("glyph", vocab_size))
         self.clock_head = nn.Linear(latent.deter_size + latent.z_dim, 1) if clock else None
 
     def forward(self, h, z) -> GlyphReconstruction:
@@ -93,22 +92,10 @@ class GlyphDecoder(nn.Module):
         return {"glyph_features": features, "clock": self.clock_head(state) if self.clock_head is not None else None}
 
     def cell_loss(self, decoded: GlyphReconstruction, target: torch.Tensor) -> torch.Tensor:
-        features = decoded["glyph_features"].reshape(-1, 16)
-        ids = glyph_ids(target, self.cells, self.vocab_size).reshape(-1)
-
-        def cross_entropy(x, y):
-            return F.cross_entropy(self.classifier(x).float(), y, reduction="none")
-
-        losses = []
-        for x, y in zip(features.split(1024), ids.split(1024)):
-            if torch.is_grad_enabled():
-                losses.append(checkpoint(cross_entropy, x, y, use_reentrant=False))
-            else:
-                losses.append(cross_entropy(x, y))
-        return torch.cat(losses).reshape(*target.shape[:-1], self.cells)
+        ids = glyph_ids(target, self.cells, self.vocab_size)
+        features = decoded["glyph_features"].reshape(*ids.shape, 16)
+        return self.classifier.per_entity_loss(features, ids)
 
     @torch.no_grad()
     def predict(self, decoded: GlyphReconstruction) -> torch.Tensor:
-        features = decoded["glyph_features"]
-        ids = torch.cat([self.classifier(x).argmax(-1) for x in features.reshape(-1, 16).split(1024)])
-        return ids.reshape(*features.shape[:-1])
+        return self.classifier.predict(decoded["glyph_features"])

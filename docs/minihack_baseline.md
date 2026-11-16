@@ -24,9 +24,11 @@ chunked and recomputed during backward to bound memory use.
 TensorBoard records `wm/glyph_accuracy`, `wm/glyph_changed_cells`, and, when changed
 cells exist, `wm/glyph_changed_loss` and `wm/glyph_changed_accuracy`. Changed cells
 are compared within the supervised window; reset boundaries are excluded. These
-metrics expose navigation errors that whole-grid reconstruction can hide. Optional
-`--glyph-changed-weight 4` gives changed cells four times the reconstruction weight,
-normalized by total cell weight; the default is 1 (uniform categorical loss).
+metrics expose navigation errors that whole-grid reconstruction can hide. New spatial runs use the salient/background group budgets described below.
+For the legacy weighted objective, `--glyph-loss-balance weighted
+--glyph-changed-weight 4` gives changed cells four times the reconstruction weight,
+normalized by total weight. Supplying the legacy changed-weight option without a
+balance option also selects weighted mode.
 Neither representation nor weighting has established a corridor learning gain;
 compare held-out success over multiple seeds at equal environment-step budgets.
 
@@ -461,3 +463,87 @@ once so weights and replay come from the same update; it does not resume trainin
 The report records that update, sampled sequence lengths, and positive-reward
 coverage. Replay and held-out random trajectories can have different distributions,
 so compare both before interpreting a KL floor as posterior collapse.
+
+
+## Shared categorical fields and explicit reconstruction balance
+
+`models/categorical_fields.py` defines categorical field schemas, shared linear
+heads over entity tokens, and masked loss reduction. A field has its own class
+vocabulary. `CategoricalFieldDecoder` sums independently reduced field losses,
+with explicit `CategoricalLossConfig` options:
+
+- `field_weight`: scales one field relative to other fields.
+- `class_weights`: optional normalized class weights within that field.
+- `observed`: per-field masks exclude missing labels. Missing labels can be -1 or
+  NaN when masked; valid unknown categories are supervised normally.
+- `balance="weighted"`: normalized CE with a `salient_weight` multiplier.
+- `balance="groups"`: separately average salient and other entities, then combine
+  them using `salient_fraction`. Extra background cannot dilute this fixed budget.
+
+Group budgets apply across valid entities in the batch. If only one group is
+present it receives the full budget, avoiding a loss-scale drop on unchanged
+batches. An entirely unobserved field contributes differentiable zero loss. Class
+weights modify the effective target distribution and should be selected explicitly,
+not inferred from the held-out test set. Per-field metrics expose raw CE, balanced
+CE, weighted loss, observation counts, and effective salient mass.
+
+MiniHack uses the same `CategoricalFieldHead` for one glyph class per cell.
+Vocabulary logits remain chunked/recomputed for memory efficiency. New spatial
+runner jobs default to:
+
+```text
+--glyph-loss-balance groups
+--glyph-salient-fraction 0.5
+--glyph-foreground entities
+--reconstruction-scale 1
+```
+
+Salient cells are the union of within-episode changed cells and configured
+foreground glyphs. `entities` uses installed NLE's monster/object glyph taxonomy,
+including the visible player; it does not read privileged player coordinates.
+Thus a stationary player remains salient. Use `--glyph-foreground none` for a
+changed-only experiment. The selected foreground glyph IDs are saved in the
+configuration, fixing the taxonomy for checkpoint restoration.
+
+`--glyph-loss-balance weighted --glyph-changed-weight 1 --glyph-foreground none`
+recovers the previous uniform objective. `--glyph-salient-weight` aliases the
+legacy changed-weight option. In groups mode this multiplier must stay 1; use the
+salient-fraction setting instead. `--reconstruction-scale` controls total
+observation reconstruction (including the optional clock) relative to reward,
+continuation, and KL losses. Salience grouping applies only to glyph fields.
+These objective settings require a fresh run when changed through the CLI.
+
+Old checkpoint weights remain compatible: the glyph classifier keeps its original
+`classifier.weight`/`classifier.bias` keys. Missing configuration fields restore
+weighted mode, empty foreground, and reconstruction scale 1. Baseline journals
+also migrate these defaults. The currently running experiment is not changed by
+this implementation.
+
+The CAGE2 schema in `env/cage2/categorical_schema.py` exposes independent Activity
+(`None`, `Scan`, `Exploit`) and Compromised (`No`, `Unknown`, `User`, `Privileged`)
+fields. `encode_host_fields` requires explicit unique host ordering and returns
+per-field targets/masks. `Unknown` is a valid compromised category; a missing host
+or field is masked instead. `salient_host_fields` identifies observed non-default
+states, including Unknown, for an optional grouped objective.
+
+```python
+from dreamerrl.env.cage2.categorical_schema import (
+    encode_host_fields, make_cage2_decoder, salient_host_fields,
+)
+from dreamerrl.models.categorical_fields import CategoricalLossConfig
+
+targets, observed = encode_host_fields(host_observations, host_order)
+decoder = make_cage2_decoder(feature_dim=64)
+# host_features has shape (..., hosts, 64) and must retain host identity.
+loss, metrics = decoder.loss(
+    host_features, targets, observed=observed,
+    salient=salient_host_fields(targets, observed),
+    configs={name: CategoricalLossConfig(balance="groups", salient_fraction=0.5)
+             for name in targets},
+)
+```
+
+This is a reusable field decoder and observation schema, not a completed CAGE2
+environment integration. The host encoder, RSSM-to-host features, action mapping,
+and simulator adapter still need implementation. Targets describe the BlueTable
+observation/belief, not hidden true compromise state.

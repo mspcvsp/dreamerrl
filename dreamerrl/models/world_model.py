@@ -13,6 +13,7 @@ from dreamerrl.utils.types import DreamerConfig, LatentConfig, NetworkConfig
 
 from .aux_heads import make_aux_heads
 from .base_obs_encoder import BaseEncoder
+from .categorical_fields import CategoricalLossConfig
 from .categorical_kl import structured_kl
 from .continue_head import ContinueHead
 from .decoder import ObsDecoder
@@ -96,6 +97,8 @@ class WorldModel(nn.Module):
         self.obs_space = obs_space
         self.flat_obs_dim = get_flat_obs_dim(obs_space)
         self.embed_size = net.hidden_size
+        if not torch.isfinite(torch.tensor(self.cfg.reconstruction_scale)) or self.cfg.reconstruction_scale < 0:
+            raise ValueError("reconstruction_scale must be finite and nonnegative")
 
         self.encoder: BaseEncoder
         self.decoder: ObsDecoder | GlyphDecoder
@@ -108,6 +111,16 @@ class WorldModel(nn.Module):
                 raise ValueError("Glyph model requires a valid vocabulary and matching grid dimensions")
             if self.cfg.glyph_changed_weight < 1 or not torch.isfinite(torch.tensor(self.cfg.glyph_changed_weight)):
                 raise ValueError("glyph_changed_weight must be finite and at least 1")
+            if any(
+                not isinstance(glyph, int) or not 0 <= glyph < self.cfg.glyph_vocab_size
+                for glyph in self.cfg.glyph_foreground_ids
+            ):
+                raise ValueError("Foreground glyph IDs must belong to the configured vocabulary")
+            CategoricalLossConfig(
+                balance=self.cfg.glyph_loss_balance,
+                salient_weight=self.cfg.glyph_changed_weight,
+                salient_fraction=self.cfg.glyph_salient_fraction,
+            )
             self.encoder = GlyphEncoder(
                 self.cfg.glyph_shape, self.cfg.glyph_vocab_size, self.embed_size, clock=self.flat_obs_dim == cells + 1
             ).to(self.device)
