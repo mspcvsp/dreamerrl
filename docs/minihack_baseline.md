@@ -58,10 +58,20 @@ The other auxiliary heads remain available for experiments, with narrower claims
 Replay is batch-major `(B, L, ...)`. Each transition stores the resulting
 observation and the action/reward leading to it. The trainer also inserts each
 initial observation with zero action/reward and `is_first=True`. Sampled windows
-never cross episodes. Replay selects episodes before choosing a shared batch
-length: the minimum of configured `seq_len` (default 16) and the shortest selected
-episode. Short episodes are retained without padding. Sequence length can vary
-between batches; frequent short episodes reduce context for that whole batch.
+never cross episodes. Replay groups episodes by effective window length:
+`min(seq_len, episode_length)`, with `seq_len` defaulting to 16. Each update picks
+an episode uniformly to choose a bucket, then samples rows uniformly with
+replacement inside that bucket. Thus a short episode cannot shorten a long
+episode's training window, and short episodes remain eligible without padding.
+All episodes long enough for `seq_len` share the same full-length bucket.
+
+Bucket probability is proportional to episode count, preserving each episode's
+marginal sampling probability rather than favoring rare short lengths. Rows in a
+batch share a bucket and are therefore correlated in length; singleton short
+buckets repeat that episode across rows. Sequence length can still vary between
+updates, and JSONL `sequence_length` reports the actual supervised length. Bucket
+indexes are cached until completed episodes are added/evicted and rebuilt after
+checkpoint restoration. Episodes, RNG, and burn-in remain the persisted state.
 Windows starting mid-episode include up to `--burn-in` preceding transitions
 (default 16). The model reconstructs recurrent context with current weights under
 `no_grad`, then detaches state before the training window. Context is excluded

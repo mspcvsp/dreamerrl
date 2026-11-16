@@ -37,7 +37,7 @@ class ReplayBuffer:
     """
     Dreamer-V3 replay buffer:
       - stores full episodes
-      - samples unpadded sequences with one shared length per batch
+      - samples unpadded sequences from effective-length buckets
       - supports vectorized envs
     """
 
@@ -63,6 +63,7 @@ class ReplayBuffer:
             raise ValueError("seq_len must be positive")
 
         self.episodes: List[Dict[str, torch.Tensor]] = []
+        self._length_buckets: dict[int, list[int]] | None = None
         self.current_eps: List[Episode] = []
         self.num_envs = None
 
@@ -114,6 +115,7 @@ class ReplayBuffer:
     def _finalize_episode(self, idx: int):
         ep = self.current_eps[idx].finalize()
         self.episodes.append(ep)
+        self._length_buckets = None
         positive_steps = int((ep["reward"] > 0).sum().item())
         self.positive_reward_steps += positive_steps
         self.positive_reward_episodes += int(positive_steps > 0)
@@ -154,6 +156,7 @@ class ReplayBuffer:
         self.burn_in = state.get("burn_in", 0)
         self.cfg.burn_in = self.burn_in
         self.episodes = [{k: v.to(self.device) for k, v in ep.items()} for ep in state["episodes"]]
+        self._length_buckets = None
         self.size = sum(ep["obs"].shape[0] for ep in self.episodes)
         counts = [int((ep["reward"] > 0).sum().item()) for ep in self.episodes]
         self.positive_reward_steps = sum(counts)
@@ -171,10 +174,24 @@ class ReplayBuffer:
 
         if batch_size < 1:
             raise ValueError("batch_size must be positive")
-        # Include short episodes instead of silently filtering them out. All
-        # rows share the shortest selected length, with no padding or stitching.
-        indices = torch.randint(0, len(self.episodes), (batch_size,), generator=self.rng).tolist()
-        sample_len = min(self.seq_len, *(self.episodes[i]["obs"].shape[0] for i in indices))
+        if self._length_buckets is None:
+            self._length_buckets = {}
+            for idx, episode in enumerate(self.episodes):
+                length = min(self.seq_len, episode["obs"].shape[0])
+                self._length_buckets.setdefault(length, []).append(idx)
+        if len(self._length_buckets) == 1:
+            # Preserve the original sampling/RNG behavior for uniform lengths.
+            sample_len = next(iter(self._length_buckets))
+            indices = torch.randint(0, len(self.episodes), (batch_size,), generator=self.rng).tolist()
+        else:
+            # Episode-uniform anchor => bucket probability proportional to its
+            # episode count. Uniform draws inside that bucket preserve each
+            # episode's marginal probability, while keeping full window lengths.
+            anchor = int(torch.randint(0, len(self.episodes), (1,), generator=self.rng))
+            sample_len = min(self.seq_len, self.episodes[anchor]["obs"].shape[0])
+            candidates = self._length_buckets[sample_len]
+            draws = torch.randint(0, len(candidates), (batch_size,), generator=self.rng).tolist()
+            indices = [candidates[index] for index in draws]
 
         obs_batch = []
         act_batch = []

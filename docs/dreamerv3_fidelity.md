@@ -94,8 +94,9 @@ loading model or optimizer state. No implicit weight/optimizer
 conversion is performed. New finite-task configurations also add one time feature
 and must match the saved configuration when resuming.
 
-Replay now retains short trials with unpadded, shared-length batches instead of
-filtering them out. Collection chunk size no longer limits replay sequence length.
+Replay retains short trials in unpadded effective-length buckets. Long trials
+keep full configured windows; bucket selection preserves episode-uniform
+marginals without allowing a short trial to shrink a long trial's context. Collection chunk size no longer limits replay sequence length.
 Optional `finite_horizon` training makes remaining time observable, trains finite
 terminal targets, and bounds imagined returns at the known trial end. The default
 continuing-task semantics remain appropriate for artificial time-limit cutoffs.
