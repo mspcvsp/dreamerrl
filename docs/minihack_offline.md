@@ -235,3 +235,18 @@ python -m dreamerrl.scripts.evaluate_minihack \
 
 The checkpoint supplies the corridor environment and episode limit. Resume with
 `python -m dreamerrl.scripts.run_minihack_corridor --resume runs/corridor_r2_seed0/latest.pt`.
+
+## NetHack evaluation seeding
+
+Evaluation explicitly seeds NetHack's core, display, and level-generation RNGs
+before every episode, with automatic reseeding disabled. Gymnasium's
+`reset(seed=...)` alone does not seed these RNGs in the installed NLE version.
+The action space and Torch sampling are seeded separately. Regression tests
+compare real Room/Corridor glyph trajectories and rewards across repeated runs.
+
+Reports and cached baselines generated before this fix do not guarantee matching
+NetHack levels, even when their recorded episode seeds match. Re-evaluate saved
+trained and initial checkpoints with the corrected evaluator for fresh paired
+comparisons. Resuming an old run retains its cached baselines; those historical
+baseline comparisons should not be treated as paired with corrected evaluations.
+Training environment collection seeding is unchanged by this evaluation fix.

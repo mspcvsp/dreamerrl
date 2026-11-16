@@ -1,5 +1,7 @@
 """Evaluation must count whole episodes and leave training state untouched."""
 
+from dataclasses import replace
+
 import gymnasium as gym
 import numpy as np
 import pytest
@@ -19,8 +21,13 @@ class RewardSentinel(gym.Env):
         self.terminal = terminal
         self.seeds = []
         self.closed = False
+        self.nle_seeds = []
+
+    def seed(self, *, core, disp, reseed, lgen):
+        self.nle_seeds.append((core, disp, reseed, lgen))
 
     def reset(self, *, seed=None, options=None):
+        assert self.nle_seeds[-1] == (seed, seed, False, seed)
         super().reset(seed=seed)
         self.seeds.append(seed)
         self.t = 0
@@ -141,3 +148,40 @@ def test_evaluation_modes_are_independent_repeatable_and_restore_rng(
         sampling_seed=42,
     )
     assert torch.equal(torch.get_rng_state(), rng)
+
+
+@pytest.mark.parametrize("env_id", ["MiniHack-Room-5x5-v0", "MiniHack-Corridor-R2-v0"])
+def test_real_minihack_evaluation_repeats_trajectories(world_model, tmp_path, monkeypatch, env_id):
+    """Check actual NLE observations and rewards, not just coincidentally equal returns."""
+    make_env = gym.make
+    with make_env(env_id) as probe:
+        world_model.net_cfg = replace(world_model.net_cfg, action_dim=probe.action_space.n)
+    trajectories = []
+
+    class RecordTrajectory(gym.Wrapper):
+        def reset(self, **kwargs):
+            obs, info = super().reset(**kwargs)
+            trajectories.append([(obs["glyphs"].copy(), None, None)])
+            return obs, info
+
+        def step(self, action):
+            obs, reward, terminated, truncated, info = super().step(action)
+            trajectories[-1].append((obs["glyphs"].copy(), reward, (terminated, truncated)))
+            return obs, reward, terminated, truncated, info
+
+    monkeypatch.setattr(
+        "dreamerrl.eval.minihack_eval.gym.make",
+        lambda *args, **kwargs: RecordTrajectory(make_env(*args, **kwargs)),
+    )
+    cfg = minihack_config(0, tmp_path)
+    cfg.env.env_id = env_id
+    cfg.env.max_episode_steps = 20
+    actor = Actor(latent=world_model.latent, net=world_model.net_cfg)
+    first = evaluate_minihack(cfg, world_model, actor, [123, 456], random_policy=True)
+    second = evaluate_minihack(cfg, world_model, actor, [123, 456], random_policy=True)
+    assert first == second
+    for original, repeated in zip(trajectories[:2], trajectories[2:]):
+        assert len(original) == len(repeated)
+        for (obs, reward, done), (other_obs, other_reward, other_done) in zip(original, repeated):
+            np.testing.assert_array_equal(obs, other_obs)
+            assert (reward, done) == (other_reward, other_done)

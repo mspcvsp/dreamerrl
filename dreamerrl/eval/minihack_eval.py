@@ -60,6 +60,8 @@ def evaluate_minihack(
                 if device.type == "cuda":
                     with torch.cuda.device(device):
                         torch.cuda.manual_seed(sampling_seed + seed)
+                # Gymnasium reset seeds its own RNG, not NetHack's separate RNGs.
+                env.unwrapped.seed(core=seed, disp=seed, reseed=False, lgen=seed)
                 obs, _ = env.reset(seed=seed)
                 env.action_space.seed(seed)
                 state = world.init_state(1)
