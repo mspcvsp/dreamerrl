@@ -78,6 +78,13 @@ class DreamerTrainer:
         ):
             if value < 1:
                 raise ValueError(f"{name} must be positive")
+        if not math.isfinite(cfg.ac.discount) or not 0 < cfg.ac.discount <= 1:
+            raise ValueError("discount must be finite and in (0, 1]")
+        if not math.isfinite(cfg.ac.lambda_) or not 0 <= cfg.ac.lambda_ <= 1:
+            raise ValueError("lambda_ must be finite and in [0, 1]")
+        if not math.isfinite(cfg.ac.replay_value_scale) or cfg.ac.replay_value_scale < 0:
+            raise ValueError("replay_value_scale must be finite and nonnegative")
+        self.ac_metrics: dict[str, torch.Tensor] = {}
         self.cfg = cfg
         self.sample_step = 0
         self.completed_episodes = 0
@@ -506,6 +513,10 @@ class DreamerTrainer:
                 episodes=self.completed_episodes,
                 replay_size=self.replay.size,
                 replay_episodes=len(self.replay.episodes),
+                replay_positive_reward_steps=self.replay.positive_reward_steps,
+                replay_positive_reward_episodes=self.replay.positive_reward_episodes,
+                credit_assignment={name: value.item() for name, value in self.ac_metrics.items()},
+                reward_coverage={name: value.item() for name, value in wm_metrics.reward_metrics.items()},
                 sequence_length=batch["obs"].shape[1],
                 learning_rate=lr,
                 model_tokens_per_env_step=batch["obs"].shape[0]
@@ -753,6 +764,9 @@ class DreamerTrainer:
         self.tb.add_scalar("wm/kl_dyn", metrics.kl_dyn.item(), step)
         self.tb.add_scalar("wm/kl_rep", metrics.kl_rep.item(), step)
 
+        for name, value in metrics.reward_metrics.items():
+            self.tb.add_scalar(f"wm/{name}", value.item(), step)
+
         for name, value in metrics.reconstruction_metrics.items():
             self.tb.add_scalar(f"wm/{name}", value.item(), step)
 
@@ -765,6 +779,7 @@ class DreamerTrainer:
     # Actor + Critic Update
     # -------------------------------------------------------------
     def update_actor_critic(self, batch: Dict[str, torch.Tensor], update_idx: int):
+        self.ac_metrics = {}
         # Freeze actor/critic during reproducibility tests to prevent cross‑seed divergence.
         if update_idx < self.cfg.train.freeze_actor_critic_steps:
             return 0.0, 0.0
@@ -791,6 +806,8 @@ class DreamerTrainer:
                     slow_critic_scale=self.cfg.ac.slow_critic_scale,
                     entropy_scale=self.cfg.ac.entropy_scale,
                     remaining_steps=remaining_steps,
+                    replay_value_scale=self.cfg.ac.replay_value_scale,
+                    diagnostics=self.ac_metrics,
                 )
         else:
             actor_loss, critic_loss = actor_critic_update(
@@ -806,6 +823,8 @@ class DreamerTrainer:
                 slow_critic_scale=self.cfg.ac.slow_critic_scale,
                 entropy_scale=self.cfg.ac.entropy_scale,
                 remaining_steps=remaining_steps,
+                replay_value_scale=self.cfg.ac.replay_value_scale,
+                diagnostics=self.ac_metrics,
             )
 
         # AMP (Automatic Mixed Precision):
@@ -839,6 +858,8 @@ class DreamerTrainer:
             torch.nn.utils.clip_grad_norm_(self.critic.parameters(), self.cfg.train.grad_clip)
             self.critic_opt.step()
 
+        for name, value in self.ac_metrics.items():
+            self.tb.add_scalar(f"ac/{name}", value.item(), update_idx)
         self.update_slow_critic()
         return float(actor_loss.item()), float(critic_loss.item())
 

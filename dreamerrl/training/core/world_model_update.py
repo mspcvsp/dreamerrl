@@ -96,6 +96,17 @@ def world_model_training_step(world_model, batch, kl_scale=None) -> WorldModelMe
         batch["reward"],
     )
     cont_loss = world_model.continue_head.loss_from_logits(cont_logits, cont_target)
+    with torch.no_grad():
+        predicted_reward = world_model.reward_heads.main.readout(reward_logits).reshape(B, L)
+        actual_reward = batch["reward"]
+        positive = actual_reward > 0
+        reward_metrics = {
+            "positive_reward_fraction": positive.float().mean(),
+            "reward_prediction_mae": (predicted_reward - actual_reward).abs().mean(),
+        }
+        if positive.any():
+            reward_metrics["positive_reward_prediction_mae"] = (predicted_reward - actual_reward).abs()[positive].mean()
+            reward_metrics["positive_reward_prediction_mean"] = predicted_reward[positive].mean()
     aux_losses = []
     if not world_model.cfg.disable_aux_losses:
         for cfg in world_model.aux_objectives:
@@ -141,4 +152,5 @@ def world_model_training_step(world_model, batch, kl_scale=None) -> WorldModelMe
         kl_rep=kl_rep,
         aux_losses=aux_losses,
         reconstruction_metrics=reconstruction_metrics,
+        reward_metrics=reward_metrics,
     )

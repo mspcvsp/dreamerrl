@@ -154,6 +154,8 @@ class MiniHackRunMonitor:
         if baseline is None and path.exists():
             baseline = json.loads(path.read_text())
         if baseline is not None:
+            # Older runs predate the optional replay critic loss (disabled then).
+            baseline["spec"]["actor_critic"].setdefault("replay_value_scale", 0.0)
             if baseline["spec"] != spec:
                 raise ValueError(
                     "Saved baselines use a different evaluation configuration; use the original seeds/episodes"

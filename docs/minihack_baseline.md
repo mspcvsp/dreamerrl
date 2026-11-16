@@ -209,3 +209,54 @@ or episode: the training loop collects until its first completed episode is read
 then can sample context spanning collection calls. The first replay warmup is
 bounded by the configured episode length; an adapter that fails to end episodes
 raises a clear error instead of looping indefinitely.
+
+
+## Sparse rewards and credit assignment
+
+A longer imagination rollout only helps when its reward predictions or final
+critic bootstrap contain a useful signal. The runner now exposes `--discount`
+(default 0.99), `--lambda-return` (0.95), and `--random-exploration-steps` (1000
+environment transitions), alongside `--imagination-horizon` (15). These settings
+are saved in checkpoints. Explicit changes to the new controls require a fresh
+run; resuming without overrides uses the saved settings.
+
+Optional `--replay-value-scale 1` adds recorded-reward critic supervision to the
+imagined critic objective. It reconstructs replay posteriors with burn-in, then
+builds detached lambda-return targets in original reward units. For observation
+`obs[t]`, the immediate target reward is `reward[t+1]`, since replay stores
+resulting observations. Actual terminals stop bootstrapping; truncations stop the
+trace but retain the final-observation value. Reset crossings and the final
+bootstrap-only observation receive no replay loss. This loss updates the critic
+without gradients into the world model or actor. Recorded trajectories come from
+the behavior policy, so multi-step targets can introduce off-policy bias. The
+extension is experimental and defaults to 0 (disabled).
+
+An example experiment, not an established corridor configuration:
+
+```bash
+python -m dreamerrl.scripts.run_minihack_corridor --seed 0 \
+  --discount 0.997 --imagination-horizon 30 --seq-len 32 --burn-in 32 \
+  --lambda-return 0.95 --replay-value-scale 1 --random-exploration-steps 10000
+```
+
+Compare each change separately against the baseline over multiple seeds and equal
+environment-step budgets. Increasing sequence and imagination lengths costs more
+compute per update. At gamma 0.997 a reward 100 discount intervals away retains
+about 0.74 of its value, versus 0.37 at gamma 0.99; continuation probabilities and
+lambda mixing can further attenuate its contribution.
+
+JSONL train events include `replay_positive_reward_steps` and
+`replay_positive_reward_episodes`, plus a `reward_coverage` object with sampled
+positive-reward fraction, overall reward prediction MAE, and conditional positive
+reward prediction MAE/mean when positive examples are present. These count
+**training rewards after action cost**, not task success; use evaluation for task
+success. Replay counters reflect completed episodes currently retained, including
+eviction and checkpoint restoration. A sampled window can miss rare positives
+even when replay contains them.
+
+The `credit_assignment` object reports weighted imagined reward, continuation,
+return and value means, live start weight, and (when enabled and valid) replay
+value loss, target count/mean and value-target MAE. Corresponding TensorBoard
+scalars are under `wm/` and `ac/`. Value-target MAE is a bootstrap diagnostic,
+not error against a measured full-episode return. If replay has no positive
+outcomes, stronger critic supervision cannot supply an undiscovered reward.

@@ -140,6 +140,7 @@ class ActorCriticConfig:
     entropy_scale: float = 3e-4
     slow_critic_rate: float = 0.02
     slow_critic_scale: float = 1.0
+    replay_value_scale: float = 0.0  # Optional recorded-reward critic supervision.
 
 
 # ---------------------------------------------------------
@@ -394,3 +395,4 @@ class WorldModelMetrics:
     kl_rep: torch.Tensor
     aux_losses: List
     reconstruction_metrics: Dict[str, torch.Tensor] = field(default_factory=dict)
+    reward_metrics: Dict[str, torch.Tensor] = field(default_factory=dict)

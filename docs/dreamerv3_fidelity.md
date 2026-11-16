@@ -55,8 +55,10 @@ These are active design choices/omissions, not quarantined broken paths:
   losses aggregate feature dimensions differently, changing its effective balance
   against KL. Smaller reward/value supports (41 bins over symlog [-10,10]) are
   retained; the reference uses 255 bins. Out-of-support targets still clamp to endpoints.
-- Critic training currently uses imagined trajectories; the reference also includes
-  replay-value supervision. Replay windows reconstruct up to 16 preceding transitions with current weights
+- Critic training defaults to imagined trajectories. Optional recorded-reward
+  replay-value supervision is available as an experimental local extension; its
+  behavior-policy lambda targets do not establish equivalence to reference replay
+  supervision. Replay windows reconstruct up to 16 preceding transitions with current weights
   and detached gradients (configurable burn-in), rather than full episode context. Sampling is episode-based.
 - Discount 0.99 and task-specific imagination horizons remain configurable local
   choices. Continuation predicts actual survival and discount is applied separately.

@@ -68,6 +68,14 @@ def main(*, default_env="MiniHack-Room-5x5-v0", default_episode_steps=200):
     parser.add_argument("--collect-steps", type=int, default=16, help="Steps per environment between updates")
     parser.add_argument("--episode-steps", type=int, default=default_episode_steps)
     parser.add_argument("--imagination-horizon", type=int, default=15)
+    parser.add_argument("--discount", type=float, help="Return discount in (0, 1]; default 0.99")
+    parser.add_argument("--lambda-return", type=float, help="Lambda-return mixture in [0, 1]; default 0.95")
+    parser.add_argument(
+        "--replay-value-scale", type=float, help="Recorded-reward critic loss scale; default 0 (disabled)"
+    )
+    parser.add_argument(
+        "--random-exploration-steps", type=int, help="Initial random environment transitions; default 1000"
+    )
     parser.add_argument("--warmup-updates", type=int, default=500)
     args = parser.parse_args()
     for name in [
@@ -83,6 +91,16 @@ def main(*, default_env="MiniHack-Room-5x5-v0", default_episode_steps=200):
             parser.error(f"--{name.replace('_', '-')} must be positive")
     if not math.isfinite(args.glyph_changed_weight) or args.glyph_changed_weight < 1:
         parser.error("--glyph-changed-weight must be finite and at least 1")
+    if args.discount is not None and (not math.isfinite(args.discount) or not 0 < args.discount <= 1):
+        parser.error("--discount must be finite and in (0, 1]")
+    if args.lambda_return is not None and (not math.isfinite(args.lambda_return) or not 0 <= args.lambda_return <= 1):
+        parser.error("--lambda-return must be finite and in [0, 1]")
+    if args.replay_value_scale is not None and (
+        not math.isfinite(args.replay_value_scale) or args.replay_value_scale < 0
+    ):
+        parser.error("--replay-value-scale must be finite and nonnegative")
+    if args.random_exploration_steps is not None and args.random_exploration_steps < 0:
+        parser.error("--random-exploration-steps must be nonnegative")
     if args.burn_in < 0:
         parser.error("--burn-in must be nonnegative")
     if args.action_cost is not None and (not math.isfinite(args.action_cost) or args.action_cost < 0):
@@ -131,7 +149,16 @@ def main(*, default_env="MiniHack-Room-5x5-v0", default_episode_steps=200):
             cfg.train.burn_in = args.burn_in
             cfg.train.collect_steps, cfg.train.warmup_steps = args.collect_steps, args.warmup_updates
             cfg.train.model_lr = cfg.train.actor_lr = cfg.train.critic_lr = 3e-4
-            cfg.train.random_exploration_steps, cfg.train.freeze_actor_critic_steps = 1000, 0
+            cfg.train.random_exploration_steps = (
+                args.random_exploration_steps if args.random_exploration_steps is not None else 1000
+            )
+            cfg.train.freeze_actor_critic_steps = 0
+            if args.discount is not None:
+                cfg.ac.discount = args.discount
+            if args.lambda_return is not None:
+                cfg.ac.lambda_ = args.lambda_return
+            if args.replay_value_scale is not None:
+                cfg.ac.replay_value_scale = args.replay_value_scale
             cfg.log.enable_wandb = False
             cfg.log.tb_logdir, cfg.log.run_name = str(run_dir / "tensorboard"), "train"
             if args.glyph_model == "spatial":
@@ -144,6 +171,14 @@ def main(*, default_env="MiniHack-Room-5x5-v0", default_episode_steps=200):
             trainer = DreamerTrainer(cfg)
         if args.resume and args.action_cost is not None and args.action_cost != trainer.cfg.train.action_cost:
             parser.error("--action-cost must match the checkpoint; use a fresh run to change the reward objective")
+        for name, saved_value in (
+            ("discount", trainer.cfg.ac.discount),
+            ("lambda_return", trainer.cfg.ac.lambda_),
+            ("replay_value_scale", trainer.cfg.ac.replay_value_scale),
+            ("random_exploration_steps", trainer.cfg.train.random_exploration_steps),
+        ):
+            if args.resume and getattr(args, name) is not None and getattr(args, name) != saved_value:
+                parser.error(f"--{name.replace('_', '-')} must match the checkpoint; use a fresh run to change it")
         target = args.updates if args.updates is not None else (trainer.total_updates_target or 10000)
         if target < trainer.completed_updates:
             parser.error("--updates is below the checkpoint's completed update count")

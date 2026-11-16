@@ -67,6 +67,8 @@ class ReplayBuffer:
         self.num_envs = None
 
         self.size = 0
+        self.positive_reward_steps = 0
+        self.positive_reward_episodes = 0
         self.obs_dim = obs_dim
         self.action_dim = action_dim
 
@@ -112,6 +114,9 @@ class ReplayBuffer:
     def _finalize_episode(self, idx: int):
         ep = self.current_eps[idx].finalize()
         self.episodes.append(ep)
+        positive_steps = int((ep["reward"] > 0).sum().item())
+        self.positive_reward_steps += positive_steps
+        self.positive_reward_episodes += int(positive_steps > 0)
         self.current_eps[idx] = Episode()
 
         # capacity control
@@ -119,6 +124,9 @@ class ReplayBuffer:
         while self.size > self.capacity:
             removed = self.episodes.pop(0)
             self.size -= removed["obs"].shape[0]
+            positive_steps = int((removed["reward"] > 0).sum().item())
+            self.positive_reward_steps -= positive_steps
+            self.positive_reward_episodes -= int(positive_steps > 0)
 
         if self.probe:
             self.probe.replay_finalize(
@@ -147,6 +155,9 @@ class ReplayBuffer:
         self.cfg.burn_in = self.burn_in
         self.episodes = [{k: v.to(self.device) for k, v in ep.items()} for ep in state["episodes"]]
         self.size = sum(ep["obs"].shape[0] for ep in self.episodes)
+        counts = [int((ep["reward"] > 0).sum().item()) for ep in self.episodes]
+        self.positive_reward_steps = sum(counts)
+        self.positive_reward_episodes = sum(count > 0 for count in counts)
         self.rng.set_state(state["rng"].cpu())
         self.current_eps = []
         self.num_envs = None
