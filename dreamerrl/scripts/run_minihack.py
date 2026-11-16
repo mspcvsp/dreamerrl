@@ -7,8 +7,10 @@ import traceback
 from datetime import datetime, timezone
 from pathlib import Path
 
+import gymnasium as gym
 import torch
 
+from dreamerrl.env.minihack.minihack_utils import glyph_vocab_size
 from dreamerrl.models.aux_objectives import AUX_OBJECTIVES
 from dreamerrl.training.run_monitor import MiniHackRunMonitor, write_json
 from dreamerrl.training.trainer import DreamerTrainer
@@ -23,6 +25,18 @@ def main(*, default_env="MiniHack-Room-5x5-v0", default_episode_steps=200):
         type=float,
         default=None,
         help="Nonnegative cost per training action; default 0, resume uses saved cost",
+    )
+    parser.add_argument(
+        "--glyph-model",
+        choices=["spatial", "mlp"],
+        default="spatial",
+        help="Categorical spatial glyph model for new runs; mlp selects the legacy baseline",
+    )
+    parser.add_argument(
+        "--glyph-changed-weight",
+        type=float,
+        default=1.0,
+        help="Extra reconstruction weight for cells changed within a replay window (at least 1)",
     )
     parser.add_argument("--aux", choices=["none", "novelty"], default="none")
     parser.add_argument("--seed", type=int, default=0)
@@ -67,6 +81,8 @@ def main(*, default_env="MiniHack-Room-5x5-v0", default_episode_steps=200):
     ]:
         if getattr(args, name) < 1:
             parser.error(f"--{name.replace('_', '-')} must be positive")
+    if not math.isfinite(args.glyph_changed_weight) or args.glyph_changed_weight < 1:
+        parser.error("--glyph-changed-weight must be finite and at least 1")
     if args.burn_in < 0:
         parser.error("--burn-in must be nonnegative")
     if args.action_cost is not None and (not math.isfinite(args.action_cost) or args.action_cost < 0):
@@ -118,6 +134,13 @@ def main(*, default_env="MiniHack-Room-5x5-v0", default_episode_steps=200):
             cfg.train.random_exploration_steps, cfg.train.freeze_actor_critic_steps = 1000, 0
             cfg.log.enable_wandb = False
             cfg.log.tb_logdir, cfg.log.run_name = str(run_dir / "tensorboard"), "train"
+            if args.glyph_model == "spatial":
+                with gym.make(cfg.env.env_id) as probe:
+                    observation, _ = probe.reset(seed=cfg.env.seed)
+                    rows, columns = observation["glyphs"].shape
+                    cfg.world.glyph_shape = (int(rows), int(columns))
+                cfg.world.glyph_vocab_size = glyph_vocab_size()
+                cfg.world.glyph_changed_weight = args.glyph_changed_weight
             trainer = DreamerTrainer(cfg)
         if args.resume and args.action_cost is not None and args.action_cost != trainer.cfg.train.action_cost:
             parser.error("--action-cost must match the checkpoint; use a fresh run to change the reward objective")

@@ -3,6 +3,13 @@ from typing import Any
 import numpy as np
 
 
+def glyph_vocab_size() -> int:
+    """Read the integer constant exported dynamically by NLE's extension."""
+    from nle import nethack
+
+    return int(getattr(nethack, "MAX_GLYPH"))
+
+
 def extract_glyphs(obs: Any) -> np.ndarray:
     """
     Unified MiniHack glyph extractor.

@@ -753,6 +753,9 @@ class DreamerTrainer:
         self.tb.add_scalar("wm/kl_dyn", metrics.kl_dyn.item(), step)
         self.tb.add_scalar("wm/kl_rep", metrics.kl_rep.item(), step)
 
+        for name, value in metrics.reconstruction_metrics.items():
+            self.tb.add_scalar(f"wm/{name}", value.item(), step)
+
         for i, aux in enumerate(metrics.aux_losses):
             self.tb.add_scalar(f"wm/aux_loss_{i}", aux.item(), step)
 

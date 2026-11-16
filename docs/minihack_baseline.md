@@ -9,6 +9,27 @@ python -m dreamerrl.scripts.run_minihack --cpu --seed 0 --updates 1000
 python -m dreamerrl.scripts.run_minihack --cpu --seed 0 --updates 1000 --aux novelty
 ```
 
+New runner invocations default to `--glyph-model spatial`: glyph IDs index a learned
+embedding, followed by spatial convolutions. A spatial decoder predicts categorical
+glyph distributions with cross entropy, replacing scalar symlog MSE. Replay still
+stores flattened raw glyph IDs. `--glyph-model mlp` selects the previous vector
+baseline for paired comparisons. Resume always uses the checkpoint's architecture;
+use a fresh run to switch representations.
+
+The optional finite-horizon clock bypasses the glyph embedding and is reconstructed
+with a separate scalar MSE head. Vocabulary size comes from installed NLE's
+`MAX_GLYPH`, rather than an image-style 0–255 range. Decoder vocabulary logits are
+chunked and recomputed during backward to bound memory use.
+
+TensorBoard records `wm/glyph_accuracy`, `wm/glyph_changed_cells`, and, when changed
+cells exist, `wm/glyph_changed_loss` and `wm/glyph_changed_accuracy`. Changed cells
+are compared within the supervised window; reset boundaries are excluded. These
+metrics expose navigation errors that whole-grid reconstruction can hide. Optional
+`--glyph-changed-weight 4` gives changed cells four times the reconstruction weight,
+normalized by total cell weight; the default is 1 (uniform categorical loss).
+Neither representation nor weighting has established a corridor learning gain;
+compare held-out success over multiple seeds at equal environment-step budgets.
+
 The default task is `MiniHack-Room-5x5-v0`. Use `--env` to select another task.
 The baseline disables auxiliary objectives; the ablation adds only novelty,
 a prediction of next-observation change. Novelty is representation supervision,

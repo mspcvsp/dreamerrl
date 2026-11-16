@@ -61,8 +61,10 @@ These are active design choices/omissions, not quarantined broken paths:
 - Discount 0.99 and task-specific imagination horizons remain configurable local
   choices. Continuation predicts actual survival and discount is applied separately.
   Return-percentile EMA is initialized from the first batch rather than zero.
-- MiniHack glyph IDs are flattened scalar inputs, rather than a learned symbolic
-  or image representation. Novelty is an experimental observation-change proxy,
+- New MiniHack runner jobs use learned glyph embeddings, spatial convolutions,
+  and categorical grid reconstruction; the legacy scalar MLP remains selectable.
+  This is a task-specific symbolic representation, not the reference image model.
+  Novelty is an experimental observation-change proxy,
   not part of the reference DreamerV3 reward or objective.
 
 The pinned [configuration](https://github.com/danijar/dreamerv3/blob/e01491fad6434b2245a3b8ca201dd7faedcc458c/dreamerv3/configs.yaml#L79-L110)

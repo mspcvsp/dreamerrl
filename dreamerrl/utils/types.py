@@ -81,6 +81,11 @@ class WorldModelConfig:
     num_classes: int = 32
     hidden_size: int = 200
 
+    # Optional categorical MiniHack grid model; None preserves the vector MLP.
+    glyph_shape: tuple[int, int] | None = None
+    glyph_vocab_size: int = 0
+    glyph_changed_weight: float = 1.0
+
     # Reward head hidden size.
     reward_hidden: int = 256
 
@@ -388,3 +393,4 @@ class WorldModelMetrics:
     kl_dyn: torch.Tensor
     kl_rep: torch.Tensor
     aux_losses: List
+    reconstruction_metrics: Dict[str, torch.Tensor] = field(default_factory=dict)
