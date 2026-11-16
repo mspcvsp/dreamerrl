@@ -340,7 +340,7 @@ RNG scope, leaving the training/action RNG stream and replay sampler unchanged.
 A skipped model optimizer update does not refresh state.
 
 JSONL events include an `acting_state_refresh` object; TensorBoard logs its fields
-under `acting/`: valid `context_tokens`, padded `computed_tokens`,
+under `acting/`: valid `context_tokens`, `computed_tokens`,
 `max_context_length`, `truncated_rows`, `hidden_rms_change`, and
 `latent_changed_fraction`. The state-change metrics include posterior resampling
 noise and, for capped histories, context truncation; they are not a pure measure
@@ -352,3 +352,12 @@ The selected context policy persists in checkpoints. Older checkpoints without
 this field resume with refresh disabled; new runs default to full history. Live
 histories are not checkpointed because the simulator resets on resume. A resumed
 collector starts with fresh observations and builds new histories.
+
+
+Acting refresh encodes real observations in chunks of 256, then filters only active
+rows with the RSSM and posterior. It skips prior, decoder, reward, continuation,
+auxiliary heads, and KL calculations. No padded observations are encoded or
+filtered: `computed_tokens` now equals `context_tokens`. Histories remain full
+length unless explicitly capped. Batched filtering preserves posterior dynamics
+and sampling distributions; regrouping rows and omitting unused prior samples
+can change fixed-seed latent draws compared with the previous refresh path.

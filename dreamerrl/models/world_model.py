@@ -176,6 +176,17 @@ class WorldModel(nn.Module):
 
         return WorldModelState(h=h0, z=z0)
 
+    def filter_step(self, prev_state, embed, action, is_first=None) -> WorldModelState:
+        """Posterior filtering only: no prior, prediction heads, or training KL."""
+        prev_state = self._ensure_state(prev_state)
+        if is_first is not None:
+            keep = (~is_first.bool()).to(prev_state.h.dtype).unsqueeze(-1)
+            prev_state = WorldModelState(h=prev_state.h * keep, z=prev_state.z * keep.unsqueeze(-1))
+            action = action * keep
+        h = self.rssm(prev_state.h, prev_state.z, action)
+        stats = {**self.posterior(h, embed), "h": h}
+        return WorldModelState(h=h, z=stats["z"], post_stats=stats)
+
     def observe_step(
         self,
         prev_state: Any,
@@ -196,17 +207,11 @@ class WorldModel(nn.Module):
           • decode obs_t, reward_t, continue_t
           • compute structured KL with free‑nats
         """
-        prev_state = self._ensure_state(prev_state)
-        if is_first is not None:
-            keep = (~is_first.bool()).to(prev_state.h.dtype).unsqueeze(-1)
-            prev_state = WorldModelState(
-                h=prev_state.h * keep,
-                z=prev_state.z * keep.unsqueeze(-1),
-            )
-            action = action * keep
-        h = self.rssm(prev_state.h, prev_state.z, action)
         embed = self.encoder(obs)
-        post_stats = self.posterior(h, embed)
+        filtered = self.filter_step(prev_state, embed, action, is_first)
+        h = filtered.h
+        post_stats = filtered.post_stats
+        assert post_stats is not None
         prior_stats = self.prior(h)
         z = post_stats["z"]
         post_stats = {**post_stats, "h": h}

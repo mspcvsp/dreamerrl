@@ -25,7 +25,6 @@ from dreamerrl.models.value_head import ValueHead
 from dreamerrl.models.world_model import WorldModel, WorldModelState
 from dreamerrl.replay_buffer.replay_buffer import ReplayBuffer
 from dreamerrl.training.core import actor_critic_update, world_model_training_step
-from dreamerrl.training.core.world_model_update import observe_batch
 from dreamerrl.utils.seed import set_global_seeds
 from dreamerrl.utils.types import DreamerConfig, LatentConfig, LRScheduleConfig, NetworkConfig, WorldModelMetrics
 
@@ -826,35 +825,48 @@ class DreamerTrainer:
             histories.append((obs, action, first))
         max_length = max(obs.shape[0] for obs, _, _ in histories)
         B = self.env.batch_size
-        prefix = max_length - 1
-        batch = {
-            "obs": torch.stack([obs[-1] for obs, _, _ in histories]).unsqueeze(1),
-            "action": torch.stack([action[-1] for _, action, _ in histories]).unsqueeze(1),
-            "is_first": torch.stack([first[-1] for _, _, first in histories]).unsqueeze(1),
-            "burn_in_obs": torch.zeros(B, prefix, self.world.flat_obs_dim, device=self.device),
-            "burn_in_action": torch.zeros(B, prefix, self.action_dim, device=self.device),
-            "burn_in_is_first": torch.zeros(B, prefix, dtype=torch.bool, device=self.device),
-            "burn_in_valid": torch.zeros(B, prefix, dtype=torch.bool, device=self.device),
-        }
-        for row, (obs, action, first) in enumerate(histories):
-            length = obs.shape[0] - 1
-            if length:
-                batch["burn_in_obs"][row, -length:] = obs[:-1]
-                batch["burn_in_action"][row, -length:] = action[:-1]
-                batch["burn_in_is_first"][row, -length:] = first[:-1]
-                batch["burn_in_valid"][row, -length:] = True
         devices = (
             [self.device.index if self.device.index is not None else torch.cuda.current_device()]
             if self.device.type == "cuda"
             else []
         )
         with torch.random.fork_rng(devices=devices):
-            post = observe_batch(self.world, batch)[0]
+            # Encode only real observations, in larger batches, outside recurrence.
+            # Longest-first rows form an active prefix at each recurrent step.
+            order = sorted(range(B), key=lambda row: histories[row][0].shape[0], reverse=True)
+            lengths = [histories[row][0].shape[0] for row in order]
+            flat_obs = torch.cat([histories[row][0] for row in order])
+            embeddings = torch.cat([self.world.encoder(chunk) for chunk in flat_obs.split(256)])
+            embeds = embeddings.new_zeros(B, max_length, embeddings.shape[-1])
+            actions = torch.zeros(B, max_length, self.action_dim, device=self.device)
+            firsts = torch.zeros(B, max_length, dtype=torch.bool, device=self.device)
+            offset = 0
+            for position, row in enumerate(order):
+                _, action, first = histories[row]
+                length = lengths[position]
+                embeds[position, :length] = embeddings[offset : offset + length]
+                actions[position, :length] = action
+                firsts[position, :length] = first
+                offset += length
+            state = self.world.init_state(B)
+            active = B
+            for t in range(max_length):
+                while lengths[active - 1] <= t:
+                    active -= 1
+                filtered = self.world.filter_step(
+                    WorldModelState(h=state.h[:active], z=state.z[:active]),
+                    embeds[:active, t],
+                    actions[:active, t],
+                    firsts[:active, t],
+                )
+                state.h[:active] = filtered.h
+                state.z[:active] = filtered.z
+        inverse = torch.argsort(torch.tensor(order, device=self.device))
         previous = self.world_state
-        self.world_state = WorldModelState(h=post["h"].detach(), z=post["z"].detach())
+        self.world_state = WorldModelState(h=state.h[inverse].detach(), z=state.z[inverse].detach())
         return {
             "context_tokens": sum(obs.shape[0] for obs, _, _ in histories),
-            "computed_tokens": B * max_length,
+            "computed_tokens": sum(lengths),
             "max_context_length": max_length,
             "truncated_rows": truncated_rows,
             "hidden_rms_change": float((self.world_state.h - previous.h).square().mean().sqrt().item()),

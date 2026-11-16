@@ -70,7 +70,7 @@ def test_update_refreshes_asynchronous_rows_and_next_actor_input(tmp_path, monke
         assert not torch.equal(stale, trainer.world_state.h)
         assert trainer.world_state.h.grad_fn is None and trainer.world_state.z.grad_fn is None
         assert trainer.acting_refresh_metrics["context_tokens"] == 4
-        assert trainer.acting_refresh_metrics["computed_tokens"] == 6
+        assert trainer.acting_refresh_metrics["computed_tokens"] == 4
         assert trainer.acting_refresh_metrics["truncated_rows"] == 0
         original = trainer.actor.act
         inputs = []
@@ -146,3 +146,62 @@ def test_resume_starts_fresh_context_and_preserves_saved_policy(tmp_path, legacy
         close(trainer)
         if resumed is not None:
             close(resumed)
+
+
+@pytest.mark.parametrize("long_history", [False, True])
+def test_refresh_skips_heads_and_encodes_only_valid_history(tmp_path, monkeypatch, long_history):
+    trainer = make_trainer(tmp_path)
+    try:
+        trainer.collect_env_steps()
+        if long_history:
+            data = trainer.replay.current_eps[1].data
+            for key in ("obs", "action"):
+                data[key] = [data[key][0].clone() for _ in range(270)]
+            data["is_first"] = [torch.tensor(t == 0) for t in range(270)]
+        expected = [expected_row(trainer, row) for row in range(2)]
+        encoded, filtered = [], []
+        encoder = trainer.world.encoder.forward
+        rssm = trainer.world.rssm.forward
+
+        def encode(obs):
+            encoded.append(obs.shape[0])
+            return encoder(obs)
+
+        def transition(h, z, action):
+            filtered.append(h.shape[0])
+            return rssm(h, z, action)
+
+        def unused(*args, **kwargs):
+            raise AssertionError("Prediction/training heads must not run during refresh")
+
+        monkeypatch.setattr(trainer.world.encoder, "forward", encode)
+        monkeypatch.setattr(trainer.world.rssm, "forward", transition)
+        for head in (
+            trainer.world.prior,
+            trainer.world.decoder,
+            trainer.world.reward_heads,
+            trainer.world.continue_head,
+        ):
+            monkeypatch.setattr(head, "forward", unused)
+        metrics = trainer.refresh_acting_state()
+        assert encoded == ([256, 15] if long_history else [4])
+        assert filtered == ([2] + [1] * 269 if long_history else [2, 1, 1])
+        assert metrics["computed_tokens"] == metrics["context_tokens"] == (271 if long_history else 4)
+        for row, state in enumerate(expected):
+            torch.testing.assert_close(trainer.world_state.h[row], state.h[0])
+            torch.testing.assert_close(trainer.world_state.z[row], state.z[0])
+    finally:
+        close(trainer)
+
+
+def test_filter_step_matches_full_observe_with_identical_sampling(world_model):
+    state = world_model.init_state(2)
+    obs = torch.randn(2, world_model.flat_obs_dim)
+    action = F.one_hot(torch.tensor([0, 1]), world_model.net_cfg.action_dim).float()
+    first = torch.tensor([True, False])
+    rng = torch.get_rng_state()
+    observed = world_model.observe_step(state, obs, action, is_first=first)["post"]
+    torch.set_rng_state(rng)
+    filtered = world_model.filter_step(state, world_model.encoder(obs), action, first)
+    torch.testing.assert_close(filtered.h, observed.h)
+    torch.testing.assert_close(filtered.z, observed.z)
