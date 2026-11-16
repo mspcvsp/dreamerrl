@@ -275,10 +275,9 @@ outcomes, stronger critic supervision cannot supply an undiscovered reward.
 ## Measuring training cadence
 
 Each collection cycle performs one world-model optimizer update, then one actor
-and critic update unless they are frozen or an AMP update is skipped. No extra
-updates are scheduled by the legacy `updates_per_step` field: only its default
-value 1 is supported; other values now raise an error instead of being ignored.
-Adjust `--collect-steps`, `--batch-size`, and `--seq-len` to change replay usage.
+and critic update unless they are frozen or an AMP update is skipped. No additional
+updates are scheduled between collection cycles. Adjust
+`--collect-steps`, `--batch-size`, and `--seq-len` to change replay usage.
 
 Every JSONL training event includes `cadence` (this cycle) and `cadence_total`
 (cumulative measured cycles). TensorBoard exposes the same scalars under

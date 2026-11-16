@@ -177,10 +177,6 @@ class TrainingConfig:
     # Gradient clipping.
     grad_clip: float = 100.0
 
-    # Legacy placeholder: only 1 is supported (one update per collection cycle).
-    # Control replay usage with collect_steps, batch_size, and seq_len.
-    updates_per_step: int = 1
-
     # Warmup for LR schedule.
     warmup_steps: int = 2_000
 

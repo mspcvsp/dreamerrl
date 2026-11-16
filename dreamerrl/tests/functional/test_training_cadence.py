@@ -108,10 +108,3 @@ def test_skipped_optimizer_call_does_not_count_as_update(tmp_path, monkeypatch):
         assert cadence["replay_tokens"] > 0
     finally:
         close(trainer)
-
-
-def test_unsupported_update_setting_is_not_silently_ignored(tmp_path):
-    cfg = cadence_config(tmp_path)
-    cfg.train.updates_per_step = 2
-    with pytest.raises(ValueError, match="one update per collection cycle"):
-        DreamerTrainer(cfg)

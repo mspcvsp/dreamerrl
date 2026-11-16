@@ -84,11 +84,6 @@ class DreamerTrainer:
             raise ValueError("lambda_ must be finite and in [0, 1]")
         if not math.isfinite(cfg.ac.replay_value_scale) or cfg.ac.replay_value_scale < 0:
             raise ValueError("replay_value_scale must be finite and nonnegative")
-        if cfg.train.updates_per_step != 1:
-            raise ValueError(
-                "updates_per_step is unsupported except for 1; control cadence with collect_steps, "
-                "batch_size, and seq_len (one update per collection cycle)"
-            )
         self.cadence_totals: dict[str, int | float] = {}
         self.ac_metrics: dict[str, torch.Tensor] = {}
         self.cfg = cfg
