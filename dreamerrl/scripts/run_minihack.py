@@ -14,9 +14,9 @@ from dreamerrl.training.trainer import DreamerTrainer
 from dreamerrl.utils.types import make_default_config
 
 
-def main():
+def main(*, default_env="MiniHack-Room-5x5-v0", default_episode_steps=200):
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--env", default="MiniHack-Room-5x5-v0")
+    parser.add_argument("--env", default=default_env)
     parser.add_argument("--aux", choices=["none", "novelty"], default="none")
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--updates", type=int, default=None, help="Total desired updates, including resumed updates")
@@ -42,7 +42,7 @@ def main():
     parser.add_argument("--batch-size", type=int, default=16)
     parser.add_argument("--seq-len", type=int, default=16)
     parser.add_argument("--collect-steps", type=int, default=16, help="Steps per environment between updates")
-    parser.add_argument("--episode-steps", type=int, default=200)
+    parser.add_argument("--episode-steps", type=int, default=default_episode_steps)
     parser.add_argument("--imagination-horizon", type=int, default=15)
     parser.add_argument("--warmup-updates", type=int, default=500)
     args = parser.parse_args()
