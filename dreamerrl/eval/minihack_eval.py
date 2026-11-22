@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import math
 import random
+from enum import IntEnum
 from statistics import mean, stdev
 from typing import TypedDict, cast
 
@@ -15,6 +16,14 @@ from gymnasium.wrappers import TimeLimit
 from minihack import MiniHack
 
 from dreamerrl.env.minihack.minihack_utils import extract_glyphs
+from dreamerrl.eval.movement import MovementMetrics, MovementTracker
+
+
+class EpisodeDiagnostics(MovementMetrics):
+    seed: int
+    episode_return: float
+    terminated: bool
+    truncated: bool
 
 
 @torch.no_grad()
@@ -29,7 +38,8 @@ def evaluate_minihack(
     sample_actions=False,
     sample_latents=False,
     sampling_seed=0,
-):
+    episode_diagnostics: list[EpisodeDiagnostics] | None = None,
+) -> list[float]:
     """Whole episode returns on held-out seeds, including the final reward.
 
     Use a separate, single environment to avoid vector autoreset ambiguities.
@@ -70,6 +80,16 @@ def evaluate_minihack(
                 if action_dim is None:
                     raise ValueError("Evaluation requires a discrete action dimension")
                 action = torch.zeros(1, action_dim, device=device)
+                tracker = None
+                if episode_diagnostics is not None:
+                    from nle import nethack
+
+                    commands = getattr(env.unwrapped, "actions")
+                    time_index = int(getattr(nethack, "NLE_BL_TIME"))
+                    names = [getattr(command, "name", str(command)) for command in commands]
+                    tracker = MovementTracker(obs["blstats"][:2], names)
+                    compass_directions = set(cast(type[IntEnum], nethack.CompassDirection))
+                    movement_ids = {i for i, command in enumerate(commands) if command in compass_directions}
                 total = 0.0
                 for t in range(cfg.env.max_episode_steps):
                     if should_stop is not None and should_stop():
@@ -96,7 +116,15 @@ def evaluate_minihack(
                         )["post"]
                         selected, _ = actor.act(state, deterministic=not sample_actions)
                         action_id = int(selected.item())
+                    old_turn = int(obs["blstats"][time_index]) if tracker is not None else None
                     obs, reward, terminated, truncated, _ = env.step(action_id)
+                    if tracker is not None:
+                        tracker.step(
+                            action_id,
+                            obs["blstats"][:2],
+                            movement_action=action_id in movement_ids,
+                            turn_advanced=int(obs["blstats"][time_index]) != old_turn,
+                        )
                     total += float(reward)
                     if terminated or truncated:
                         break
@@ -105,6 +133,16 @@ def evaluate_minihack(
                         action_dim,
                     ).float()
                 returns.append(total)
+                if tracker is not None and episode_diagnostics is not None:
+                    episode_diagnostics.append(
+                        {
+                            **tracker.report(),
+                            "seed": seed,
+                            "episode_return": total,
+                            "terminated": bool(terminated),
+                            "truncated": bool(truncated),
+                        }
+                    )
         finally:
             if env is not None:
                 env.close()

@@ -694,3 +694,29 @@ was about 9%; rollout accuracy was 7–10%. Thus reconstruction already misses m
 navigation cues; this experiment does not isolate an additional long-horizon
 failure. See `runs/corridor_r2_recent_seed0_20261116/imagination_probe_summary.md`
 and its raw JSON report. Re-run after training with informative-cell weighting.
+
+### Compare greedy and sampled policy behavior
+
+```bash
+python -m dreamerrl.scripts.compare_minihack_policies --device cuda \
+  --checkpoint runs/<run>/policy_comparison_weights_update500.pt \
+  --episodes 20 --seed-start 10000 \
+  --output runs/<run>/policy_comparison_update500.json
+```
+
+Use a frozen weights-only snapshot so all modes evaluate the same checkpoint
+while training continues. The CLI runs all four combinations of greedy/sampled
+actions and mode/sampled posterior latents on identical environment seeds. Each
+mode receives the same per-episode sampling seed; trajectories diverge, so this
+is not a guarantee of identical random variates across paths. One sampling
+replicate per level is descriptive; repeat seeds before drawing strong conclusions.
+
+Per-episode metrics include return, termination/truncation, step count, fraction
+of unchanged positions, longest stationary streak, unique tiles, two-step returns,
+failed compass movement attempts, and action counts/frequencies. Aggregate reports
+include movement and frozen-game-turn rates plus paired sampled-action return
+differences. Positions/game turns come from `blstats` only for diagnostics and
+never enter the policy. Single-environment stepping includes the final transition
+and resets movement history for each episode. NetHack's default constant penalty
+checks whether game time advanced; standing still during SEARCH/OPEN/KICK is a
+different event. Neither termination nor movement alone proves task success.

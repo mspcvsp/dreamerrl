@@ -1,13 +1,15 @@
 """Evaluation must count whole episodes and leave training state untouched."""
 
 from dataclasses import replace
+from enum import IntEnum
+from typing import cast
 
 import gymnasium as gym
 import numpy as np
 import pytest
 import torch
 
-from dreamerrl.eval.minihack_eval import evaluate_minihack
+from dreamerrl.eval.minihack_eval import EpisodeDiagnostics, evaluate_minihack
 from dreamerrl.models.actor import Actor
 from dreamerrl.models.world_model import WorldModel
 from dreamerrl.tests.manual.utils import minihack_config
@@ -186,3 +188,41 @@ def test_real_minihack_evaluation_repeats_trajectories(world_model, tmp_path, mo
         for (obs, reward, done), (other_obs, other_reward, other_done) in zip(original, repeated):
             np.testing.assert_array_equal(obs, other_obs)
             assert (reward, done) == (other_reward, other_done)
+
+
+def test_movement_diagnostics_include_final_step_and_reset_each_episode(world_model, tmp_path, monkeypatch):
+    from nle import nethack
+
+    class PositionedSentinel(RewardSentinel):
+        actions = tuple(cast(type[IntEnum], nethack.CompassDirection))[:5]
+
+        def observation(self):
+            stats = np.zeros(27, dtype=np.int64)
+            stats[:2] = (1, 1 + int(self.t == 2))
+            stats[int(getattr(nethack, "NLE_BL_TIME"))] = int(self.t == 2)
+            return {"glyphs": np.zeros((2, 4), dtype=np.float32), "blstats": stats}
+
+        def reset(self, **kwargs):
+            super().reset(**kwargs)
+            return self.observation(), {}
+
+        def step(self, action):
+            _, reward, terminated, truncated, info = super().step(action)
+            return self.observation(), reward, terminated, truncated, info
+
+    env = PositionedSentinel(True)
+    monkeypatch.setattr("dreamerrl.eval.minihack_eval.gym.make", lambda *args, **kwargs: env)
+    actor = Actor(latent=world_model.latent, net=world_model.net_cfg)
+    episodes: list[EpisodeDiagnostics] = []
+    returns = evaluate_minihack(
+        minihack_config(0, tmp_path), world_model, actor, [1, 2], random_policy=True, episode_diagnostics=episodes
+    )
+    assert returns == [5.0, 5.0]
+    for episode in episodes:
+        assert episode["steps"] == 2
+        assert episode["longest_stationary_streak"] == 1
+        assert episode["unique_tiles"] == 2
+        assert episode["movement_steps"] == 1
+        assert episode["frozen_game_turns"] == 1
+        assert sum(episode["action_counts"].values()) == 2
+        assert episode["terminated"] and not episode["truncated"]
