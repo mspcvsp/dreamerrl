@@ -11,6 +11,7 @@ import gymnasium as gym
 import torch
 
 from dreamerrl.env.minihack.minihack_utils import glyph_entity_ids, glyph_vocab_size
+from dreamerrl.eval.corridor_diagnostics import CORRIDOR_R2
 from dreamerrl.models.aux_objectives import AUX_OBJECTIVES
 from dreamerrl.training.run_monitor import MiniHackRunMonitor, write_json
 from dreamerrl.training.trainer import DreamerTrainer
@@ -75,6 +76,11 @@ def main(*, default_env="MiniHack-Room-5x5-v0", default_episode_steps=200):
     )
     parser.add_argument("--eval-episodes", type=int, default=None, help="Fixed validation levels, default 20")
     parser.add_argument("--eval-seed-start", type=int, default=None)
+    parser.add_argument(
+        "--stair-diagnostics",
+        action="store_true",
+        help="Log first stair opportunities in greedy and sampled R2 evaluation",
+    )
     parser.add_argument("--num-envs", type=int, default=8)
     parser.add_argument("--parallel", action="store_true")
     parser.add_argument("--batch-size", type=int, default=16)
@@ -242,6 +248,8 @@ def main(*, default_env="MiniHack-Room-5x5-v0", default_episode_steps=200):
             parser.error("--updates is below the checkpoint's completed update count")
         trainer.total_updates_target = target
         checkpoint = args.checkpoint or (args.resume if args.resume and args.run_dir is None else run_dir / "latest.pt")
+        if args.stair_diagnostics and trainer.cfg.env.env_id != CORRIDOR_R2:
+            parser.error("--stair-diagnostics requires MiniHack Corridor R2")
         saved = trainer.run_state.get("minihack_monitor", {})
         saved_seeds = saved.get("baselines", {}).get("spec", {}).get("evaluation_seeds", [])
         episodes = args.eval_episodes if args.eval_episodes is not None else (len(saved_seeds) or 20)
@@ -256,6 +264,7 @@ def main(*, default_env="MiniHack-Room-5x5-v0", default_episode_steps=200):
             eval_episodes=episodes,
             eval_seed_start=eval_seed,
             dashboard=args.dashboard,
+            stair_diagnostics=args.stair_diagnostics,
         ) as monitor:
 
             def request_stop(signum, frame):

@@ -16,6 +16,7 @@ from gymnasium.wrappers import TimeLimit
 from minihack import MiniHack
 
 from dreamerrl.env.minihack.minihack_utils import extract_glyphs
+from dreamerrl.eval.corridor_diagnostics import CORRIDOR_R2, CorridorEpisode, compass_actions, stair_opportunity
 from dreamerrl.eval.movement import MovementMetrics, MovementTracker
 
 
@@ -39,6 +40,7 @@ def evaluate_minihack(
     sample_latents=False,
     sampling_seed=0,
     episode_diagnostics: list[EpisodeDiagnostics] | None = None,
+    corridor_diagnostics: list[CorridorEpisode] | None = None,
 ) -> list[float]:
     """Whole episode returns on held-out seeds, including the final reward.
 
@@ -49,6 +51,8 @@ def evaluate_minihack(
     be enabled independently. Each episode gets a fixed Torch sampling seed;
     caller RNG states are restored even when evaluation is interrupted.
     """
+    if corridor_diagnostics is not None and (random_policy or cfg.env.env_id != CORRIDOR_R2):
+        raise ValueError("Stair diagnostics require an actor in MiniHack Corridor R2")
     device = next(world.parameters()).device
     devices = (
         [device.index if device.index is not None else torch.cuda.current_device()] if device.type == "cuda" else []
@@ -61,6 +65,7 @@ def evaluate_minihack(
     with torch.random.fork_rng(devices=devices):
         try:
             env = TimeLimit(gym.make(cfg.env.env_id), max_episode_steps=cfg.env.max_episode_steps)
+            moves = compass_actions(getattr(env.unwrapped, "actions")) if corridor_diagnostics is not None else None
             world.eval()
             actor.eval()
             world.posterior.deterministic_latent_for_tests = not sample_latents
@@ -91,6 +96,7 @@ def evaluate_minihack(
                     compass_directions = set(cast(type[IntEnum], nethack.CompassDirection))
                     movement_ids = {i for i, command in enumerate(commands) if command in compass_directions}
                 total = 0.0
+                opportunity = None
                 for t in range(cfg.env.max_episode_steps):
                     if should_stop is not None and should_stop():
                         raise InterruptedError("Evaluation stop requested")
@@ -114,10 +120,14 @@ def evaluate_minihack(
                             action,
                             is_first=torch.tensor([t == 0], device=device),
                         )["post"]
-                        selected, _ = actor.act(state, deterministic=not sample_actions)
+                        selected, logits = actor.act(state, deterministic=not sample_actions)
                         action_id = int(selected.item())
+                        if moves is not None and opportunity is None:
+                            opportunity = stair_opportunity(
+                                obs, moves, step=t + 1, logits=logits, chosen_action=action_id
+                            )
                     old_turn = int(obs["blstats"][time_index]) if tracker is not None else None
-                    obs, reward, terminated, truncated, _ = env.step(action_id)
+                    obs, reward, terminated, truncated, info = env.step(action_id)
                     if tracker is not None:
                         tracker.step(
                             action_id,
@@ -133,6 +143,25 @@ def evaluate_minihack(
                         action_dim,
                     ).float()
                 returns.append(total)
+                if corridor_diagnostics is not None:
+                    outcome = info["end_status"].name
+                    corridor_diagnostics.append(
+                        {
+                            "seed": seed,
+                            "actor_mode": "sampled" if sample_actions else "greedy",
+                            "opportunity": opportunity,
+                            "immediate_entry": (
+                                opportunity is not None
+                                and opportunity["step"] == t + 1
+                                and opportunity["chosen_action"] == opportunity["winning_action"]
+                                and outcome == "TASK_SUCCESSFUL"
+                            ),
+                            "end_status": outcome,
+                            "terminated": bool(terminated),
+                            "truncated": bool(truncated),
+                            "episode_return": total,
+                        }
+                    )
                 if tracker is not None and episode_diagnostics is not None:
                     episode_diagnostics.append(
                         {

@@ -623,6 +623,18 @@ class DreamerTrainer:
                 },
                 cuda_memory_mb=torch.cuda.memory_allocated(self.device) / 2**20 if self.device.type == "cuda" else None,
             )
+            if self.cfg.env.env_id == "MiniHack-Corridor-R2-v0":
+                # The reward loss averages every supervised token in this batch.
+                # Replay episodes carry no source label, including on resume.
+                rewards = batch["reward"]
+                win_target = rewards.new_tensor(1.0) - self.cfg.train.action_cost
+                count = int((rewards.eq(win_target) & ~batch["is_first"].bool()).sum().item())
+                record["reward_coverage"]["plus_one_targets"] = count
+                record["reward_coverage"]["plus_one_provenance"] = {
+                    "unknown": count,
+                    "scripted": None,
+                    "actor_collected": None,
+                }
             keep_running = on_update(record) if on_update is not None else None
             if checkpoint_path is not None and (
                 self.completed_updates % checkpoint_every == 0

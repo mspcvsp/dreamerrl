@@ -190,3 +190,32 @@ def test_reward_diagnostics_expose_error_on_rare_positive_rewards(world_model, m
     assert metrics["positive_reward_prediction_mean"] == 0.25
     batch["reward"].zero_()
     assert "positive_reward_prediction_mae" not in world_model_training_step(world_model, batch).reward_metrics
+
+
+def test_r2_reward_loss_counts_shaped_win_and_excludes_reset_token(tmp_path, monkeypatch):
+    from dreamerrl.tests.manual.utils import minihack_config
+    from dreamerrl.training.trainer import DreamerTrainer
+
+    cfg = minihack_config(0, tmp_path)
+    cfg.env.env_id = "MiniHack-Corridor-R2-v0"
+    cfg.env.num_envs = 1
+    cfg.train.action_cost = 1.0
+    trainer = DreamerTrainer(cfg)
+    try:
+        obs = trainer.env_state["state"][:1]
+        zero = obs.new_zeros(1)
+        trainer.replay.add(obs, zero.long(), zero, zero + 1, zero + 1, initial_obs=obs)
+        monkeypatch.setattr(trainer, "collect_env_steps", lambda: None)
+        records = []
+        trainer.train(1, on_update=records.append)
+        coverage = records[0]["reward_coverage"]
+        assert coverage["positive_reward_fraction"] == 0
+        assert coverage["plus_one_targets"] == cfg.train.batch_size
+        assert coverage["plus_one_provenance"] == {
+            "unknown": cfg.train.batch_size,
+            "scripted": None,
+            "actor_collected": None,
+        }
+    finally:
+        trainer.env.venv.close()
+        trainer.tb.close()

@@ -15,6 +15,7 @@ import torch.nn.functional as F
 from minihack import MiniHack
 
 from dreamerrl.models.actor import Actor
+from dreamerrl.models.value_head import ValueHead
 from dreamerrl.models.world_model import WorldModel
 from dreamerrl.utils.types import DreamerConfig, LatentConfig, NetworkConfig
 
@@ -26,6 +27,7 @@ class FrozenAgent:
     cfg: DreamerConfig
     checkpoint: str
     update: int
+    critic: ValueHead | None = None
 
 
 @dataclass
@@ -46,7 +48,7 @@ class LocationData:
         }
 
 
-def load_frozen_agent(path: Path, *, sample_latents=False) -> FrozenAgent:
+def load_frozen_agent(path: Path, *, sample_latents=False, load_critic=False) -> FrozenAgent:
     """Load trusted weights on CPU without restoring replay or live collectors."""
     saved = torch.load(path, map_location="cpu", weights_only=False)
     if saved.get("version") != 4:
@@ -79,7 +81,17 @@ def load_frozen_agent(path: Path, *, sample_latents=False) -> FrozenAgent:
     )
     actor.load_state_dict(saved["actor"])
     actor.eval().requires_grad_(False)
-    return FrozenAgent(world, actor, cfg, str(path.resolve()), saved["completed_updates"])
+    critic = None
+    if load_critic:
+        if "critic" not in saved:
+            raise ValueError("Critic diagnostics require a checkpoint with the online critic weights")
+        critic = ValueHead(
+            latent=latent,
+            net=NetworkConfig(hidden_size=cfg.ac.critic_hidden, value_bins=cfg.world.value_bins),
+        )
+        critic.load_state_dict(saved["critic"])
+        critic.eval().requires_grad_(False)
+    return FrozenAgent(world, actor, cfg, str(path.resolve()), saved["completed_updates"], critic)
 
 
 def validate_seed_split(train_seeds, test_seeds):
