@@ -12,18 +12,23 @@ from dreamerrl.utils.types import EnvironmentConfig, TrainingConfig
 
 
 class SentinelEnv(gym.Env):
-    def __init__(self, index):
-        self.index = index
+    def __init__(self):
+        self.index = 0
+        self.glyphs = np.empty((2, 2), dtype=np.int32)
         self.observation_space = gym.spaces.Dict({"glyphs": gym.spaces.Box(0, 100, (2, 2), np.int32)})
         self.action_space = gym.spaces.Discrete(3)
 
     def reset(self, *, seed=None, options=None):
         super().reset(seed=seed)
-        return {"glyphs": np.full((2, 2), 1, dtype=np.int32)}, {}
+        if seed is not None:
+            self.index = seed
+        self.glyphs.fill(1)
+        return {"glyphs": self.glyphs}, {}
 
     def step(self, action):
+        self.glyphs.fill(10 + self.index)
         return (
-            {"glyphs": np.full((2, 2), 10 + self.index, dtype=np.int32)},
+            {"glyphs": self.glyphs},
             float(self.index + 1),
             self.index == 0,
             self.index == 1,
@@ -40,7 +45,7 @@ class SentinelEnv(gym.Env):
 )
 def test_final_observation_and_independent_reset(module_name, class_name, monkeypatch):
     module = importlib.import_module("dreamerrl.env.minihack." + module_name)
-    monkeypatch.setattr(module, "make_mhack_env", lambda cfg, i: lambda: SentinelEnv(i))
+    monkeypatch.setattr(module.gym, "make", lambda env_id: SentinelEnv())
     env = getattr(module, class_name)(EnvironmentConfig(num_envs=3), torch.device("cpu"))
     try:
         initial = env.reset()["state"]

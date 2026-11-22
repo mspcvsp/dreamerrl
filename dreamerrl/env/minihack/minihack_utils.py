@@ -1,7 +1,19 @@
+from copy import deepcopy
 from functools import lru_cache
 from typing import Any
 
+import gymnasium as gym
 import numpy as np
+
+
+class PreserveFinalObservation(gym.Wrapper):
+    """Snapshot NLE's reused buffers before a vector environment autoresets."""
+
+    def step(self, action):
+        obs, reward, terminated, truncated, info = self.env.step(action)
+        if terminated or truncated:
+            obs = deepcopy(obs)
+        return obs, reward, terminated, truncated, info
 
 
 def glyph_vocab_size() -> int:
