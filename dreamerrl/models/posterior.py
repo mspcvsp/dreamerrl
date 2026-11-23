@@ -26,6 +26,7 @@ class Posterior(nn.Module):
         latent: LatentConfig,
         net: NetworkConfig,
         deterministic_latent_for_tests: bool = False,
+        embed_size: int | None = None,
     ):
         super().__init__()
 
@@ -33,7 +34,7 @@ class Posterior(nn.Module):
         self.net_cfg = net
         self.deterministic_latent_for_tests = deterministic_latent_for_tests
 
-        in_dim = latent.deter_size + net.hidden_size
+        in_dim = latent.deter_size + (net.hidden_size if embed_size is None else embed_size)
 
         self.fc1 = nn.Linear(in_dim, net.hidden_size)
         self.fc_logits = nn.Linear(net.hidden_size, latent.z_dim)

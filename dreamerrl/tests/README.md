@@ -236,8 +236,9 @@ and the implementation's explicit deviations from a full reproduction.
 
 `invariants/test_latent_factor_identity.py` checks every main prediction head and
 the actor against factor permutations with identical pooled statistics, including
-factor-specific gradients. `functional/test_replay_horizons.py` checks mixed short
-and long episodes without stitching/padding, one-step episodes, and replay across
+factor-specific gradients. `functional/test_replay_horizons.py` checks short/long
+length buckets without stitching/padding, episode-uniform sampling marginals,
+bucket cache invalidation and checkpoint restoration, one-step episodes, and replay across
 collection chunks. `invariants/test_finite_task_horizon.py` checks finite versus
 continuing termination targets, clock features, bounded imagined returns, and
 checkpoint/evaluation compatibility. MiniHack evaluation regressions exercise the

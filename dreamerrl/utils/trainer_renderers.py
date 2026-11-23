@@ -31,9 +31,13 @@ def render_training(state):
         ("Env steps/s", "env_steps_per_second", 1),
         ("Update seconds", "update_seconds", 2),
         ("Training ETA (s)", "eta_training_seconds", 0),
-        ("Model tokens/env step", "model_tokens_per_env_step", 2),
+        ("Replay tokens/env step", "model_tokens_per_env_step", 2),
     ]
     rows = [(name, number(state.get(key), precision)) for name, key, precision in fields]
+    cadence = state.get("cadence")
+    if cadence:
+        rows.append(("WM updates/env step", number(cadence.get("world_model_updates_per_env_transition"), 4)))
+        rows.append(("Imagined steps/env step", number(cadence.get("imagined_transitions_per_env_transition"), 1)))
     if "learning_rate" in state:
         rows.append(("Learning rate", f"{state['learning_rate']:.2e}"))
     if state.get("cuda_memory_mb") is not None:

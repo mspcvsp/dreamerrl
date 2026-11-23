@@ -172,3 +172,105 @@ python -m dreamerrl.scripts.run_minihack --cpu --updates 2 \
   --imagination-horizon 3 --eval-episodes 2 --eval-every 1 \
   --run-dir runs/smoke --dashboard off
 ```
+
+## Diagnose greedy versus sampled policies
+
+Keep action selection and posterior latent selection independent when a high
+training return disagrees with deterministic validation:
+
+```bash
+python -m dreamerrl.scripts.evaluate_minihack_modes --cpu \
+  --checkpoint runs/room_seed0/latest.pt \
+  --checkpoint runs/room_seed1/latest.pt \
+  --checkpoint runs/room_seed2/latest.pt \
+  --episodes 100 --seed-start 1000000 --sampling-seed 42 \
+  --output runs/room_evaluation_modes.json
+```
+
+This evaluates greedy/mode, sampled/mode, greedy/sampled, and sampled/sampled
+policies. Each episode uses its level seed plus the fixed sampling seed for Torch
+sampling, independently of caller RNG position. All RNG states are restored.
+Default training validation remains greedy/mode. The report retains all episode
+returns, checkpoint budgets, settings, and paired differences versus random.
+One fixed sampling seed is a diagnostic comparison, not an estimate of variation
+across sampling seeds. These test levels have now been inspected: use new levels
+for confirmation after making any changes based on the results.
+
+## Corridor training and evaluation
+
+Use the separate corridor entry point to test navigation through rooms connected
+by generated corridors. It defaults to `MiniHack-Corridor-R2-v0` and a 1000-step
+episode cap; other training defaults and monitoring match the Room runner.
+
+```bash
+python -u -m dreamerrl.scripts.run_minihack_corridor \
+  --require-cuda --seed 0 --updates 10000 \
+  --run-dir runs/corridor_r2_seed0 --eval-every 100 --eval-episodes 20
+```
+
+Select more rooms with `--env MiniHack-Corridor-R3-v0` or
+`--env MiniHack-Corridor-R5-v0`. Use a distinct run directory for each task/seed.
+These runs train a fresh policy with the corridor action space. As with Room,
+compare trained returns against both random and untrained policies; completing
+a run alone does not establish learning.
+
+For a short CPU wiring check:
+
+```bash
+python -m dreamerrl.scripts.run_minihack_corridor --cpu --updates 2 \
+  --num-envs 2 --episode-steps 10 --collect-steps 5 --batch-size 2 --seq-len 4 \
+  --imagination-horizon 3 --eval-episodes 2 --eval-every 1 \
+  --run-dir runs/corridor_smoke --dashboard off
+```
+
+Evaluate the selected checkpoint on fresh test levels using the same evaluator:
+
+```bash
+python -m dreamerrl.scripts.evaluate_minihack \
+  --checkpoint runs/corridor_r2_seed0/best.pt \
+  --initial-checkpoint runs/corridor_r2_seed0/initial.pt \
+  --episodes 100 --seed-start 1000000 \
+  --output runs/corridor_r2_seed0/test_evaluation.json
+```
+
+The checkpoint supplies the corridor environment and episode limit. Resume with
+`python -m dreamerrl.scripts.run_minihack_corridor --resume runs/corridor_r2_seed0/latest.pt`.
+
+## NetHack evaluation seeding
+
+Evaluation explicitly seeds NetHack's core, display, and level-generation RNGs
+before every episode, with automatic reseeding disabled. Gymnasium's
+`reset(seed=...)` alone does not seed these RNGs in the installed NLE version.
+The action space and Torch sampling are seeded separately. Regression tests
+compare real Room/Corridor glyph trajectories and rewards across repeated runs.
+
+Reports and cached baselines generated before this fix do not guarantee matching
+NetHack levels, even when their recorded episode seeds match. Re-evaluate saved
+trained and initial checkpoints with the corrected evaluator for fresh paired
+comparisons. Resuming an old run retains its cached baselines; those historical
+baseline comparisons should not be treated as paired with corrected evaluations.
+Training environment collection seeding is unchanged by this evaluation fix.
+
+## Optional per-action training cost
+
+`--action-cost` subtracts a fixed nonnegative cost from every collected action's
+reward, including the final action. It defaults to zero. Replay stores these
+shaped rewards, so world-model reward learning and imagined policy/value learning
+use the cost. Initial reset observations incur no cost. Reported training episode
+returns and all evaluation returns remain the original environment rewards.
+This is reward shaping, not an auxiliary prediction loss.
+
+For a separate corridor experiment:
+
+```bash
+python -m dreamerrl.scripts.run_minihack_corridor \
+  --require-cuda --updates 10000 --eval-every 500 \
+  --action-cost 0.001 --run-dir runs/corridor_r2_cost001_seed0
+```
+
+The value above is an experimental starting point, not a tuned recommendation.
+The saved configuration retains the cost on resume. An explicit cost that differs
+from the checkpoint is rejected: use a fresh run to change the objective without
+mixing differently shaped rewards in replay. Older checkpoints default to zero.
+A per-action cost encourages shorter episodes and may also encourage early
+failure; assess goal success and episode lengths alongside original returns.

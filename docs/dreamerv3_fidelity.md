@@ -55,14 +55,18 @@ These are active design choices/omissions, not quarantined broken paths:
   losses aggregate feature dimensions differently, changing its effective balance
   against KL. Smaller reward/value supports (41 bins over symlog [-10,10]) are
   retained; the reference uses 255 bins. Out-of-support targets still clamp to endpoints.
-- Critic training currently uses imagined trajectories; the reference also includes
-  replay-value supervision. Replay windows start from zero state without burn-in,
-  rather than reconstructing stored recurrent context. Sampling is episode-based.
+- Critic training defaults to imagined trajectories. Optional recorded-reward
+  replay-value supervision is available as an experimental local extension; its
+  behavior-policy lambda targets do not establish equivalence to reference replay
+  supervision. Replay windows reconstruct up to 16 preceding transitions with current weights
+  and detached gradients (configurable burn-in), rather than full episode context. Sampling is episode-based.
 - Discount 0.99 and task-specific imagination horizons remain configurable local
   choices. Continuation predicts actual survival and discount is applied separately.
   Return-percentile EMA is initialized from the first batch rather than zero.
-- MiniHack glyph IDs are flattened scalar inputs, rather than a learned symbolic
-  or image representation. Novelty is an experimental observation-change proxy,
+- New MiniHack runner jobs use learned glyph embeddings, spatial convolutions,
+  and categorical grid reconstruction; the legacy scalar MLP remains selectable.
+  This is a task-specific symbolic representation, not the reference image model.
+  Novelty is an experimental observation-change proxy,
   not part of the reference DreamerV3 reward or objective.
 
 The pinned [configuration](https://github.com/danijar/dreamerv3/blob/e01491fad6434b2245a3b8ca201dd7faedcc458c/dreamerv3/configs.yaml#L79-L110)
@@ -90,8 +94,9 @@ loading model or optimizer state. No implicit weight/optimizer
 conversion is performed. New finite-task configurations also add one time feature
 and must match the saved configuration when resuming.
 
-Replay now retains short trials with unpadded, shared-length batches instead of
-filtering them out. Collection chunk size no longer limits replay sequence length.
+Replay retains short trials in unpadded effective-length buckets. Long trials
+keep full configured windows; bucket selection preserves episode-uniform
+marginals without allowing a short trial to shrink a long trial's context. Collection chunk size no longer limits replay sequence length.
 Optional `finite_horizon` training makes remaining time observable, trains finite
 terminal targets, and bounds imagined returns at the known trial end. The default
 continuing-task semantics remain appropriate for artificial time-limit cutoffs.

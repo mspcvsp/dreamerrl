@@ -8,7 +8,7 @@ from gymnasium.vector import AsyncVectorEnv, AutoresetMode
 from gymnasium.wrappers import TimeLimit
 
 from dreamerrl.env.env import EnvInterface
-from dreamerrl.env.minihack.minihack_utils import extract_glyphs
+from dreamerrl.env.minihack.minihack_utils import PreserveFinalObservation, extract_glyphs, glyph_vocab_size
 from dreamerrl.utils.types import EnvironmentConfig
 
 
@@ -16,7 +16,7 @@ def make_mhack_env(env_cfg: EnvironmentConfig, idx: int) -> Callable[[], gym.Env
     def thunk():
         seed = env_cfg.seed + idx
         env = gym.make(env_cfg.env_id)
-        env = TimeLimit(env, max_episode_steps=env_cfg.max_episode_steps)
+        env = PreserveFinalObservation(TimeLimit(env, max_episode_steps=env_cfg.max_episode_steps))
         env.reset(seed=seed)
         return env
 
@@ -52,7 +52,7 @@ class MiniHackParallelEnv(EnvInterface):
 
         self._obs_space = Box(
             low=0,
-            high=255,
+            high=glyph_vocab_size() - 1,
             shape=(self._obs_dim,),
             dtype=np.float32,
         )

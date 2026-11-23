@@ -81,6 +81,17 @@ class WorldModelConfig:
     num_classes: int = 32
     hidden_size: int = 200
 
+    # Optional categorical MiniHack grid model; None preserves the vector MLP.
+    glyph_shape: tuple[int, int] | None = None
+    glyph_vocab_size: int = 0
+    glyph_local_branch: bool = False
+    glyph_player_ids: tuple[int, ...] = ()
+    glyph_changed_weight: float = 1.0
+    glyph_foreground_ids: tuple[int, ...] = ()
+    glyph_loss_balance: str = "weighted"  # Legacy-compatible; new runner jobs use a salient multiplier of 2.
+    glyph_salient_fraction: float = 0.5
+    reconstruction_scale: float = 1.0
+
     # Reward head hidden size.
     reward_hidden: int = 256
 
@@ -135,6 +146,7 @@ class ActorCriticConfig:
     entropy_scale: float = 3e-4
     slow_critic_rate: float = 0.02
     slow_critic_scale: float = 1.0
+    replay_value_scale: float = 0.0  # Optional recorded-reward critic supervision.
 
 
 # ---------------------------------------------------------
@@ -156,8 +168,13 @@ class TrainingConfig:
     # Replay buffer + sequence sampling.
     replay_capacity: int = 200_000
     seq_len: int = 16
+    burn_in: int = 16  # Preceding replay steps used only to reconstruct recurrent state.
+    acting_context: int = -1  # Refresh after model updates: full live episode; 0 disables, positive caps history.
     batch_size: int = 64
     collect_steps: int = 100
+
+    # Optional per-decision reward shaping; environment-return metrics stay raw.
+    action_cost: float = 0.0
 
     # Learning rates for world model, actor, critic.
     model_lr: float = 3e-4
@@ -166,9 +183,6 @@ class TrainingConfig:
 
     # Gradient clipping.
     grad_clip: float = 100.0
-
-    # Number of world‑model + actor/critic updates per environment step.
-    updates_per_step: int = 1
 
     # Warmup for LR schedule.
     warmup_steps: int = 2_000
@@ -384,3 +398,5 @@ class WorldModelMetrics:
     kl_dyn: torch.Tensor
     kl_rep: torch.Tensor
     aux_losses: List
+    reconstruction_metrics: Dict[str, torch.Tensor] = field(default_factory=dict)
+    reward_metrics: Dict[str, torch.Tensor] = field(default_factory=dict)

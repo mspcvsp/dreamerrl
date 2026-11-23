@@ -4,27 +4,55 @@ from __future__ import annotations
 
 import math
 import random
+from enum import IntEnum
 from statistics import mean, stdev
-from typing import TypedDict
+from typing import TypedDict, cast
 
 import gymnasium as gym
 import minihack  # noqa: F401
 import numpy as np
 import torch
 from gymnasium.wrappers import TimeLimit
+from minihack import MiniHack
 
 from dreamerrl.env.minihack.minihack_utils import extract_glyphs
+from dreamerrl.eval.corridor_diagnostics import CORRIDOR_R2, CorridorEpisode, compass_actions, stair_opportunity
+from dreamerrl.eval.movement import MovementMetrics, MovementTracker
+
+
+class EpisodeDiagnostics(MovementMetrics):
+    seed: int
+    episode_return: float
+    terminated: bool
+    truncated: bool
 
 
 @torch.no_grad()
-def evaluate_minihack(cfg, world, actor, episode_seeds, random_policy=False, should_stop=None):
+def evaluate_minihack(
+    cfg,
+    world,
+    actor,
+    episode_seeds,
+    random_policy=False,
+    should_stop=None,
+    *,
+    sample_actions=False,
+    sample_latents=False,
+    sampling_seed=0,
+    episode_diagnostics: list[EpisodeDiagnostics] | None = None,
+    corridor_diagnostics: list[CorridorEpisode] | None = None,
+) -> list[float]:
     """Whole episode returns on held-out seeds, including the final reward.
 
     Use a separate, single environment to avoid vector autoreset ambiguities.
     Evaluation restores training modes and torch RNG state. Latent modes and
     greedy actions give a repeatable policy evaluation; random actions use the
-    independently seeded environment action space.
+    independently seeded environment action space. Action and latent sampling can
+    be enabled independently. Each episode gets a fixed Torch sampling seed;
+    caller RNG states are restored even when evaluation is interrupted.
     """
+    if corridor_diagnostics is not None and (random_policy or cfg.env.env_id != CORRIDOR_R2):
+        raise ValueError("Stair diagnostics require an actor in MiniHack Corridor R2")
     device = next(world.parameters()).device
     devices = (
         [device.index if device.index is not None else torch.cuda.current_device()] if device.type == "cuda" else []
@@ -37,12 +65,19 @@ def evaluate_minihack(cfg, world, actor, episode_seeds, random_policy=False, sho
     with torch.random.fork_rng(devices=devices):
         try:
             env = TimeLimit(gym.make(cfg.env.env_id), max_episode_steps=cfg.env.max_episode_steps)
+            moves = compass_actions(getattr(env.unwrapped, "actions")) if corridor_diagnostics is not None else None
             world.eval()
             actor.eval()
-            world.posterior.deterministic_latent_for_tests = True
+            world.posterior.deterministic_latent_for_tests = not sample_latents
             for seed in episode_seeds:
                 if should_stop is not None and should_stop():
                     raise InterruptedError("Evaluation stop requested")
+                torch.default_generator.manual_seed(sampling_seed + seed)
+                if device.type == "cuda":
+                    with torch.cuda.device(device):
+                        torch.cuda.manual_seed(sampling_seed + seed)
+                # Gymnasium reset seeds its own RNG, not NetHack's separate RNGs.
+                cast(MiniHack, env.unwrapped).seed(core=seed, disp=seed, reseed=False, lgen=seed)
                 obs, _ = env.reset(seed=seed)
                 env.action_space.seed(seed)
                 state = world.init_state(1)
@@ -50,7 +85,18 @@ def evaluate_minihack(cfg, world, actor, episode_seeds, random_policy=False, sho
                 if action_dim is None:
                     raise ValueError("Evaluation requires a discrete action dimension")
                 action = torch.zeros(1, action_dim, device=device)
+                tracker = None
+                if episode_diagnostics is not None:
+                    from nle import nethack
+
+                    commands = getattr(env.unwrapped, "actions")
+                    time_index = int(getattr(nethack, "NLE_BL_TIME"))
+                    names = [getattr(command, "name", str(command)) for command in commands]
+                    tracker = MovementTracker(obs["blstats"][:2], names)
+                    compass_directions = set(cast(type[IntEnum], nethack.CompassDirection))
+                    movement_ids = {i for i, command in enumerate(commands) if command in compass_directions}
                 total = 0.0
+                opportunity = None
                 for t in range(cfg.env.max_episode_steps):
                     if should_stop is not None and should_stop():
                         raise InterruptedError("Evaluation stop requested")
@@ -74,8 +120,21 @@ def evaluate_minihack(cfg, world, actor, episode_seeds, random_policy=False, sho
                             action,
                             is_first=torch.tensor([t == 0], device=device),
                         )["post"]
-                        action_id = int(actor(state.h, state.z).argmax(-1).item())
-                    obs, reward, terminated, truncated, _ = env.step(action_id)
+                        selected, logits = actor.act(state, deterministic=not sample_actions)
+                        action_id = int(selected.item())
+                        if moves is not None and opportunity is None:
+                            opportunity = stair_opportunity(
+                                obs, moves, step=t + 1, logits=logits, chosen_action=action_id
+                            )
+                    old_turn = int(obs["blstats"][time_index]) if tracker is not None else None
+                    obs, reward, terminated, truncated, info = env.step(action_id)
+                    if tracker is not None:
+                        tracker.step(
+                            action_id,
+                            obs["blstats"][:2],
+                            movement_action=action_id in movement_ids,
+                            turn_advanced=int(obs["blstats"][time_index]) != old_turn,
+                        )
                     total += float(reward)
                     if terminated or truncated:
                         break
@@ -84,6 +143,35 @@ def evaluate_minihack(cfg, world, actor, episode_seeds, random_policy=False, sho
                         action_dim,
                     ).float()
                 returns.append(total)
+                if corridor_diagnostics is not None:
+                    outcome = info["end_status"].name
+                    corridor_diagnostics.append(
+                        {
+                            "seed": seed,
+                            "actor_mode": "sampled" if sample_actions else "greedy",
+                            "opportunity": opportunity,
+                            "immediate_entry": (
+                                opportunity is not None
+                                and opportunity["step"] == t + 1
+                                and opportunity["chosen_action"] == opportunity["winning_action"]
+                                and outcome == "TASK_SUCCESSFUL"
+                            ),
+                            "end_status": outcome,
+                            "terminated": bool(terminated),
+                            "truncated": bool(truncated),
+                            "episode_return": total,
+                        }
+                    )
+                if tracker is not None and episode_diagnostics is not None:
+                    episode_diagnostics.append(
+                        {
+                            **tracker.report(),
+                            "seed": seed,
+                            "episode_return": total,
+                            "terminated": bool(terminated),
+                            "truncated": bool(truncated),
+                        }
+                    )
         finally:
             if env is not None:
                 env.close()

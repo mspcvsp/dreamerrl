@@ -6,6 +6,7 @@ from torch.distributions import Categorical
 from dreamerrl.models.world_model import WorldModelState
 from dreamerrl.training.core.imagination import imagine_trajectory_for_training
 from dreamerrl.training.core.lambda_return import lambda_return
+from dreamerrl.training.core.replay_value import replay_value_loss
 from dreamerrl.training.core.world_model_update import observe_batch
 from dreamerrl.utils.transforms import symlog
 from dreamerrl.utils.twohot import twohot_encode
@@ -24,6 +25,8 @@ def actor_critic_update(
     slow_critic_scale=1.0,
     entropy_scale=3e-4,
     remaining_steps=None,
+    replay_value_scale=0.0,
+    diagnostics=None,
 ):
     # Use every replay posterior as an imagination start, without model gradients.
     with torch.no_grad():
@@ -85,6 +88,24 @@ def actor_critic_update(
         critic_loss = (
             critic_loss - slow_critic_scale * (weights * (slow_targets * critic_logits.log_softmax(-1)).sum(-1)).mean()
         )
+    if replay_value_scale > 0:
+        replay_logits = critic(start.h, start.z).reshape(B, L, -1)
+        replay_loss, replay_metrics = replay_value_loss(critic, replay_logits, batch, discount, lam)
+        critic_loss = critic_loss + replay_value_scale * replay_loss
+        if diagnostics is not None:
+            diagnostics.update(replay_metrics)
+    if diagnostics is not None:
+        with torch.no_grad():
+            denominator = weights.sum().clamp_min(1)
+            diagnostics.update(
+                {
+                    "imagined_reward_mean": (weights * traj["reward"]).sum() / denominator,
+                    "imagined_continue_mean": (weights * traj["continue"]).sum() / denominator,
+                    "imagined_return_mean": (weights * returns).sum() / denominator,
+                    "imagined_value_mean": (weights * values).sum() / denominator,
+                    "imagination_start_weight": start_weight.sum(),
+                }
+            )
     dist = Categorical(logits=actor(h_flat, z_flat).reshape(T, N, -1))
     actor_loss = -(weights * (dist.log_prob(traj["action"]) * advantage + entropy_scale * dist.entropy())).mean()
     return actor_loss, critic_loss

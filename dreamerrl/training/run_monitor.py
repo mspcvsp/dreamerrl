@@ -20,6 +20,7 @@ from typing import Any
 
 import torch
 
+from dreamerrl.eval.corridor_diagnostics import CorridorEpisode, summarize_stair_opportunities
 from dreamerrl.eval.minihack_eval import compare_returns, evaluate_minihack
 from dreamerrl.logging.jsonl_logger import JSONLLogger
 from dreamerrl.logging.repo_logger import create_run_logger
@@ -98,12 +99,14 @@ class MiniHackRunMonitor:
         eval_seed_start=10000,
         dashboard="auto",
         console=None,
+        stair_diagnostics=False,
     ):
         if eval_every < 0 or eval_episodes < 1 or eval_seed_start < 0:
             raise ValueError("Evaluation interval/seed must be nonnegative and episode count positive")
         self.trainer, self.run_dir = trainer, Path(run_dir)
         self.run_dir.mkdir(parents=True, exist_ok=True)
         self.eval_every = eval_every
+        self.stair_diagnostics = stair_diagnostics
         self.seeds = list(range(eval_seed_start, eval_seed_start + eval_episodes))
         self.session = uuid.uuid4().hex
         self.started = time.perf_counter()
@@ -154,7 +157,17 @@ class MiniHackRunMonitor:
         if baseline is None and path.exists():
             baseline = json.loads(path.read_text())
         if baseline is not None:
-            if baseline["spec"] != spec:
+            # Older runs predate the optional replay critic loss (disabled then).
+            baseline["spec"]["actor_critic"].setdefault("replay_value_scale", 0.0)
+            # Missing fields describe the previous uniform/weighted objective.
+            for name, default in (
+                ("glyph_foreground_ids", ()),
+                ("glyph_loss_balance", "weighted"),
+                ("glyph_salient_fraction", 0.5),
+                ("reconstruction_scale", 1.0),
+            ):
+                baseline["spec"]["world"].setdefault(name, default)
+            if json.loads(json.dumps(baseline["spec"])) != json.loads(json.dumps(spec)):
                 raise ValueError(
                     "Saved baselines use a different evaluation configuration; use the original seeds/episodes"
                 )
@@ -176,7 +189,7 @@ class MiniHackRunMonitor:
         self.event(dict(event="baselines", **baseline))
         self.dashboard.update(self.last_record, self.state.get("last_evaluation"), phase="training")
 
-    def evaluate(self, random=False):
+    def evaluate(self, random=False, **options):
         return evaluate_minihack(
             self.trainer.cfg,
             self.trainer.world,
@@ -184,6 +197,7 @@ class MiniHackRunMonitor:
             self.seeds,
             random_policy=random,
             should_stop=lambda: self.stop_requested,
+            **options,
         )
 
     def evaluation(self):
@@ -191,7 +205,13 @@ class MiniHackRunMonitor:
         self.dashboard.update(phase="evaluating trained policy")
         self.logger.info("Evaluating update %d on %d fixed levels", update, len(self.seeds))
         started = time.perf_counter()
-        returns = self.evaluate()
+        stair_modes: dict[str, list[CorridorEpisode]] = {}
+        if self.stair_diagnostics:
+            stair_modes = {"greedy": [], "sampled": []}
+            returns = self.evaluate(corridor_diagnostics=stair_modes["greedy"])
+            self.evaluate(sample_actions=True, corridor_diagnostics=stair_modes["sampled"])
+        else:
+            returns = self.evaluate()
         baseline = self.state["baselines"]
         random_returns, untrained = baseline["random_returns"], baseline["untrained_returns"]
         record: dict[str, Any] = dict(
@@ -207,6 +227,21 @@ class MiniHackRunMonitor:
             vs_untrained=compare_returns(returns, untrained) if untrained is not None else None,
             evaluation_seconds=time.perf_counter() - started,
         )
+        if stair_modes:
+            record["stair_diagnostics"] = {}
+            for mode, episodes in stair_modes.items():
+                summary = summarize_stair_opportunities(episodes)
+                record["stair_diagnostics"][mode] = {"summary": summary, "episodes": episodes}
+                opportunities = summary["episodes_with_opportunity"]
+                self.logger.info(
+                    "%s stair diagnostics | wins %s/%s | opportunities %s | immediate entries %s | eventual wins %s",
+                    mode,
+                    summary["wins"],
+                    summary["episodes"],
+                    opportunities,
+                    f"{summary['immediate_entries']}/{opportunities}" if opportunities else "N/A",
+                    f"{summary['eventual_wins_with_opportunity']}/{opportunities}" if opportunities else "N/A",
+                )
         self.state["last_evaluation"] = record
         self.event(record)
         write_json(self.run_dir / "evaluation.json", record)
