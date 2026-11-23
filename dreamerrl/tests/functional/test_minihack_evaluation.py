@@ -9,6 +9,7 @@ import numpy as np
 import pytest
 import torch
 
+from dreamerrl.eval.corridor_diagnostics import CorridorEpisode
 from dreamerrl.eval.minihack_eval import EpisodeDiagnostics, evaluate_minihack
 from dreamerrl.models.actor import Actor
 from dreamerrl.models.world_model import WorldModel
@@ -233,6 +234,7 @@ def corridor_eval_setup(world_model, tmp_path, monkeypatch, max_steps):
     cfg.env.env_id = "MiniHack-Corridor-R2-v0"
     cfg.env.max_episode_steps = max_steps
     with gym.make(cfg.env.env_id) as env:
+        assert isinstance(env.action_space, gym.spaces.Discrete)
         world_model.net_cfg = replace(world_model.net_cfg, action_dim=env.action_space.n)
     # These tests exercise the real simulator and actor, independent of glyph encoding.
     monkeypatch.setattr(world_model, "observe_step", lambda state, *args, **kwargs: {"post": state})
@@ -251,7 +253,7 @@ def test_stair_diagnostic_matches_scripted_step_40(world_model, tmp_path, monkey
         return action, logits
 
     monkeypatch.setattr(actor, "act", act)
-    episodes = []
+    episodes: list[CorridorEpisode] = []
     assert evaluate_minihack(cfg, world_model, actor, [27017], corridor_diagnostics=episodes) == [1]
     (episode,) = episodes
     assert episode["end_status"] == "TASK_SUCCESSFUL"
@@ -261,7 +263,8 @@ def test_stair_diagnostic_matches_scripted_step_40(world_model, tmp_path, monkey
     assert opportunity["step"] == 40 and opportunity["winning_action"] == opportunity["chosen_action"] == 3
     assert opportunity["winning_action_rank"] == 1
     assert summarize_stair_opportunities(episodes)["win_rate_given_opportunity"] == 1
-    assert summarize_stair_opportunities([{**episode, "opportunity": None}])["win_rate_given_opportunity"] is None
+    without_opportunity: CorridorEpisode = {**episode, "opportunity": None}
+    assert summarize_stair_opportunities([without_opportunity])["win_rate_given_opportunity"] is None
 
 
 def test_stair_diagnostics_preserve_sampled_actions_and_native_outcomes(world_model, tmp_path, monkeypatch):
@@ -280,14 +283,26 @@ def test_stair_diagnostics_preserve_sampled_actions_and_native_outcomes(world_mo
             return obs, reward, terminated, truncated, info
 
     monkeypatch.setattr("dreamerrl.eval.minihack_eval.gym.make", lambda env_id: RecordSteps(make(env_id)))
-    settings = dict(sample_actions=True, sample_latents=True, sampling_seed=20)
     seeds = [27000, 27017]
-    before = evaluate_minihack(cfg, world_model, actor, seeds, **settings)
-    episodes = []
-    after = evaluate_minihack(cfg, world_model, actor, seeds, corridor_diagnostics=episodes, **settings)
+    before = evaluate_minihack(
+        cfg, world_model, actor, seeds, sample_actions=True, sample_latents=True, sampling_seed=20
+    )
+    episodes: list[CorridorEpisode] = []
+    after = evaluate_minihack(
+        cfg,
+        world_model,
+        actor,
+        seeds,
+        corridor_diagnostics=episodes,
+        sample_actions=True,
+        sample_latents=True,
+        sampling_seed=20,
+    )
     assert before == after
     assert traces[:2] == traces[2:]
     assert len(episodes) == len(seeds)
     # Seed 27000 starts within one move of the stairs.
-    assert episodes[0]["opportunity"]["step"] == 1
-    assert episodes[0]["opportunity"]["chosen_action"] == traces[0][0][0]
+    opportunity = episodes[0]["opportunity"]
+    assert opportunity is not None
+    assert opportunity["step"] == 1
+    assert opportunity["chosen_action"] == traces[0][0][0]

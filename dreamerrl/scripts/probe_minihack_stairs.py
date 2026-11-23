@@ -165,7 +165,7 @@ def main():
     agent.world.prior.deterministic_latent_for_tests = False
     results = []
     with TimeLimit(gym.make(CORRIDOR_R2), max_episode_steps=agent.cfg.env.max_episode_steps) as env:
-        moves = compass_actions(env.unwrapped.actions)
+        moves = compass_actions(getattr(env.unwrapped, "actions"))
         for route in routes:
             verified, glyphs, prefix = verify_route(env, route, moves)
             results.append(probe_route(agent, verified, glyphs, prefix, args.draws, args.sampling_seed))

@@ -588,6 +588,7 @@ class DreamerTrainer:
                 self.tb.add_scalar(f"cadence/{name}", value, update_idx)
             for name, value in cumulative_cadence.items():
                 self.tb.add_scalar(f"cadence_total/{name}", value, update_idx)
+            reward_coverage: dict[str, Any] = {name: value.item() for name, value in wm_metrics.reward_metrics.items()}
             record = dict(
                 event="train",
                 update=self.completed_updates,
@@ -601,7 +602,7 @@ class DreamerTrainer:
                 acting_state_refresh=dict(self.acting_refresh_metrics),
                 credit_assignment={name: value.item() for name, value in self.ac_metrics.items()},
                 reconstruction_events={name: value.item() for name, value in wm_metrics.reconstruction_metrics.items()},
-                reward_coverage={name: value.item() for name, value in wm_metrics.reward_metrics.items()},
+                reward_coverage=reward_coverage,
                 sequence_length=batch["obs"].shape[1],
                 cadence=cadence,
                 cadence_total=cumulative_cadence,
@@ -629,8 +630,8 @@ class DreamerTrainer:
                 rewards = batch["reward"]
                 win_target = rewards.new_tensor(1.0) - self.cfg.train.action_cost
                 count = int((rewards.eq(win_target) & ~batch["is_first"].bool()).sum().item())
-                record["reward_coverage"]["plus_one_targets"] = count
-                record["reward_coverage"]["plus_one_provenance"] = {
+                reward_coverage["plus_one_targets"] = count
+                reward_coverage["plus_one_provenance"] = {
                     "unknown": count,
                     "scripted": None,
                     "actor_collected": None,
