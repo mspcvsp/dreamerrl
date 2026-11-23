@@ -2,12 +2,6 @@
 
 from __future__ import annotations
 
-from dreamerrl.env.minigrid.minigrid_parallel_env import MinigridParallelEnv
-from dreamerrl.env.minigrid.minigrid_wrappers import MinigridVecEnv
-from dreamerrl.env.minihack.minihack_parallel_env import MiniHackParallelEnv
-from dreamerrl.env.minihack.minihack_wrappers import MiniHackVecEnv
-from dreamerrl.env.popgym.popgym_parallel_env import PopGymParallelEnv
-from dreamerrl.env.popgym.popgym_wrappers import PopGymVecEnv
 from dreamerrl.utils.types import EnvironmentConfig
 
 
@@ -33,6 +27,9 @@ def make_env(cfg: EnvironmentConfig, device, probe=None):
     # PopGym
     # ---------------------------------------------------------
     if env_id.startswith("popgym"):
+        from dreamerrl.env.popgym.popgym_parallel_env import PopGymParallelEnv
+        from dreamerrl.env.popgym.popgym_wrappers import PopGymVecEnv
+
         if cfg.parallel:
             return PopGymParallelEnv(cfg, device=device)
         return PopGymVecEnv(cfg, device=device, probe=probe)
@@ -41,6 +38,9 @@ def make_env(cfg: EnvironmentConfig, device, probe=None):
     # Minigrid
     # ---------------------------------------------------------
     if env_id.startswith("minigrid"):
+        from dreamerrl.env.minigrid.minigrid_parallel_env import MinigridParallelEnv
+        from dreamerrl.env.minigrid.minigrid_wrappers import MinigridVecEnv
+
         if cfg.parallel:
             return MinigridParallelEnv(cfg, device=device)
         return MinigridVecEnv(cfg, device=device)
@@ -49,8 +49,16 @@ def make_env(cfg: EnvironmentConfig, device, probe=None):
     # MiniHack
     # ---------------------------------------------------------
     if env_id.startswith("minihack"):
+        from dreamerrl.env.minihack.minihack_parallel_env import MiniHackParallelEnv
+        from dreamerrl.env.minihack.minihack_wrappers import MiniHackVecEnv
+
         if cfg.parallel:
             return MiniHackParallelEnv(cfg, device=device)
         return MiniHackVecEnv(cfg, device=device)
+
+    if env_id.startswith("cage2"):
+        from dreamerrl.env.cage2.cage2_env_wrapper import Cage2BlueEnv
+
+        return Cage2BlueEnv(cfg, device=device, probe=probe)
 
     raise ValueError(f"Unknown environment family for env_id={cfg.env_id}")
