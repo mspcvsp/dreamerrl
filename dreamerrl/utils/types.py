@@ -84,6 +84,8 @@ class WorldModelConfig:
     # Optional categorical MiniHack grid model; None preserves the vector MLP.
     glyph_shape: tuple[int, int] | None = None
     glyph_vocab_size: int = 0
+    glyph_local_branch: bool = False
+    glyph_player_ids: tuple[int, ...] = ()
     glyph_changed_weight: float = 1.0
     glyph_foreground_ids: tuple[int, ...] = ()
     glyph_loss_balance: str = "weighted"  # Legacy-compatible; new runner jobs use a salient multiplier of 2.

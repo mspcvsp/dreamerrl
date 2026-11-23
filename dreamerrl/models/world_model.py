@@ -122,10 +122,18 @@ class WorldModel(nn.Module):
                 salient_fraction=self.cfg.glyph_salient_fraction,
             )
             self.encoder = GlyphEncoder(
-                self.cfg.glyph_shape, self.cfg.glyph_vocab_size, self.embed_size, clock=self.flat_obs_dim == cells + 1
+                self.cfg.glyph_shape,
+                self.cfg.glyph_vocab_size,
+                self.embed_size,
+                clock=self.flat_obs_dim == cells + 1,
+                local_branch=getattr(self.cfg, "glyph_local_branch", False),
+                player_ids=getattr(self.cfg, "glyph_player_ids", ()),
             ).to(self.device)
         else:
             self.encoder = build_obs_encoder(obs_space, embed_dim=self.embed_size).to(self.device)
+        if getattr(self.cfg, "glyph_local_branch", False) and self.cfg.glyph_shape is None:
+            raise ValueError("The local glyph branch requires the spatial glyph encoder")
+        self.embed_size = self.encoder.output_size
         self.rssm: RSSMCore = RSSMCore(latent=latent, net=net).to(self.device)
 
         deterministic_latent_for_tests = dreamer_cfg.train.deterministic_env
@@ -135,7 +143,10 @@ class WorldModel(nn.Module):
         ).to(self.device)
 
         self.posterior: Posterior = Posterior(
-            latent=latent, net=net, deterministic_latent_for_tests=deterministic_latent_for_tests
+            latent=latent,
+            net=net,
+            deterministic_latent_for_tests=deterministic_latent_for_tests,
+            embed_size=self.embed_size,
         ).to(self.device)
 
         if self.cfg.glyph_shape is not None:

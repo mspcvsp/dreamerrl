@@ -25,8 +25,40 @@ def glyph_ids(obs: torch.Tensor, cells: int, vocab_size: int) -> torch.Tensor:
     return ids
 
 
+class PlayerCenteredGlyphCrop(nn.Module):
+    """Stateless 3x3 categorical crop; separate padding and missing-player tokens."""
+
+    player_ids: torch.Tensor
+    offsets: torch.Tensor
+
+    def __init__(self, vocab_size, player_ids):
+        super().__init__()
+        if not player_ids or any(not isinstance(i, int) or not 0 <= i < vocab_size for i in player_ids):
+            raise ValueError("Local glyph crops require valid player glyph IDs")
+        self.padding_id, self.missing_id = vocab_size, vocab_size + 1
+        self.register_buffer("player_ids", torch.tensor(player_ids, dtype=torch.long))
+        self.register_buffer(
+            "offsets", torch.tensor([(dx, dy) for dy in (-1, 0, 1) for dx in (-1, 0, 1)]), persistent=False
+        )
+
+    def forward(self, grid):
+        if grid.ndim != 3 or min(grid.shape[1:]) < 1:
+            raise ValueError("Crop input must be (batch,height,width)")
+        batch, height, width = grid.shape
+        matches = torch.isin(grid, self.player_ids).flatten(1)
+        located = matches.sum(-1) == 1
+        center = matches.long().argmax(-1)
+        x = center[:, None] % width + self.offsets[:, 0]
+        y = center[:, None] // width + self.offsets[:, 1]
+        valid = (x >= 0) & (x < width) & (y >= 0) & (y < height)
+        indices = (y * width + x).clamp(0, height * width - 1)
+        crop = grid.reshape(batch, -1).gather(1, indices)
+        crop = torch.where(valid, crop, self.padding_id)
+        return torch.where(located[:, None], crop, self.missing_id)
+
+
 class GlyphEncoder(BaseEncoder):
-    def __init__(self, shape, vocab_size, embed_dim, clock=False):
+    def __init__(self, shape, vocab_size, embed_dim, clock=False, *, local_branch=False, player_ids=()):
         super().__init__()
         self.shape = tuple(shape)
         self.cells = math.prod(shape)
@@ -40,9 +72,13 @@ class GlyphEncoder(BaseEncoder):
             nn.SiLU(),
             nn.Flatten(),
         )
-        self._output_size = embed_dim
+        self._output_size = embed_dim + (9 * 16 if local_branch else 0)
+        self.local_branch = local_branch
         coarse_cells = math.ceil(shape[0] / 4) * math.ceil(shape[1] / 4)
         self.project = nn.Linear(32 * coarse_cells + int(clock), embed_dim)
+        if local_branch:
+            self.local_crop = PlayerCenteredGlyphCrop(vocab_size, player_ids)
+            self.local_embedding = nn.Embedding(vocab_size + 2, 16)
 
     @property
     def output_size(self):
@@ -56,7 +92,12 @@ class GlyphEncoder(BaseEncoder):
         x = self.spatial(x)
         if self.clock:
             x = torch.cat([x, obs[:, -1:]], -1)
-        return self.project(x)
+        global_features = self.project(x)
+        if self.local_branch:
+            crop = self.local_crop(ids.reshape(-1, *self.shape))
+            local_features = self.local_embedding(crop).flatten(1)
+            return torch.cat([global_features, local_features], -1)
+        return global_features
 
 
 class GlyphDecoder(nn.Module):

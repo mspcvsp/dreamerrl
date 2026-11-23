@@ -10,7 +10,7 @@ from pathlib import Path
 import gymnasium as gym
 import torch
 
-from dreamerrl.env.minihack.minihack_utils import glyph_entity_ids, glyph_vocab_size
+from dreamerrl.env.minihack.minihack_utils import glyph_entity_ids, glyph_scoring_schema, glyph_vocab_size
 from dreamerrl.eval.corridor_diagnostics import CORRIDOR_R2
 from dreamerrl.models.aux_objectives import AUX_OBJECTIVES
 from dreamerrl.training.run_monitor import MiniHackRunMonitor, write_json
@@ -55,6 +55,9 @@ def main(*, default_env="MiniHack-Room-5x5-v0", default_episode_steps=200):
     )
     parser.add_argument(
         "--reconstruction-scale", type=float, help="Observation loss scale relative to other heads; default 1"
+    )
+    parser.add_argument(
+        "--local-glyph-branch", action="store_true", help="Opt into a player-centered 3x3 glyph encoder branch"
     )
     parser.add_argument("--aux", choices=["none", "novelty"], default="none")
     parser.add_argument("--seed", type=int, default=0)
@@ -223,7 +226,14 @@ def main(*, default_env="MiniHack-Room-5x5-v0", default_episode_steps=200):
                     cfg.world.glyph_salient_fraction = args.glyph_salient_fraction
             if args.reconstruction_scale is not None:
                 cfg.world.reconstruction_scale = args.reconstruction_scale
+            if args.local_glyph_branch:
+                if cfg.world.glyph_shape is None:
+                    parser.error("--local-glyph-branch requires --glyph-model spatial")
+                cfg.world.glyph_local_branch = True
+                cfg.world.glyph_player_ids = tuple(glyph_scoring_schema()[1])
             trainer = DreamerTrainer(cfg)
+        if args.resume and args.local_glyph_branch and not getattr(trainer.cfg.world, "glyph_local_branch", False):
+            parser.error("--local-glyph-branch differs from the checkpoint; use a fresh run")
         if args.resume and args.action_cost is not None and args.action_cost != trainer.cfg.train.action_cost:
             parser.error("--action-cost must match the checkpoint; use a fresh run to change the reward objective")
         if args.resume and args.glyph_foreground is not None:
