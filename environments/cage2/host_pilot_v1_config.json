@@ -1,0 +1,53 @@
+{
+  "experiment": "cage2-host-aware-pilot-v1",
+  "arm": "cage2_host",
+  "training_seed": 0,
+  "tmux_session": "cage2-host-aware-v1",
+  "base_configuration": "environments/cage2/host_aware_v1_config.json",
+  "initial_replay_episodes": 16,
+  "final_update": 16899,
+  "final_env_steps": 507450,
+  "calibration_end_update": 26,
+  "calibration_scheduler_target": 100000,
+  "evaluation_updates": [
+    1,
+    4244,
+    8462,
+    12681,
+    16899
+  ],
+  "development_seeds": [
+    1000000000,
+    1000000001,
+    1000000002,
+    1000000003,
+    1000000004,
+    1000000005,
+    1000000006,
+    1000000007,
+    1000000008,
+    1000000009,
+    1000000010,
+    1000000011,
+    1000000012,
+    1000000013,
+    1000000014,
+    1000000015,
+    1000000016,
+    1000000017,
+    1000000018,
+    1000000019
+  ],
+  "max_wall_seconds": 14400,
+  "finalization_reserve_seconds": 180,
+  "checkpoint_every": 100,
+  "historical_final_return": -35.39,
+  "heldout_evaluation": false,
+  "checkpoint_provenance": "Fresh encoder, fresh compatible non-encoder reference initialization, fresh optimizer states and replay; no historical checkpoint weights loaded.",
+  "comparison_limits": [
+    "One training seed; no training-run uncertainty estimate.",
+    "Historical baseline is not a controlled paired architecture run: initialization and simulator resume seed trajectory differ.",
+    "Development seeds are reused; no held-out or leaderboard ranking claim.",
+    "If wall cap stops early, the final result is not a matched-budget comparison."
+  ]
+}

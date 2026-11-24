@@ -4,6 +4,7 @@ import argparse
 import importlib.metadata
 import json
 from pathlib import Path
+from typing import Any
 
 from host_experiment_support import CONFIG, ROOT, git, sha256
 
@@ -12,6 +13,9 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--tag", required=True)
     parser.add_argument("--output", type=Path, required=True)
+    parser.add_argument("--pilot", action="store_true")
+    parser.add_argument("--launch-approval")
+    parser.add_argument("--historical-run", type=Path)
     args = parser.parse_args()
     if git("status", "--porcelain"):
         raise ValueError("Review and commit all source changes first")
@@ -24,7 +28,7 @@ def main():
     baseline = json.loads((ROOT / "environments/cage2/reproducibility/original_baseline.json").read_text())
     native = baseline["dependencies"]["cusparselt_repair"]
     versions = {d.metadata["Name"].lower().replace("_", "-"): d.version for d in importlib.metadata.distributions()}
-    manifest = dict(
+    manifest: dict[str, Any] = dict(
         schema_version=1,
         source_tag=args.tag,
         tag_object=git("rev-parse", args.tag),
@@ -41,11 +45,30 @@ def main():
             native_wheel_sha256=native["repaired_sha256"],
         ),
     )
+    if args.pilot:
+        pilot = ROOT / "environments/cage2/host_pilot_v1_config.json"
+        manifest["execution"] = json.loads(pilot.read_text())
+        manifest["pilot_config_sha256"] = sha256(pilot)
+        manifest["checkpoint_provenance"] = manifest["execution"]["checkpoint_provenance"]
+        if args.historical_run is None:
+            parser.error("--pilot requires the preserved --historical-run")
+        manifest["historical_reference_checkpoint"] = dict(
+            path=baseline["source_checkpoint"]["original_absolute_path"],
+            sha256=baseline["source_checkpoint"]["sha256"],
+            used_for_initialization=False,
+        )
+        historical = args.historical_run.resolve()
+        paths = {1: historical / "baseline_actor.json"}
+        paths.update({update: historical / f"evaluation_{update}.json" for update in (4244, 8462, 12681, 16899)})
+        manifest["historical_evaluations"] = {
+            str(update): dict(path=str(path), sha256=sha256(path)) for update, path in paths.items()
+        }
+    manifest["launch_approval"] = args.launch_approval
     if args.output.exists():
         raise ValueError("Refuse to overwrite an existing experiment manifest")
     args.output.write_text(json.dumps(manifest, indent=2) + "\n")
     print("Prepared for review and separate commit:", args.output)
-    print("Formal launch remains blocked until explicit user approval is recorded and committed.")
+    print("Execution manifest must be committed; formal launch requires recorded explicit approval.")
 
 
 if __name__ == "__main__":
