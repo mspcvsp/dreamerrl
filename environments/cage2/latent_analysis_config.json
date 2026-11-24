@@ -1,0 +1,48 @@
+{
+  "analysis": "cage2-latent-analysis",
+  "checkpoint": "runs/cage2_host_aware_pilot_seed0_20261124/latest.pt",
+  "checkpoint_sha256": "8a2483a6add81e1db709f35079f086c50778b900c24164b99fa29b62240cc1bd",
+  "source_tag": "cage2-host-aware-pilot-v1",
+  "source_commit": "ac2ec1b936b29ccf37d11ab4e2656f6636211fb4",
+  "episodes": 360,
+  "horizon": 30,
+  "simulator_seed_start": 3000000000,
+  "policy_seed_offset": 100000,
+  "split_seed": 20261124,
+  "fit_fraction": 0.6,
+  "validation_fraction": 0.2,
+  "test_fraction": 0.2,
+  "policy": "greedy",
+  "posterior": "modes",
+  "target": "G_t = sum(rewards[t:30]); features after observing o_t and before action a_t",
+  "feature_exclusions": [
+    "candidate action",
+    "current/future reward",
+    "successor observation",
+    "terminal frame",
+    "privileged simulator truth"
+  ],
+  "ridge_alphas": [
+    0.0001,
+    0.001,
+    0.01,
+    0.1,
+    1.0,
+    10.0,
+    100.0
+  ],
+  "standardization": "fitting transitions only; zero-variance columns scale=1",
+  "ridge_objective": "mean squared error + alpha * squared coefficient norm; unpenalized intercept",
+  "bootstrap_draws": 2000,
+  "bootstrap_seed": 20261124,
+  "max_wall_seconds": 2700,
+  "pca_trajectory_count": 12,
+  "heldout_definition": "Test episodes from a fixed random episode-level split; validation chooses ridge alpha only",
+  "remaining_limits": [
+    "One frozen checkpoint and one greedy policy; episode uncertainty is not training-run uncertainty.",
+    "History features can correlate with returns without causing defensive success.",
+    "Additional linear decoding signal does not establish benefit to the actor or a causal memory mechanism.",
+    "Categorical usage under posterior modes alone cannot prove posterior collapse."
+  ],
+  "primary_incremental_comparison": "hz+observation+time vs observation+time"
+}
