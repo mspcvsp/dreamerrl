@@ -8,19 +8,16 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
+from dreamerrl.env.obs_utils import get_flat_obs_dim
 from dreamerrl.models.actor import act_in_imagination
 from dreamerrl.utils.types import DreamerConfig, LatentConfig, NetworkConfig
 
 from .aux_heads import make_aux_heads
 from .base_obs_encoder import BaseEncoder
-from .categorical_fields import CategoricalLossConfig
 from .categorical_kl import structured_kl
 from .continue_head import ContinueHead
-from .decoder import ObsDecoder
-from .glyph_model import GlyphDecoder, GlyphEncoder
-from .host_obs_encoder import HostObsEncoder
 from .multi_reward_head import MultiRewardHead
-from .obs_encoder import build_obs_encoder, get_flat_obs_dim
+from .observation_model import build_observation_model
 from .posterior import Posterior
 from .prior import Prior
 from .world_model_core import RSSMCore
@@ -69,7 +66,7 @@ class WorldModel(nn.Module):
     """
     Dreamer‑V3 world model:
 
-      • ObsEncoder: symlog‑MLP encoder
+      • ObsEncoder: configured BaseEncoder with an output_size contract
       • RSSMCore: gated transition h_{t+1} = GRU(embed(z_t, a_t), h_t)
       • Prior / Posterior: factored discrete latents over K×C
       • ObsDecoder: reconstructs observations from (h, z)
@@ -101,48 +98,11 @@ class WorldModel(nn.Module):
         if not torch.isfinite(torch.tensor(self.cfg.reconstruction_scale)) or self.cfg.reconstruction_scale < 0:
             raise ValueError("reconstruction_scale must be finite and nonnegative")
 
-        self.encoder: BaseEncoder
-        self.decoder: ObsDecoder | GlyphDecoder
-        cells = 0
-        encoder_kind = getattr(self.cfg, "obs_encoder", "flat")
-        if encoder_kind not in ("flat", "cage2_host"):
-            raise ValueError("Unknown observation encoder kind")
-        if encoder_kind == "cage2_host":
-            if self.cfg.glyph_shape is not None or self.flat_obs_dim != 52:
-                raise ValueError("Host encoder requires the unmodified 52-value CAGE2 vector")
-            self.encoder = HostObsEncoder(self.cfg.cage2_host_order, self.cfg.cage2_subnet_ids, self.embed_size).to(
-                self.device
-            )
-        elif self.cfg.glyph_shape is not None:
-            if len(self.cfg.glyph_shape) != 2 or min(self.cfg.glyph_shape) < 1:
-                raise ValueError("Glyph grid dimensions must be positive (height, width)")
-            cells = self.cfg.glyph_shape[0] * self.cfg.glyph_shape[1]
-            if self.cfg.glyph_vocab_size < 2 or self.flat_obs_dim not in (cells, cells + 1):
-                raise ValueError("Glyph model requires a valid vocabulary and matching grid dimensions")
-            if self.cfg.glyph_changed_weight < 1 or not torch.isfinite(torch.tensor(self.cfg.glyph_changed_weight)):
-                raise ValueError("glyph_changed_weight must be finite and at least 1")
-            if any(
-                not isinstance(glyph, int) or not 0 <= glyph < self.cfg.glyph_vocab_size
-                for glyph in self.cfg.glyph_foreground_ids
-            ):
-                raise ValueError("Foreground glyph IDs must belong to the configured vocabulary")
-            CategoricalLossConfig(
-                balance=self.cfg.glyph_loss_balance,
-                salient_weight=self.cfg.glyph_changed_weight,
-                salient_fraction=self.cfg.glyph_salient_fraction,
-            )
-            self.encoder = GlyphEncoder(
-                self.cfg.glyph_shape,
-                self.cfg.glyph_vocab_size,
-                self.embed_size,
-                clock=self.flat_obs_dim == cells + 1,
-                local_branch=getattr(self.cfg, "glyph_local_branch", False),
-                player_ids=getattr(self.cfg, "glyph_player_ids", ()),
-            ).to(self.device)
-        else:
-            self.encoder = build_obs_encoder(obs_space, embed_dim=self.embed_size).to(self.device)
-        if getattr(self.cfg, "glyph_local_branch", False) and self.cfg.glyph_shape is None:
-            raise ValueError("The local glyph branch requires the spatial glyph encoder")
+        encoder = build_observation_model(
+            "encoder", obs_space=obs_space, cfg=self.cfg, latent=latent, net=net, device=self.device
+        )
+        assert isinstance(encoder, BaseEncoder)
+        self.encoder: BaseEncoder = encoder
         self.embed_size = self.encoder.output_size
         self.rssm: RSSMCore = RSSMCore(latent=latent, net=net).to(self.device)
 
@@ -159,16 +119,9 @@ class WorldModel(nn.Module):
             embed_size=self.embed_size,
         ).to(self.device)
 
-        if self.cfg.glyph_shape is not None:
-            self.decoder = GlyphDecoder(
-                latent=latent,
-                net=net,
-                shape=self.cfg.glyph_shape,
-                vocab_size=self.cfg.glyph_vocab_size,
-                clock=self.flat_obs_dim == cells + 1,
-            ).to(self.device)
-        else:
-            self.decoder = ObsDecoder(latent=latent, net=net, output_dim=self.flat_obs_dim).to(self.device)
+        self.decoder = build_observation_model(
+            "decoder", obs_space=obs_space, cfg=self.cfg, latent=latent, net=net, device=self.device
+        )
 
         self.reward_heads = MultiRewardHead(
             latent=latent,
