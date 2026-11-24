@@ -8,7 +8,6 @@ import pytest
 import torch
 
 from dreamerrl.models.actor import Actor
-from dreamerrl.models.aux_objectives import AUX_OBJECTIVES, affordance_target, novelty_target
 from dreamerrl.models.categorical_kl import structured_kl
 from dreamerrl.models.reward_head import RewardHead
 from dreamerrl.models.value_head import ValueHead
@@ -25,7 +24,6 @@ from dreamerrl.utils.types import DreamerConfig, KLConfig, LatentConfig, Network
 @pytest.fixture
 def small_model():
     cfg = DreamerConfig()
-    cfg.world.aux_objectives = list(AUX_OBJECTIVES.values())
     cfg.world.kl_cfg = replace(cfg.world.kl_cfg, free_nats=0)
     latent = LatentConfig(deter_size=16, num_classes=3, stoch_size=4)
     net = NetworkConfig(hidden_size=16, action_dim=3, value_bins=21, bin_min=-5, bin_max=5)
@@ -119,7 +117,7 @@ def test_imagination_action_state_reward_alignment(small_model, monkeypatch):
     for t in range(2):
         expected_h = wm.rssm(traj["h"][t], traj["z"][t], torch.nn.functional.one_hot(traj["action"][t], 3).float())
         torch.testing.assert_close(traj["h"][t + 1], expected_h)
-        logits, _ = wm.reward_heads(traj["h"][t + 1], traj["z"][t + 1])
+        logits = wm.reward_heads.main(traj["h"][t + 1], traj["z"][t + 1])
         torch.testing.assert_close(traj["reward"][t], wm.reward_head.readout(logits))
 
 
@@ -148,55 +146,6 @@ def test_actor_critic_uses_replay_and_isolates_gradients(small_model, sequence, 
     critic_loss.backward()
     assert any(p.grad is not None and p.grad.abs().sum() > 0 for p in critic.parameters())
     assert all(p.grad is None for p in wm.parameters())
-
-
-@pytest.mark.parametrize("name", list(AUX_OBJECTIVES))
-def test_aux_actual_training_path_has_gradients(name, small_model, sequence):
-    wm = small_model
-    wm.aux_objectives = [AUX_OBJECTIVES[name]]
-    # Force a loss > 1, which previously got clamped and lost its gradients.
-    with torch.no_grad():
-        wm.aux_heads[name].fc2.bias.fill_(-20)
-    metrics = world_model_training_step(wm, sequence)
-    aux = metrics.aux_losses[0]
-    assert torch.isfinite(aux) and aux > 1
-    aux.backward()
-    for module in [wm.aux_heads[name], wm.rssm, wm.encoder]:
-        assert any(
-            p.grad is not None and torch.isfinite(p.grad).all() and p.grad.abs().sum() > 0 for p in module.parameters()
-        )
-
-
-def test_aux_binary_targets_are_preserved(small_model, sequence, monkeypatch):
-    wm = small_model
-    wm.aux_objectives = [AUX_OBJECTIVES[n] for n in ["reachability", "affordance"]]
-    for name in ["reachability", "affordance"]:
-        head = wm.aux_heads[name]
-        original = head.loss_from_logits
-
-        def loss(logits, target, original=original):
-            assert (target == 1).all()  # constant positive labels must stay positive
-            return original(logits, target)
-
-        monkeypatch.setattr(head, "loss_from_logits", loss)
-    metrics = world_model_training_step(wm, sequence)
-    assert all(torch.isfinite(loss) for loss in metrics.aux_losses)
-
-
-def test_novelty_boundary_and_single_step(small_model, sequence):
-    wm = small_model
-    wm.aux_objectives = [AUX_OBJECTIVES["novelty"]]
-    single = {k: v[:, :1] for k, v in sequence.items()}
-    assert novelty_target(single, 0.99).shape == (2, 1, 1)
-    assert world_model_training_step(wm, single).aux_losses[0] == 0
-    sequence["is_first"][:, 1:] = True
-    assert world_model_training_step(wm, sequence).aux_losses[0] == 0
-
-
-def test_affordance_requires_labels(sequence):
-    del sequence["action_mask"]
-    with pytest.raises(ValueError, match="action_mask"):
-        affordance_target(sequence, 0.99)
 
 
 def test_world_loss_kl_weights_and_aux_switch(small_model, sequence):
@@ -256,11 +205,3 @@ def test_configured_kl_scale_is_applied_once(small_model, sequence):
     m = world_model_training_step(wm, sequence, kl_scale=wm.cfg.kl_cfg.scale)
     expected = m.recon_loss + m.reward_loss + m.cont_loss + 3 * (1.0 * m.kl_dyn + 0.1 * m.kl_rep)
     torch.testing.assert_close(m.total_loss, expected)
-
-
-@pytest.mark.parametrize("name", ["reachability", "resource"])
-def test_scalar_aux_singleton_is_finite(name, small_model, sequence):
-    small_model.aux_objectives = [AUX_OBJECTIVES[name]]
-    batch = {key: value[:1, :1] for key, value in sequence.items()}
-    metric = world_model_training_step(small_model, batch)
-    assert torch.isfinite(metric.aux_losses[0])

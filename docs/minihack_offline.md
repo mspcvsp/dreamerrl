@@ -85,7 +85,7 @@ unavailable rather than mislabeling their trained weights as an initial policy.
 
 | File | Purpose |
 | --- | --- |
-| `config.json` | Initial configuration, including objective and auxiliary choices. |
+| `config.json` | Initial configuration, including task and model choices. |
 | `metrics.jsonl` | UTC timestamped/session-tagged startup, episode, update, evaluation, checkpoint, stop and error records. |
 | `run.log` | Human-readable diagnostics and tracebacks; rotates at 5 MiB with three backups. |
 | `baselines.json` | Original random/untrained episode returns, fixed validation seeds, and matching configuration. |
@@ -119,7 +119,7 @@ tensorboard --logdir runs/room_seed0/tensorboard
 
 ## Establish improvement, rather than just a successful run
 
-1. Start with `--aux none` (the default). The initial policy and uniform random
+1. Use the baseline (generic auxiliary objectives have been removed). The initial policy and uniform random
    policy are evaluated on the same fixed validation levels before learning.
 2. Compare whole-episode returns at equal environment-step budgets. Higher is
    better even when every score is negative. Loss decreases alone do not establish

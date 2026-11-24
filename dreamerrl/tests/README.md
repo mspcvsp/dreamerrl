@@ -165,32 +165,8 @@ with the same seed, and compares sampled replay, losses, final parameters/buffer
 and episode returns exactly. It also verifies that each network's parameters
 changed. It makes no claims about cross-device or different-seed equivalence.
 
-`manual/test_worldmodel_aux.py` is now a MiniHack Room-5x5 learning experiment:
-three seeds, auxiliaries off versus novelty only, equal environment-step budgets,
-matched initial actor/critic weights, and held-out greedy policy evaluation. It reports random, untrained, and trained
-whole-episode returns, including terminal/truncation rewards. It checks that
-novelty is active and losses/returns are finite; passing does not establish learning
-or auxiliary benefit. The JSON report contains individual episode returns,
-evaluation seeds, budgets, losses, and paired differences between the two arms.
-
-Run from the `cage2_env` Python environment:
-
-```bash
-# Normal correctness suite, including same-seed training repeatability
-python -m pytest dreamerrl/tests -q
-
-# Short experiment wiring check (not evidence of learning)
-python -m pytest dreamerrl/tests/manual/test_worldmodel_aux.py --run-manual --steps=2 --eval-episodes=2 -s
-
-# Longer CPU experiment: --steps is optimizer updates per seed/arm
-python -m pytest dreamerrl/tests/manual/test_worldmodel_aux.py --run-manual --steps=1000 --eval-episodes=10 -s
-```
-
-The experiment prints the JSON report path in pytest's temporary directory; copy
-that report if you want to preserve it across later pytest runs. TensorBoard logs
-are written under the same temporary directory. The repository-wide pytest default
-is only 20 updates; set the budget explicitly for a learning experiment. Evaluate
-results across seeds before making task-success or CAGE-readiness claims.
+Generic auxiliary experiments were removed. Historical implementations remain
+in existing tags; current extension tests are in `functional/test_auxiliary_interface.py`.
 
 ## 16. Optional PopGym benchmark
 

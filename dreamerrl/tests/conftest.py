@@ -6,7 +6,6 @@ import torch.nn.functional as F
 from gymnasium.spaces import Box
 
 from dreamerrl.env.env_factory import make_env
-from dreamerrl.models.aux_objectives import AUX_OBJECTIVES
 from dreamerrl.models.world_model import WorldModel
 from dreamerrl.models.world_model_core import RSSMCore as RSSM
 from dreamerrl.utils.types import DreamerConfig, EnvironmentConfig, LatentConfig, NetworkConfig
@@ -308,98 +307,6 @@ def pytest_collection_modifyitems(config, items):
     for item in items:
         if "manual" in item.keywords:
             item.add_marker(skip_manual)
-
-
-# ---------------------------------------------------------------------------
-# Aux-loss fixtures
-# ---------------------------------------------------------------------------
-
-
-@pytest.fixture
-def aux_world_model():
-    """
-    WorldModel with aux losses enabled for structural + numerical tests.
-    """
-    obs_space = DummyObsSpace(obs_dim=8)
-
-    cfg = DreamerConfig()
-
-    cfg.world.aux_objectives = [
-        AUX_OBJECTIVES["novelty"],
-        AUX_OBJECTIVES["skill"],
-    ]
-
-    latent = LatentConfig(
-        deter_size=200,
-        stoch_size=30,
-        num_classes=32,
-    )
-
-    net = NetworkConfig(hidden_size=256, action_dim=5, value_bins=41)
-
-    wm = WorldModel(
-        obs_space=obs_space,
-        dreamer_cfg=cfg,
-        latent=latent,
-        net=net,
-        device=torch.device("cpu"),
-    )
-
-    return wm
-
-
-@pytest.fixture
-def world_model_aux_losses_disabled():
-    """
-    WorldModel with aux losses disabled for invariants tests.
-    """
-    obs_space = DummyObsSpace(obs_dim=8)
-
-    latent = LatentConfig(
-        deter_size=200,
-        stoch_size=30,
-        num_classes=32,
-    )
-
-    net = NetworkConfig(hidden_size=256, action_dim=5, value_bins=41)
-
-    cfg = DreamerConfig()
-    cfg.world.disable_aux_losses = True
-
-    cfg.world.aux_objectives = [
-        AUX_OBJECTIVES["novelty"],
-        AUX_OBJECTIVES["skill"],
-    ]
-
-    wm = WorldModel(
-        obs_space=obs_space,
-        dreamer_cfg=cfg,
-        latent=latent,
-        net=net,
-        device=torch.device("cpu"),
-    )
-
-    return wm
-
-
-@pytest.fixture
-def latent_cluster(latent):
-    """
-    Synthetic latent cluster generator for aux-loss tests.
-    Produces latents shaped exactly like RSSM stochastic state:
-        (B, L, num_classes, stoch_size)
-    """
-
-    def _make(cluster_id, batch=4, L=1):
-        # Create zeros
-        z = torch.zeros(batch, L, latent.num_classes, latent.stoch_size)
-
-        # Activate one cluster
-        z[:, :, cluster_id, :] = 1.0
-
-        return z.view(batch * L, latent.num_classes * latent.stoch_size)
-
-    return _make
 
 
 @pytest.fixture

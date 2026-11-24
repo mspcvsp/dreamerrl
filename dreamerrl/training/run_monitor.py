@@ -45,7 +45,17 @@ def write_json(path, value):
 
 def configuration(cfg):
     result = asdict(cfg)
-    result["world"]["aux_objectives"] = [objective.name for objective in cfg.world.aux_objectives]
+    result["world"]["aux_objectives"] = [
+        {
+            "name": objective.name,
+            "weight": objective.weight,
+            "callback": (
+                f"{getattr(objective.fn, '__module__', '')}."
+                f"{getattr(objective.fn, '__qualname__', type(objective.fn).__name__)}"
+            ),
+        }
+        for objective in cfg.world.aux_objectives
+    ]
     return result
 
 

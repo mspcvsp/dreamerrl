@@ -31,7 +31,6 @@
       "unimix": 0.01,
       "value_bins": 41,
       "aux_objectives": [],
-      "aux_reward_scale": 0.1,
       "disable_aux_losses": true,
       "obs_encoder": "flat",
       "cage2_host_order": [],

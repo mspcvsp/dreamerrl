@@ -9,41 +9,17 @@ from .transforms import symexp
 
 
 @dataclass(frozen=True)
-class AuxHeadConfig:
-    """
-    Shared config for auxiliary heads.
-
-    in_dim:  dimension of concatenated (h_t, z_t)
-    hidden:  hidden layer size
-    out_dim: output dimension (1 for scalar, N for vector)
-    """
-
-    in_dim: int
-    hidden: int
-    out_dim: int
-
-
-# ---------------------------------------------------------
-# Auxiliary Objective Config
-# ---------------------------------------------------------
-@dataclass(frozen=True)
 class AuxObjectiveConfig:
-    """
-    Environment‑agnostic auxiliary objective.
+    """Optional stateless environment-owned loss on (h, z, replay batch).
 
-    Each objective provides a function:
-        fn(batch, gamma) -> target tensor of shape (B, L)
-
-    Examples:
-        • affordance prediction
-        • reachability prediction
-        • novelty / event prediction
-        • resource dynamics
-        • skill discovery / options
+    The callback returns one finite normalized scalar, handles target detachment
+    and episode/validity masks, and must not own unregistered trainable parameters.
+    Weight is explicit; zero skips callback evaluation. No built-in objectives.
     """
 
     name: str
-    fn: Callable[[Dict[str, torch.Tensor], float], torch.Tensor]
+    fn: Callable[[torch.Tensor, torch.Tensor, Dict[str, torch.Tensor]], torch.Tensor]
+    weight: float = 1.0
 
 
 # ---------------------------------------------------------
@@ -121,9 +97,8 @@ class WorldModelConfig:
     value_bins: int = 41
 
     # Optional project extensions; baseline DreamerV3 does not require these.
-    # Each callback produces a detached (B, L, D) target from replay.
+    # Each callback returns a normalized scalar loss; weighting is per objective.
     aux_objectives: List[AuxObjectiveConfig] = field(default_factory=list)
-    aux_reward_scale: float = 0.1
     disable_aux_losses: bool = False
 
 

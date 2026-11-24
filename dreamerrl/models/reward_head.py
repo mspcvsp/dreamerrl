@@ -4,6 +4,7 @@ import torch.nn.functional as F
 
 from dreamerrl.utils.transforms import symexp, symlog
 from dreamerrl.utils.twohot import twohot_encode
+from dreamerrl.utils.types import LatentConfig, NetworkConfig
 
 
 class RewardHead(nn.Module):
@@ -70,3 +71,11 @@ class RewardHead(nn.Module):
 
     def loss_from_logits(self, logits: torch.Tensor, reward: torch.Tensor) -> torch.Tensor:
         return self.loss(logits, reward)
+
+
+class RewardModel(nn.Module):
+    """Single standard reward head, preserving historical `reward_heads.main` keys."""
+
+    def __init__(self, *, latent: LatentConfig, net: NetworkConfig):
+        super().__init__()
+        self.main = RewardHead(latent=latent, net=net)

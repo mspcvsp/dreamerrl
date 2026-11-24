@@ -67,7 +67,7 @@ def world_model_training_step(world_model, batch, kl_scale=None) -> WorldModelMe
         world_model.latent.stoch_size,
     )
     decoded = world_model.decoder(h, z)
-    reward_logits, _ = world_model.reward_heads(h, z)
+    reward_logits = world_model.reward_heads.main(h, z)
     cont_logits = world_model.continue_head(h, z).reshape(B, L, 1)
     cont_target = 1.0 - batch.get("is_terminal", torch.zeros_like(batch["reward"])).float()
     reconstruction_metrics = {}
@@ -143,28 +143,15 @@ def world_model_training_step(world_model, batch, kl_scale=None) -> WorldModelMe
             reward_metrics["positive_reward_prediction_mean"] = predicted_reward[positive].mean()
     aux_losses = []
     if not world_model.cfg.disable_aux_losses:
-        for cfg in world_model.aux_objectives:
-            head = world_model.aux_heads[cfg.name]
-            logits = head(h, z).reshape(B, L, -1)
-            target = cfg.fn(batch, world_model.net_cfg.discount).detach().float()
-            if target.shape != logits.shape:
-                raise ValueError(f"{cfg.name}: target {target.shape} != prediction {logits.shape}")
-            if cfg.name == "novelty":
-                # No future observation exists at the sequence boundary.
-                valid = torch.ones(B, max(L - 1, 0), dtype=torch.bool, device=device)
-                if "is_first" in batch:
-                    valid &= ~batch["is_first"][:, 1:].bool()
-                if "is_last" in batch or "done" in batch:
-                    valid &= ~batch.get("is_last", batch.get("done"))[:, :-1].bool()
-                loss = (
-                    head.loss_from_logits(logits[:, :-1][valid], symlog(target[:, :-1][valid]))
-                    if valid.any()
-                    else logits.sum() * 0
-                )
+        features_h = h.reshape(B, L, -1)
+        features_z = z.reshape(B, L, *z.shape[1:])
+        for objective in world_model.aux_objectives:
+            if objective.weight == 0:
+                loss = h.sum() * 0
             else:
-                if cfg.name == "resource":
-                    target = symlog(target)
-                loss = head.loss_from_logits(logits, target)
+                loss = objective.fn(features_h, features_z, batch)
+                if loss.ndim != 0 or not torch.isfinite(loss):
+                    raise ValueError(f"{objective.name}: auxiliary loss must be one finite scalar")
             aux_losses.append(loss)
     kl_dyn = torch.stack([p["kl_dyn"] for p in posts], dim=1).mean()
     kl_rep = torch.stack([p["kl_rep"] for p in posts], dim=1).mean()
@@ -174,7 +161,7 @@ def world_model_training_step(world_model, batch, kl_scale=None) -> WorldModelMe
         cfg.dynamics_scale * kl_dyn + cfg.representation_scale * kl_rep
     )
     if aux_losses:
-        total = total + world_model.cfg.aux_reward_scale * torch.stack(aux_losses).mean()
+        total = total + sum(objective.weight * loss for objective, loss in zip(world_model.aux_objectives, aux_losses))
     return WorldModelMetrics(
         total_loss=total,
         recon_loss=recon_loss,

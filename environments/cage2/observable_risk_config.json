@@ -1,0 +1,13 @@
+{
+  "dataset_directory": "runs/cage2_latent_analysis_host_pilot_20261124",
+  "checkpoint_sha256": "8a2483a6add81e1db709f35079f086c50778b900c24164b99fa29b62240cc1bd",
+  "pilot_tag": "cage2-host-aware-pilot-v1",
+  "pilot_commit": "ac2ec1b936b29ccf37d11ab4e2656f6636211fb4",
+  "horizons": [1,5],
+  "primary_horizon": 5,
+  "ridge_alphas": [0.0001,0.001,0.01,0.1,1,10,100],
+  "bootstrap_seed": 20261124,
+  "bootstrap_draws": 2000,
+  "max_wall_seconds": 2700,
+  "target": "mean next-H observable fraction of 13 hosts with Activity=Exploit OR Compromised=User/Privileged; Unknown separate, not healthy or compromised"
+}

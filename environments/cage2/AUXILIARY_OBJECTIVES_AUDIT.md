@@ -1,3 +1,7 @@
+> Historical pre-cleanup assessment at source `17e5e53`; built-in objectives and
+> the old verification entry point were subsequently removed. Use Git history to
+> reproduce this audit. This document records findings, not the maintained API.
+
 # DreamerRL auxiliary-objective audit
 
 Date: 2026-11-24. Audited source: `17e5e53a4fa2ef6c803f5c05bd2986df6821c0a6`.

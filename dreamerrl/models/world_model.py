@@ -12,14 +12,13 @@ from dreamerrl.env.obs_utils import get_flat_obs_dim
 from dreamerrl.models.actor import act_in_imagination
 from dreamerrl.utils.types import DreamerConfig, LatentConfig, NetworkConfig
 
-from .aux_heads import make_aux_heads
 from .base_obs_encoder import BaseEncoder
 from .categorical_kl import structured_kl
 from .continue_head import ContinueHead
-from .multi_reward_head import MultiRewardHead
 from .observation_model import build_observation_model
 from .posterior import Posterior
 from .prior import Prior
+from .reward_head import RewardModel
 from .world_model_core import RSSMCore
 
 
@@ -123,35 +122,23 @@ class WorldModel(nn.Module):
             "decoder", obs_space=obs_space, cfg=self.cfg, latent=latent, net=net, device=self.device
         )
 
-        self.reward_heads = MultiRewardHead(
-            latent=latent,
-            net=net,
-            num_aux=0,
-        ).to(self.device)
+        # Keep the historical reward_heads.main state_dict namespace.
+        self.reward_heads = RewardModel(latent=latent, net=net).to(self.device)
 
         self.continue_head: ContinueHead = ContinueHead(latent=latent, net=net).to(self.device)
 
-        # -------------------------------------------------------------
-        # Auxiliary heads (novelty, reachability, affordance, skill, resource)
-        # -------------------------------------------------------------
-        if self.cfg.disable_aux_losses:
-            # Disable auxiliary losses entirely
-            self.aux_heads = nn.ModuleDict({}).to(self.device)
-            self.aux_objectives = []
-        else:
-            all_aux_heads = make_aux_heads(
-                deter_size=latent.deter_size,
-                z_dim=latent.z_dim,
-                action_dim=net.action_dim or 0,
-                num_skills=net.action_dim or 0,
-                hidden=net.hidden_size,
-            )
-
-            self.aux_objectives = dreamer_cfg.world.aux_objectives or []
-
-            self.aux_heads = nn.ModuleDict({cfg.name: all_aux_heads[cfg.name] for cfg in self.aux_objectives}).to(
-                self.device
-            )
+        # Environment-owned stateless callbacks; no generic auxiliary heads.
+        self.aux_objectives = [] if self.cfg.disable_aux_losses else list(self.cfg.aux_objectives)
+        names = [objective.name for objective in self.aux_objectives]
+        if len(names) != len(set(names)):
+            raise ValueError("Auxiliary loss names must be unique")
+        for objective in self.aux_objectives:
+            if not objective.name or not callable(objective.fn):
+                raise ValueError("Auxiliary losses require a name and callable")
+            if isinstance(objective.fn, nn.Module):
+                raise ValueError("Auxiliary callbacks must be stateless; modules need explicit model registration")
+            if not torch.isfinite(torch.tensor(objective.weight)) or objective.weight < 0:
+                raise ValueError("Auxiliary weights must be finite and nonnegative")
 
         # Backward‑compatibility alias for invariants + actor/critic tests
         self.reward_head = self.reward_heads.main
@@ -207,14 +194,8 @@ class WorldModel(nn.Module):
         prior = WorldModelState(h=h, z=prior_stats["z"], prior_stats=prior_stats)
 
         recon = self.decoder(h, z)
-        reward_main_logits, reward_aux_logits = self.reward_heads(h, z)
+        reward_main_logits = self.reward_heads.main(h, z)
         cont_logits = self.continue_head(h, z)
-
-        # Disable aux heads in reproducibility mode
-        if self.cfg.disable_aux_losses:
-            aux_logits = {}
-        else:
-            aux_logits = {name: head(h, z) for name, head in self.aux_heads.items()}
 
         kl_dict = structured_kl(q_probs=post_stats["probs"], p_probs=prior_stats["probs"], kl_cfg=self.cfg.kl_cfg)
 
@@ -227,15 +208,6 @@ class WorldModel(nn.Module):
                 raise ValueError(f"KL divergence {key} is not finite: {kl_dict[key]}")
             post_stats[key] = kl_dict[key]
 
-        # NOTE:
-        #   We return `reward_logits` for backward‑compatibility with the Dreamer‑V3 API and test suite. The training
-        #   pipeline (imagination, actor‑critic update, value learning) all expect a single key named `reward_logits`
-        #   that contains the *main* reward‑head logits.
-        #
-        #   Even though this model now supports multiple reward heads (`reward_main_logits`, `reward_aux_logits`), the
-        #   legacy key must remain so downstream code continues to work without modification.
-        #
-        #   In short: `reward_logits` is an alias for the main reward head.
         return {
             "post": post,
             "prior": prior,
@@ -244,9 +216,7 @@ class WorldModel(nn.Module):
             "recon": recon,
             "reward_logits": reward_main_logits,
             "reward_main_logits": reward_main_logits,
-            "reward_aux_logits": reward_aux_logits,
             "cont_logits": cont_logits,
-            "aux_logits": aux_logits,
             "kl": post_stats["kl_total"],
         }
 
