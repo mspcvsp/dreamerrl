@@ -199,12 +199,31 @@ def report_comparison(root):
     )
 
 
+def execution_order(spec, arm=None, seed=None):
+    """Select one existing arm/seed or retain the full preregistered order."""
+    if (arm is None) != (seed is None):
+        raise ValueError("--arm and --seed must be supplied together")
+    if arm is None:
+        return spec["sequential_run_order"]
+    item = {"arm": arm, "seed": seed}
+    if item not in spec["sequential_run_order"]:
+        raise ValueError("Arm/seed must belong to the configured execution schedule")
+    return [item]
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--manifest", type=Path, required=True)
     parser.add_argument("--output-root", type=Path, required=True)
     parser.add_argument("--check-only", action="store_true")
+    parser.add_argument("--arm", choices=["flat", "cage2_host"])
+    parser.add_argument("--seed", type=int)
     args = parser.parse_args()
+    spec = json.loads(CONFIG.read_text())
+    try:
+        order = execution_order(spec, args.arm, args.seed)
+    except ValueError as error:
+        parser.error(str(error))
     try:
         manifest = verify_gate(args.manifest, require_approval=not args.check_only)
     except ValueError as error:
@@ -212,7 +231,12 @@ def main():
     if args.check_only:
         print(
             json.dumps(
-                dict(gate_passed=True, source_tag=manifest["source_tag"], source_commit=manifest["source_commit"]),
+                dict(
+                    gate_passed=True,
+                    source_tag=manifest["source_tag"],
+                    source_commit=manifest["source_commit"],
+                    execution_order=order,
+                ),
                 indent=2,
             )
         )
@@ -224,10 +248,12 @@ def main():
     if not root.is_relative_to(ROOT / "runs"):
         parser.error("Generated experiment artifacts must be under this checkout's runs/ directory")
     root.mkdir(parents=True, exist_ok=False)
-    for item in spec["sequential_run_order"]:
+    write(root / "execution_selection.json", dict(execution_order=order, single_arm=args.arm is not None))
+    for item in order:
         run_arm(args.manifest, root, item["arm"], item["seed"])
-    evaluate_heldout(args.manifest, root)
-    report_comparison(root)
+    if args.arm is None:
+        evaluate_heldout(args.manifest, root)
+        report_comparison(root)
     print("EXPERIMENT_COMPLETE", root, flush=True)
 
 

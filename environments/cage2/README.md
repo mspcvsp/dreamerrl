@@ -34,3 +34,12 @@ the exact original update-1 checkpoint, fresh output paths and training approval
 fingerprints, schedule, dependency provenance and the OneDrive backup record.
 `conda_reference.json` is retained solely as historical evidence; no maintained
 workflow depends on that installation. The baseline tag remains immutable.
+
+## Spark replication workflow
+
+Use [two independent processes](CONCURRENT_REPLICATION.md) as the recommended
+throughput-oriented replication workflow on this Spark. The recorded five-minute
+benchmark measured 42% higher aggregate updates/sec with two processes. Each
+formal experiment still requires its own reviewed tagged configuration, committed
+manifest and explicit launch approval. No additional training is authorized by
+this recommendation.
