@@ -1,0 +1,35 @@
+[project]
+name = "dreamerrl-cage2-spark"
+version = "0.1.0"
+description = "Isolated CAGE Challenge 2 Blue development and GPU smoke environment on DGX Spark"
+requires-python = "==3.10.19"
+dependencies = [
+    "dreamerrl",
+    "cyborg==2.1",
+    "torch==2.9.1+cu130",
+    "numpy==1.26.4",
+    "gym==0.26.2",
+    "nvidia-cusparselt-cu13==0.8.0+spark1",
+]
+
+[tool.uv]
+package = false
+required-version = "==0.13.9"
+python-preference = "only-managed"
+build-constraint-dependencies = ["setuptools==80.9.0", "wheel==0.45.1"]
+environments = ["sys_platform == 'linux' and platform_machine == 'aarch64'"]
+
+[tool.uv.sources]
+dreamerrl = { path = "../..", editable = true }
+cyborg = { path = "vendor/cage-challenge-2/CybORG", editable = true }
+torch = { index = "pytorch-cu130" }
+nvidia-cusparselt-cu13 = { path = "wheels/nvidia_cusparselt_cu13-0.8.0+spark1-py3-none-manylinux2014_aarch64.whl" }
+
+[[tool.uv.index]]
+name = "pytorch-cu130"
+url = "https://download.pytorch.org/whl/cu130"
+explicit = true
+
+[tool.cage2]
+repository = "https://github.com/cage-challenge/cage-challenge-2.git"
+revision = "26ce1c1253fa9e2e73f25e6a7f2da32860c11257"

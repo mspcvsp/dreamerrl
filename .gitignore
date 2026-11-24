@@ -8,3 +8,6 @@ checkpoints/
 *egg-info
 *.txt
 logs/
+
+# Isolated uv project environments
+.venv/
