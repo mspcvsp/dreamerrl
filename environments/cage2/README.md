@@ -117,3 +117,10 @@ Targeted adapter checks (independent of the MiniHack pytest configuration):
 ```bash
 uv run --locked pytest -c /dev/null -q test_adapter.py
 ```
+
+## Original measured baseline
+
+See [the original baseline reproduction record](reproducibility/README.md) for
+the verified checkpoint fingerprint, exact two-phase execution schedule, complete
+configuration, native dependency preparation, and separate reporting contract.
+The historical tag and run artifacts remain unchanged.

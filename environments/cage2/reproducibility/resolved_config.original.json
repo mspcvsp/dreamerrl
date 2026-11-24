@@ -1,0 +1,92 @@
+{
+  "world": {
+    "deter_size": 200,
+    "stoch_size": 30,
+    "num_classes": 32,
+    "hidden_size": 200,
+    "glyph_shape": null,
+    "glyph_vocab_size": 0,
+    "glyph_local_branch": false,
+    "glyph_player_ids": [],
+    "glyph_changed_weight": 1.0,
+    "glyph_foreground_ids": [],
+    "glyph_loss_balance": "weighted",
+    "glyph_salient_fraction": 0.5,
+    "reconstruction_scale": 1.0,
+    "reward_hidden": 256,
+    "kl_cfg": {
+      "scale": 1.0,
+      "free_nats": 1.0,
+      "dynamics_scale": 1.0,
+      "representation_scale": 0.1,
+      "max_kl": 100.0,
+      "min_kl": -1e-06,
+      "require_nonzero": true
+    },
+    "encoder_hidden": 256,
+    "decoder_hidden": 256,
+    "imagination_horizon": 15,
+    "unimix": 0.01,
+    "value_bins": 41,
+    "aux_objectives": [],
+    "aux_reward_scale": 0.1,
+    "disable_aux_losses": true
+  },
+  "ac": {
+    "actor_hidden": 256,
+    "critic_hidden": 256,
+    "discount": 0.99,
+    "lambda_": 0.95,
+    "unimix": 0.01,
+    "entropy_scale": 0.0003,
+    "slow_critic_rate": 0.02,
+    "slow_critic_scale": 1.0,
+    "replay_value_scale": 0.0
+  },
+  "train": {
+    "replay_capacity": 200000,
+    "seq_len": 16,
+    "burn_in": 8,
+    "acting_context": -1,
+    "batch_size": 16,
+    "collect_steps": 30,
+    "action_cost": 0.0,
+    "model_lr": 0.0003,
+    "actor_lr": 0.0003,
+    "critic_lr": 0.0003,
+    "grad_clip": 100.0,
+    "warmup_steps": 0,
+    "random_exploration_steps": 100000,
+    "deterministic_imagination": false,
+    "enable_wandb": false,
+    "deterministic_env": false,
+    "enable_fused_adamw_kernels": false,
+    "use_amp": false,
+    "cuda": true,
+    "seed": 0,
+    "enforce_length_invariants": false,
+    "enable_repro_log": false,
+    "repro_log_every_n": 100,
+    "freeze_actor_critic_steps": 0,
+    "console_log_interval": 10
+  },
+  "env": {
+    "env_id": "CAGE2-Blue-BLine-v0",
+    "num_envs": 1,
+    "max_episode_steps": 30,
+    "deterministic": false,
+    "parallel": false,
+    "seed": 0,
+    "finite_horizon": false
+  },
+  "log": {
+    "tb_logdir": "/home/mspcvsp/Documents/dreamerrl/runs/cage2_blue_learning_seed0_20261123/tensorboard/tensorboard",
+    "checkpoint_dir": "./checkpoints",
+    "run_name": "train",
+    "enable_wandb": false
+  },
+  "debug": {
+    "rich_dashboard": false,
+    "rich_update_interval": 10
+  }
+}

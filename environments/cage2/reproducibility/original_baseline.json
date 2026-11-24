@@ -1,0 +1,553 @@
+{
+  "schema_version": 1,
+  "experiment_id": "cage2_blue_learning_seed0_20261123",
+  "record_type": "retrospective factual reproduction manifest; not a new experiment",
+  "baseline": {
+    "tag": "cage2_baseline_v1",
+    "tag_object": "bab6727939e0d237de5566fa782e89f73c82b5aa",
+    "commit": "1adc2a0c68f2ce9b361c36a9ac30dddc67f23012",
+    "launch_base_commit": "89607e9100ba157e193aeb275f5522b9d2f62971",
+    "launch_code_diff_bytes": 0,
+    "explanation": "Experiment scripts were untracked at launch and committed unchanged afterward; code.diff does not capture untracked files.",
+    "script_sha256": {
+      "learning_curve.py": "5680ff6d969805b06503a52f94f65a7a7eccc546937c90bfb66e11f2812b5bc0",
+      "report_learning.py": "6505443f1f7164fafb1f3c2c1734780b42b08007e3c2ebbde6a708e2adafca03",
+      "run_learning_clean.sh": "4e8cd671d3602399bf4b97a7dfc0c692c8b34e0636044e39945b61dce08a8b6d"
+    }
+  },
+  "source_checkpoint": {
+    "repository_relative_path": "runs/cage2_blue_cycle_seed0_20261123/latest.pt",
+    "original_absolute_path": "/home/mspcvsp/Documents/dreamerrl/runs/cage2_blue_cycle_seed0_20261123/latest.pt",
+    "sha256": "94f378899c0422e0af2db2e07cbb13eab9b27a1448cfbe2deb955617c0e5d2ff",
+    "bytes": 33792609,
+    "provenance": {
+      "commit": "89607e9100ba157e193aeb275f5522b9d2f62971",
+      "branch": "feature/cage2",
+      "cyborg_revision": "26ce1c1253fa9e2e73f25e6a7f2da32860c11257",
+      "python": "/home/mspcvsp/Documents/dreamerrl/environments/cage2/.venv/bin/python",
+      "torch": "2.9.1+cu130",
+      "cuda": "13.0",
+      "uv_lock_sha256": "45b6f78568e96dec19be2eb9a54579f07a92c653393ae91e0fcdefadf4e056b4",
+      "collection_policy": "production collector uniform discrete warmup",
+      "collection_seed": 0,
+      "evaluation_seed": 10000,
+      "evaluation_actions": "greedy",
+      "evaluation_latents": "posterior modes"
+    },
+    "format_version": 4,
+    "required_keys": [
+      "version",
+      "config",
+      "world",
+      "actor",
+      "critic",
+      "slow_critic",
+      "model_opt",
+      "actor_opt",
+      "critic_opt",
+      "scaler",
+      "completed_updates",
+      "total_updates_target",
+      "total_env_steps",
+      "sample_step",
+      "cadence_totals",
+      "completed_episodes",
+      "run_state",
+      "recent_returns",
+      "replay",
+      "rng"
+    ],
+    "optimizer_steps": {
+      "model_opt": [
+        1
+      ],
+      "actor_opt": [
+        1
+      ],
+      "critic_opt": [
+        1
+      ]
+    },
+    "completed_updates": 1,
+    "total_env_steps": 510,
+    "replay_episodes": 17,
+    "replay_observation_rows": 527,
+    "rng_keys": [
+      "python",
+      "numpy",
+      "torch",
+      "cuda"
+    ],
+    "note": "Trusted local torch.save pickle. Check hash before loading. Retain model and slow-critic weights, optimizer states, replay, config, counters and Python/NumPy/Torch/CUDA RNG states. Simulator and unfinished episode state are not saved."
+  },
+  "configuration": {
+    "file": "resolved_config.original.json",
+    "sha256": "f74df62f1ce594c099afd3212f6c3938b35bf2094b29d8d5c1455b7cc3b08289",
+    "historical_source": "runs/cage2_blue_learning_seed0_20261123/resolved_config.json",
+    "historical_source_sha256": "f74df62f1ce594c099afd3212f6c3938b35bf2094b29d8d5c1455b7cc3b08289",
+    "note": "Values preserved verbatim; output paths may be relocated. Checkpoint config, not current defaults, controls resume."
+  },
+  "interface": {
+    "scenario": "bundled Scenario2.yaml",
+    "opponent": "supplied B_lineAgent",
+    "policy": "single Blue",
+    "horizon": 30,
+    "observation_count": 52,
+    "native_dtype": "int64",
+    "adapter_dtype": "float32",
+    "discrete_actions": 145,
+    "action_mapping_artifact": "runs/cage2_blue_learning_seed0_20261123/action_mapping.json",
+    "cap": "is_last=True, is_terminal=False; native info.done=False; continuing-task bootstrap"
+  },
+  "execution": {
+    "source_update": 1,
+    "source_environment_steps": 510,
+    "training_seed": 0,
+    "resume_first_episode_seed": 510,
+    "episode_seeds": "increment by one per training episode; original warmup seeds 0..16 already in replay",
+    "development_simulator_seeds": [
+      1000000000,
+      1000000001,
+      1000000002,
+      1000000003,
+      1000000004,
+      1000000005,
+      1000000006,
+      1000000007,
+      1000000008,
+      1000000009,
+      1000000010,
+      1000000011,
+      1000000012,
+      1000000013,
+      1000000014,
+      1000000015,
+      1000000016,
+      1000000017,
+      1000000018,
+      1000000019
+    ],
+    "policy_seed_rule": "simulator seed + 100000; random baseline uses independent NumPy Generator",
+    "evaluations": "one unassisted 30-step episode per seed; greedy actor with posterior modes; baselines actor/update1, Sleep, seeded random before calibration",
+    "evaluation_isolation": "separate environments; restore Python, NumPy, CPU/CUDA Torch RNG; verify replay/counters/model hashes unchanged",
+    "calibration": {
+      "additional_updates": 25,
+      "completed_updates": [
+        2,
+        26
+      ],
+      "scheduler_total_updates": 100000,
+      "checkpoint_every": 25,
+      "measured_seconds_per_update": 0.41584069735952656
+    },
+    "fixed_original_schedule": {
+      "completed_updates": [
+        27,
+        16899
+      ],
+      "scheduler_total_updates": 16899,
+      "scheduler_step": "zero-based update index: completed update minus one",
+      "shared_optimizer_lr": "0.00003 + (0.0003 - 0.00003) * 0.5 * (1 + cos(pi * step / total_updates))",
+      "final_update": 16899,
+      "final_environment_steps": 507450,
+      "collection_steps_per_update": 30,
+      "latest_checkpoint_every": 100,
+      "evaluation_checkpoints": [
+        {
+          "update": 4244,
+          "environment_steps": 127800
+        },
+        {
+          "update": 8462,
+          "environment_steps": 254340
+        },
+        {
+          "update": 12681,
+          "environment_steps": 380910
+        },
+        {
+          "update": 16899,
+          "environment_steps": 507450
+        }
+      ],
+      "calibration_checkpoint": "update_26.pt"
+    },
+    "original_budget": {
+      "calibration_seconds_per_update": 0.41584069735952656,
+      "elapsed_seconds": 32.35055287601426,
+      "actor_evaluation_seconds": 7.729782586015062,
+      "final_update": 16899,
+      "final_env_steps": 507450,
+      "evaluation_updates": [
+        4244,
+        8462,
+        12681,
+        16899
+      ],
+      "recorded_before_later_evaluations": true
+    },
+    "actual_elapsed_seconds": 7814.591335489997,
+    "important": "Tagged launcher recalculates wall-time budget; it does NOT accept a fixed-budget argument. To match this experiment, execute both trainer phases with the saved horizons and evaluation updates, rather than remeasure the budget. This manifest does not launch training.",
+    "environment_variables": {
+      "CUBLAS_WORKSPACE_CONFIG": ":4096:8",
+      "PYTHONHASHSEED": "0",
+      "OMP_NUM_THREADS": "2",
+      "OPENBLAS_NUM_THREADS": "1",
+      "MKL_NUM_THREADS": "2"
+    },
+    "shell": "Conda deactivated; launcher unsets Python, virtualenv and library path contamination; uv sync --locked; uv run --locked python -u learning_curve.py",
+    "bootstrap": {
+      "paired_seed_resamples": 20000,
+      "numpy_generator_seed": 20261123,
+      "interval": "percentile 95%; resample matched seed differences"
+    },
+    "selection": "predeclared final is primary; best observed checkpoint exploratory; one training seed"
+  },
+  "dependencies": {
+    "python": "3.10.19 (uv managed)",
+    "uv": "0.13.9",
+    "torch": "2.9.1+cu130",
+    "torch_cuda": "13.0",
+    "uv_lock": "environments/cage2/uv.lock",
+    "uv_lock_sha256": "45b6f78568e96dec19be2eb9a54579f07a92c653393ae91e0fcdefadf4e056b4",
+    "cyborg_repository": "https://github.com/cage-challenge/cage-challenge-2.git",
+    "cyborg_revision": "26ce1c1253fa9e2e73f25e6a7f2da32860c11257",
+    "cyborg_package": "bundled CybORG 2.1, editable pinned submodule to retain scenario/version data",
+    "cusparselt_repair": {
+      "upstream_url": "https://files.pythonhosted.org/packages/46/10/8dcd1175260706a2fc92a16a52e306b71d4c1ea0b0cc4a9484183399818a/nvidia_cusparselt_cu13-0.8.0-py3-none-manylinux2014_aarch64.whl",
+      "upstream_sha256": "400c6ed1cf6780fc6efedd64ec9f1345871767e6a1a0a552a1ea0578117ea77c",
+      "repaired_filename": "nvidia_cusparselt_cu13-0.8.0+spark1-py3-none-manylinux2014_aarch64.whl",
+      "repaired_sha256": "3974cc125c2ad53997dd8384e60ff048f79b36422aa3fdde517afc3aa64d48c0",
+      "native_library_sha256": {
+        "nvidia/cusparselt/lib/libcusparseLt.so.0": "20de6b36cbbf5753b26826eec753a2005608e14cbc3bfdd4681138098be86941"
+      },
+      "changes": [
+        "WHEEL platform tag sbsa -> aarch64",
+        "visible local version +spark1",
+        "RECORD hashes"
+      ],
+      "native_library_bytes_unchanged": true
+    },
+    "external_host": {
+      "host": "spark-3f04",
+      "architecture": "Linux aarch64",
+      "gpu": "NVIDIA GB10 (compute capability 12.1)",
+      "nvidia_driver_tested": "580.95.05",
+      "glibc_tested": "2.39",
+      "glibc_minimum_documented": "2.28",
+      "native_libraries": [
+        "host libcuda.so.1",
+        "system C/C++ runtime libraries"
+      ],
+      "tools": [
+        "Git",
+        "Bash",
+        "uv 0.13.9"
+      ],
+      "cuda_toolkit_present": "13.0.3; not required for these binary-wheel runs"
+    },
+    "preparation_command": "cd environments/cage2 && bash --noprofile --norc setup.sh"
+  },
+  "reporting": {
+    "separate_step": true,
+    "command": "cd environments/cage2 && uv run --locked python report_learning.py --run-dir /absolute/path/to/a/NEW-run-directory",
+    "historical_invocation": "Saved report_when_done.sh invoked /usr/bin/python3 after successful training exit. Reporter uses only the standard library.",
+    "inputs": [
+      "scorecard.json",
+      "complete.json"
+    ],
+    "generated_outputs": [
+      "scorecard.csv",
+      "final_report.txt"
+    ],
+    "training_outputs": [
+      "baseline_actor.json",
+      "baseline_sleep.json",
+      "baseline_random.json",
+      "evaluation_<update>.json",
+      "scorecard.json",
+      "complete.json",
+      "metrics.jsonl",
+      "training_seeds.jsonl",
+      "latest.pt",
+      "update_26.pt",
+      "update_4244.pt",
+      "update_8462.pt",
+      "update_12681.pt",
+      "update_16899.pt",
+      "resolved_config.json",
+      "protocol.json",
+      "budget.json",
+      "revisions.json",
+      "code.diff",
+      "experiment_script.py",
+      "action_mapping.json",
+      "tensorboard/"
+    ],
+    "historical_console_log": "runs/cage2_blue_learning_seed0_20261123_job/console.log",
+    "preservation": "Reporting overwrites its two outputs: run it only in a NEW directory or a scratch copy of the two input JSON files, never the historical run."
+  },
+  "limitations": [
+    "Source checkpoint and historical run files are ignored local artifacts, not stored in the Git tag or a published durable archive. Preserve a backup independently.",
+    "The tag predates this documentation; keep both baseline tag and subsequent reproduction-documentation revision.",
+    "Tagged timing-driven CLI cannot directly replay fixed schedule; do not mistake its saved rerun command for an exact schedule replay.",
+    "Restart checkpoints omit live simulator state; resume starts a fresh episode with the project reset seed rule. Mid-run restart can change collection trajectory.",
+    "GPU/driver/hardware differences and future package availability can prevent bitwise reproduction; successful GB10 checks do not guarantee all Torch kernels.",
+    "Native host libraries and driver are documented tested versions, not a container or exhaustive system-library lock.",
+    "Single training seed and 20 development seeds do not estimate independent-training-run uncertainty."
+  ],
+  "historical_artifact_inventory": {
+    "runs/cage2_blue_cycle_seed0_20261123/HANDOFF.md": {
+      "sha256": "a3a118c29903a347e9a2aa0e705afe571a5945b66546fdb206040a2ca4786d80",
+      "bytes": 3043
+    },
+    "runs/cage2_blue_cycle_seed0_20261123/checkpoint_expectation.json": {
+      "sha256": "ff8862fe328d63bef83602563c6ec0d0043bbb416d064268232cf059f9b85250",
+      "bytes": 1167
+    },
+    "runs/cage2_blue_cycle_seed0_20261123/code.diff": {
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    "runs/cage2_blue_cycle_seed0_20261123/collection_journal.json": {
+      "sha256": "9010a8590a50ac0ba7d572fc23575fc1501e3c9cc220a4a4d067fd08040daaa2",
+      "bytes": 721213
+    },
+    "runs/cage2_blue_cycle_seed0_20261123/environment_verification.json": {
+      "sha256": "908bab76102ceed5612840e886d8b9a58ec8f18e9cc07674b0e5f5676bddd59a",
+      "bytes": 1433
+    },
+    "runs/cage2_blue_cycle_seed0_20261123/evaluation.json": {
+      "sha256": "aa7e1e38580192130bf39a103fd861ff4abd40dc468f5701862b606e95b5849b",
+      "bytes": 750
+    },
+    "runs/cage2_blue_cycle_seed0_20261123/evaluation_journal.json": {
+      "sha256": "07dd88ba81165c13293bd318a329be8a192ea10e1eeea7f1f95c8e996a4da994",
+      "bytes": 42519
+    },
+    "runs/cage2_blue_cycle_seed0_20261123/interface.json": {
+      "sha256": "5aae4356a6d5d624b9ddc78955d3c391e2e6a123c67a992c9dceddcdc84ce82e",
+      "bytes": 15521
+    },
+    "runs/cage2_blue_cycle_seed0_20261123/latest.pt": {
+      "sha256": "94f378899c0422e0af2db2e07cbb13eab9b27a1448cfbe2deb955617c0e5d2ff",
+      "bytes": 33792609
+    },
+    "runs/cage2_blue_cycle_seed0_20261123/provenance.json": {
+      "sha256": "213a00d03f6936f1d2d41867e3ae889fac3b8b8c05143135e627e2a22900a60a",
+      "bytes": 570
+    },
+    "runs/cage2_blue_cycle_seed0_20261123/reload/tensorboard/train/events.out.tfevents.1795441776.spark-3f04.3526595.0": {
+      "sha256": "1911cfefabe755e905eedff66638e67f30e13d3dc204a2ebe0afca9476aac60b",
+      "bytes": 196
+    },
+    "runs/cage2_blue_cycle_seed0_20261123/rerun_command.txt": {
+      "sha256": "2e680df024bb94d00e056071fadc82a749b0ba7bee6903fa142f483d3f2f4f83",
+      "bytes": 189
+    },
+    "runs/cage2_blue_cycle_seed0_20261123/resolved_config.json": {
+      "sha256": "d206ed2986ae2e3e8073552e20838cea7b359186493c9e01b3015f33ebb2e450",
+      "bytes": 2280
+    },
+    "runs/cage2_blue_cycle_seed0_20261123/results.json": {
+      "sha256": "666b0bf32c4116c50f8083027e843b570cff096162ef10db4eca55f5e5fd5f29",
+      "bytes": 3941
+    },
+    "runs/cage2_blue_cycle_seed0_20261123/reward_trace.json": {
+      "sha256": "a15645ff4521f09f4d535dff6c7752362aaea6b7303216d788af247bba8886be",
+      "bytes": 974
+    },
+    "runs/cage2_blue_cycle_seed0_20261123/tensorboard/train/events.out.tfevents.1795441770.spark-3f04.3526398.0": {
+      "sha256": "096667dfab8fd993e1f30e86ef8f3326fe356ea089e0369d341d9d039fc6e989",
+      "bytes": 6281
+    },
+    "runs/cage2_blue_cycle_seed0_20261123/train_result.json": {
+      "sha256": "e66a35de67594b3cc67c4122ee153fdbe10eb0a18ebd1e06076cfe311af82ab5",
+      "bytes": 1860
+    },
+    "runs/cage2_blue_cycle_seed0_20261123/verification.json": {
+      "sha256": "837f95e7ad3a73f889bcf6692d8846ed3992ce9f3645119a4903967145107e8c",
+      "bytes": 759
+    },
+    "runs/cage2_blue_learning_seed0_20261123/action_mapping.json": {
+      "sha256": "c87e934b138e18466eec2848ea7cbd62c2e1c7722737851579c4f8fdda1dd23c",
+      "bytes": 13471
+    },
+    "runs/cage2_blue_learning_seed0_20261123/baseline_actor.json": {
+      "sha256": "dd40684c9ffdb0ae6dbfb7357cc39f8d0004971cd8cef05ed467ca804cb88bf3",
+      "bytes": 601176
+    },
+    "runs/cage2_blue_learning_seed0_20261123/baseline_random.json": {
+      "sha256": "f15625c76837bee2644c7d4074644fe30c80ae113c8c0ec3468a5c34bcf75e22",
+      "bytes": 601786
+    },
+    "runs/cage2_blue_learning_seed0_20261123/baseline_sleep.json": {
+      "sha256": "0837c716fe8ca503cef4bb256b5a95f27a0be1ffebebc49ddcc18dae84c9ba3d",
+      "bytes": 590968
+    },
+    "runs/cage2_blue_learning_seed0_20261123/budget.json": {
+      "sha256": "b33c30909642088d6c7c83151fd076a90235aade111430c7fee7555b535a1eb9",
+      "bytes": 320
+    },
+    "runs/cage2_blue_learning_seed0_20261123/code.diff": {
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    "runs/cage2_blue_learning_seed0_20261123/complete.json": {
+      "sha256": "214b302f4e4a09b06bed11ff878e239cf9fbd046d96ba56fcfb11bb1a2659cac",
+      "bytes": 3659
+    },
+    "runs/cage2_blue_learning_seed0_20261123/evaluation_12681.json": {
+      "sha256": "7345dc22a945448add9d565369f6fdea984fd94583ac3f4f86bc06a9dfaaa33d",
+      "bytes": 598730
+    },
+    "runs/cage2_blue_learning_seed0_20261123/evaluation_16899.json": {
+      "sha256": "d3da987d815166c77671da6ed9ecd97e9331c07800a58f014dfddc127a8d16fb",
+      "bytes": 599023
+    },
+    "runs/cage2_blue_learning_seed0_20261123/evaluation_4244.json": {
+      "sha256": "f100d2be2682a16a9ccf5df839fcc2d14399f3a8641d0545c11ee6c3f839472d",
+      "bytes": 597289
+    },
+    "runs/cage2_blue_learning_seed0_20261123/evaluation_8462.json": {
+      "sha256": "514c2060c3377c6799da73c6f58f9b21e5c8de20f54d71fe39bf19b9cfb67d07",
+      "bytes": 599718
+    },
+    "runs/cage2_blue_learning_seed0_20261123/experiment_revision.json": {
+      "sha256": "d42c76df006232302dd8e07a0dda25807d23f2194f6974b0c613d3c0f0d1b7ed",
+      "bytes": 549
+    },
+    "runs/cage2_blue_learning_seed0_20261123/experiment_script.py": {
+      "sha256": "5680ff6d969805b06503a52f94f65a7a7eccc546937c90bfb66e11f2812b5bc0",
+      "bytes": 13746
+    },
+    "runs/cage2_blue_learning_seed0_20261123/final_report.txt": {
+      "sha256": "54be6c7020807a78a5b4e55d5bd8215f4223ac2e2e8ca855796d1e02627cb12a",
+      "bytes": 1479
+    },
+    "runs/cage2_blue_learning_seed0_20261123/first_checkpoint_verification.json": {
+      "sha256": "0ebd278456ef557389975daa8ef01b22576d33f7ec0692f789c2e10282ea37c2",
+      "bytes": 291
+    },
+    "runs/cage2_blue_learning_seed0_20261123/latest.pt": {
+      "sha256": "ca5e2cac92e397899dbef1116b31fedbe1b29d541f6aeb882517028443b0c5cb",
+      "bytes": 88120519
+    },
+    "runs/cage2_blue_learning_seed0_20261123/launch.sh": {
+      "sha256": "4e94914d2ad2e55de7c7453100a3146ac153e1e2d104f921bca0f2c63675823a",
+      "bytes": 459
+    },
+    "runs/cage2_blue_learning_seed0_20261123/launch_command.txt": {
+      "sha256": "112ffd4c87538e0c03dce34423eb314de96f5783ef2edfe111af19e930beddc6",
+      "bytes": 147
+    },
+    "runs/cage2_blue_learning_seed0_20261123/learning_curve.py": {
+      "sha256": "5680ff6d969805b06503a52f94f65a7a7eccc546937c90bfb66e11f2812b5bc0",
+      "bytes": 13746
+    },
+    "runs/cage2_blue_learning_seed0_20261123/metrics.jsonl": {
+      "sha256": "49b089fe2467ac27883d3bb43e6cd808c7736e7abf21cbcffed2d26273a8eac4",
+      "bytes": 53861004
+    },
+    "runs/cage2_blue_learning_seed0_20261123/protocol.json": {
+      "sha256": "fc29b7ff18d226802c01a4164d826353c53cec11593f1ce886efc8dc57fa6e25",
+      "bytes": 1588
+    },
+    "runs/cage2_blue_learning_seed0_20261123/report_learning.py": {
+      "sha256": "6505443f1f7164fafb1f3c2c1734780b42b08007e3c2ebbde6a708e2adafca03",
+      "bytes": 3714
+    },
+    "runs/cage2_blue_learning_seed0_20261123/report_when_done.sh": {
+      "sha256": "c549ca3b50e5edcbf639f1de069435ca8739a759b968dd56507ccfce78a4e18e",
+      "bytes": 524
+    },
+    "runs/cage2_blue_learning_seed0_20261123/rerun_command.txt": {
+      "sha256": "df46c58d22a9ccd6220de6433a38ee7e7e03108dcad8c7057ead83a6874e0a4c",
+      "bytes": 195
+    },
+    "runs/cage2_blue_learning_seed0_20261123/resolved_config.json": {
+      "sha256": "f74df62f1ce594c099afd3212f6c3938b35bf2094b29d8d5c1455b7cc3b08289",
+      "bytes": 2295
+    },
+    "runs/cage2_blue_learning_seed0_20261123/revisions.json": {
+      "sha256": "2e891e6f3e1c0efc15b91af38eb4f77d52f6e84720d402e0d39987a986742130",
+      "bytes": 314
+    },
+    "runs/cage2_blue_learning_seed0_20261123/run_learning_clean.sh": {
+      "sha256": "4e8cd671d3602399bf4b97a7dfc0c692c8b34e0636044e39945b61dce08a8b6d",
+      "bytes": 685
+    },
+    "runs/cage2_blue_learning_seed0_20261123/scorecard.csv": {
+      "sha256": "6ec834280d5b73f77a6f5a287d11e6bda3869b33314a41f111413bc3230991bb",
+      "bytes": 456
+    },
+    "runs/cage2_blue_learning_seed0_20261123/scorecard.json": {
+      "sha256": "b4cf1d9f952141621d2433e5b8fc51256906ea11021808ebaff2eaf3c711d95b",
+      "bytes": 7926
+    },
+    "runs/cage2_blue_learning_seed0_20261123/status.txt": {
+      "sha256": "dd8dab8912d0ecb1ef8ef70564e31d246ea3c5f7aaee851d622c99d9b0d79388",
+      "bytes": 354
+    },
+    "runs/cage2_blue_learning_seed0_20261123/tensorboard/tensorboard/train/events.out.tfevents.1795485914.spark-3f04.3948245.0": {
+      "sha256": "784adb2e5d09bcbf01779e9e5ce5e24afdfb345e3ea62ab446428ef282a24347",
+      "bytes": 78988992
+    },
+    "runs/cage2_blue_learning_seed0_20261123/training_seeds.jsonl": {
+      "sha256": "0ed5975353e1633f40546a6071ade4ee689444ff9aa6073c1692909ca6e24e3d",
+      "bytes": 587246
+    },
+    "runs/cage2_blue_learning_seed0_20261123/update_12681.pt": {
+      "sha256": "1f1a0d77c0b5ae325d53c3985ee74f79a838162567bf47f5a247d2a1d5781030",
+      "bytes": 88120455
+    },
+    "runs/cage2_blue_learning_seed0_20261123/update_16899.pt": {
+      "sha256": "ca5e2cac92e397899dbef1116b31fedbe1b29d541f6aeb882517028443b0c5cb",
+      "bytes": 88120519
+    },
+    "runs/cage2_blue_learning_seed0_20261123/update_26.pt": {
+      "sha256": "3e593f2bdf9e731ffe4c0f7e99f805552f53c9a8eb9a46af50b81581411430e1",
+      "bytes": 34003573
+    },
+    "runs/cage2_blue_learning_seed0_20261123/update_4244.pt": {
+      "sha256": "ab5ad6ea842048fb4d15471eefe1f808b73488429e0e9bce5147ac6c87f32507",
+      "bytes": 69613063
+    },
+    "runs/cage2_blue_learning_seed0_20261123/update_8462.pt": {
+      "sha256": "d5df072b6a06dfb3e31c18b7644a531eccb73f4d3be06938db9384ab04ae0269",
+      "bytes": 88120455
+    },
+    "runs/cage2_blue_cycle_seed0_20261123_job/console.log": {
+      "sha256": "1414fca4f31cd1b5bcf2686df7af60d146240465b2eddaf3ccd935729826d43e",
+      "bytes": 2585
+    },
+    "runs/cage2_blue_cycle_seed0_20261123_job/exit_code": {
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "bytes": 2
+    },
+    "runs/cage2_blue_cycle_seed0_20261123_job/launch.sh": {
+      "sha256": "a8dcf680b513e1ac4f84b226fa053fcd888c3c8d23b3f6e88d41913e14759022",
+      "bytes": 447
+    },
+    "runs/cage2_blue_learning_seed0_20261123_job/console.log": {
+      "sha256": "3bfc8fa21a978354d1bf69c1364036b10b485ed1670780c64aca472070227656",
+      "bytes": 28121
+    },
+    "runs/cage2_blue_learning_seed0_20261123_job/exit_code": {
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "bytes": 2
+    },
+    "runs/cage2_blue_learning_seed0_20261123_job/final_report.log": {
+      "sha256": "54be6c7020807a78a5b4e55d5bd8215f4223ac2e2e8ca855796d1e02627cb12a",
+      "bytes": 1479
+    },
+    "runs/cage2_blue_learning_seed0_20261123_job/launch.sh": {
+      "sha256": "4e94914d2ad2e55de7c7453100a3146ac153e1e2d104f921bca0f2c63675823a",
+      "bytes": 459
+    },
+    "runs/cage2_blue_learning_seed0_20261123_job/report_when_done.sh": {
+      "sha256": "c549ca3b50e5edcbf639f1de069435ca8739a759b968dd56507ccfce78a4e18e",
+      "bytes": 524
+    }
+  }
+}
