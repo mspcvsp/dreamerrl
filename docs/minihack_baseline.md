@@ -1,3 +1,7 @@
+> Historical MiniHack research is OBE; CAGE2 is the primary environment.
+> Example paths below refer to old artifacts proposed for user-approved cleanup.
+> These examples may require regenerated data after cleanup; tracked environments and tests remain supported.
+
 # MiniHack baseline and auxiliary ablation
 
 Start with a new run: continuation-head dimensions and reward/value bin buffers

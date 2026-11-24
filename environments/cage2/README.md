@@ -124,3 +124,37 @@ See [the original baseline reproduction record](reproducibility/README.md) for
 the verified checkpoint fingerprint, exact two-phase execution schedule, complete
 configuration, native dependency preparation, and separate reporting contract.
 The historical tag and run artifacts remain unchanged.
+
+## Maintained experiment launchers
+
+CAGE2 is the primary research environment. Authoritative source, configuration
+and manifests live here, never under `runs/`. Historical source snapshots are
+preserved as evidence only. After review, use the tracked launcher with a new
+output directory; preview without starting training:
+
+```bash
+python3 -B environments/cage2/launch_learning.py --session cage2-reproduction \
+  --run-dir /absolute/path/to/NEW-run-directory --schedule original --dry-run
+```
+
+Run the command from the repository root. `--schedule original` restores the
+recorded two-phase update/evaluation schedule; `--schedule measured` repeats the
+timing-adaptive procedure. Successful training invokes the tracked reporting
+entry point automatically. No executable launch/worker scripts under `runs/`
+are required. See the reproduction guide for the original checkpoint and
+user-confirmed OneDrive backup. The baseline tag remains immutable.
+
+## Editor import resolution on this Spark
+
+The workspace defaults to `environments/cage2/.venv/bin/python`. The tracked
+`pyrightconfig.json` resolves the pinned CybORG source, the uv Python 3.10
+site-packages, and optional legacy MiniHack/NLE/Minigrid packages from the retained
+`../../miniconda/envs/cage2_env/lib/python3.10/site-packages` directory. These are
+static-analysis paths only; they do not change runtime `PYTHONPATH`, install
+packages, or make MiniHack a dependency of the CAGE2 environment. This fallback
+assumes the documented Spark directory layout; adjust it for another machine.
+
+VS Code remembers previously selected interpreters independently of the default.
+If imports remain cached, run **Python: Select Interpreter**, select the CAGE2 uv
+Python above, then **Python: Restart Language Server** (or reload the window).
+Run legacy MiniHack tests with the preserved Conda interpreter as documented.

@@ -2,6 +2,7 @@
     // -----------------------------
     // Python interpreter & analysis
     // -----------------------------
+    "python.defaultInterpreterPath": "${workspaceFolder}/environments/cage2/.venv/bin/python",
     "python.analysis.typeCheckingMode": "basic",
     "python.analysis.autoImportCompletions": true,
     "python.analysis.useLibraryCodeForTypes": true,
@@ -47,6 +48,4 @@
     // -----------------------------
     "workbench.colorTheme": "Catppuccin Frappé",
     "breadcrumbs.enabled": true,
-    "python-envs.defaultEnvManager": "ms-python.python:conda",
-    "python-envs.defaultPackageManager": "ms-python.python:conda",
 }

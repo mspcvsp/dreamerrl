@@ -1,3 +1,12 @@
+# DreamerRL
+
+TTCP CAGE Challenge 2 Blue is the primary research environment. Start with the
+[CAGE2 setup](environments/cage2/README.md) and
+[baseline reproduction record](environments/cage2/reproducibility/README.md).
+Historical MiniHack runs are OBE; their tracked environments and regression
+tests remain. Artifact cleanup requires explicit approval; see the
+[exact cleanup proposal](docs/maintenance/minihack_cleanup_proposal.md).
+
 ## TL;DR — RuntimeEnvInfo
 
 `RuntimeEnvInfo` is the *only* authoritative source of environment metadata.

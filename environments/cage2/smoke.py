@@ -70,6 +70,7 @@ def main():
     from CybORG import CybORG
     from CybORG.Agents import BlueMonitorAgent
 
+    assert cyborg_package.__file__ is not None
     assert Path(cyborg_package.__file__).resolve().is_relative_to(vendor.resolve())
     scenario = Path(inspect.getfile(CybORG)).parent / "Shared" / "Scenarios" / "Scenario2.yaml"
     assert scenario.is_file(), "Use the bundled CAGE2 scenario, not a different CybORG generation"

@@ -7,15 +7,18 @@ import math
 import os
 import pickle
 import random
+import shlex
 import subprocess
 import sys
 import time
 from collections import Counter
 from dataclasses import asdict, replace
 from pathlib import Path
+from typing import Any
 
 import numpy as np
 import torch
+from experiment_protocol import original_schedule, verify_original_inputs
 from learner_cycle import optimizer_steps, state_hash
 
 from dreamerrl.env.cage2.cage2_env_wrapper import Cage2BlueEnv
@@ -141,7 +144,7 @@ def evaluate(trainer, policy):
     )
 
 
-def summary(report, baseline):
+def summary(report, baseline) -> dict[str, Any]:
     returns = np.array([x["total_return"] for x in report["episodes"]])
     reference = np.array([x["total_return"] for x in baseline["episodes"]])
     assert [x["seed"] for x in report["episodes"]] == SEEDS
@@ -173,13 +176,20 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--run-dir", type=Path, required=True)
     parser.add_argument("--source", type=Path, default=ROOT / "runs/cage2_blue_cycle_seed0_20261123/latest.pt")
+    parser.add_argument("--schedule", choices=["original", "measured"], default="measured")
     args = parser.parse_args()
     assert os.environ.get("CONDA_PREFIX") is None and torch.cuda.is_available()
     torch.set_num_threads(2)
     run = args.run_dir.resolve()
     run.mkdir(parents=True, exist_ok=False)
     source = args.source.resolve()
+    if args.schedule == "original":
+        verify_original_inputs(source, None)
     trainer = DreamerTrainer.from_checkpoint(source, cuda=True, log_dir=run / "tensorboard")
+    if args.schedule == "original":
+        verify_original_inputs(source, asdict(trainer.cfg))
+    env = trainer.env
+    assert isinstance(env, Cage2BlueEnv)
     assert trainer.completed_updates == 1 and trainer.total_env_steps == 510
     assert trainer.env.obs_dim == 52 and trainer.action_dim == 145 and trainer.cfg.env.max_episode_steps == 30
     assert optimizer_steps(trainer) == {"model_opt": [1], "actor_opt": [1], "critic_opt": [1]}
@@ -190,6 +200,7 @@ def main():
             source=str(source),
             source_sha256=hashlib.sha256(source.read_bytes()).hexdigest(),
             source_update=1,
+            schedule_mode=args.schedule,
             dev_seeds=SEEDS,
             training_seed=trainer.cfg.train.seed,
             policy_seed_rule="simulator seed + 100000; random policy uses independent numpy Generator",
@@ -227,9 +238,26 @@ def main():
     (run / "code.diff").write_bytes(subprocess.check_output(["git", "diff", "HEAD"], cwd=ROOT))
     (run / "experiment_script.py").write_bytes(Path(__file__).read_bytes())
     (run / "rerun_command.txt").write_text(
-        f"cd {PROJECT} && bash --noprofile --norc run_learning_clean.sh --run-dir {run}_rerun\n"
+        "cd "
+        + shlex.quote(str(PROJECT))
+        + " && "
+        + shlex.join(
+            [
+                "bash",
+                "--noprofile",
+                "--norc",
+                "run_learning_clean.sh",
+                "--schedule",
+                args.schedule,
+                "--source",
+                str(source),
+                "--run-dir",
+                str(run) + "_rerun",
+            ]
+        )
+        + "\n"
     )
-    write(run / "action_mapping.json", trainer.env.action_mapping)
+    write(run / "action_mapping.json", env.action_mapping)
     started = time.perf_counter()
     baselines = {}
     for policy in ("actor", "sleep", "random"):
@@ -244,14 +272,12 @@ def main():
 
     def record(record):
         assert all(math.isfinite(record[k]) for k in ("world_loss", "actor_loss", "critic_loss"))
-        assert not (set(row["seed"] for row in trainer.env.journal) & set(SEEDS))
+        assert not (set(row["seed"] for row in env.journal) & set(SEEDS))
         seedlog.write(
-            json.dumps(
-                dict(update=trainer.completed_updates, seeds=sorted(set(row["seed"] for row in trainer.env.journal)))
-            )
+            json.dumps(dict(update=trainer.completed_updates, seeds=sorted(set(row["seed"] for row in env.journal))))
             + "\n"
         )
-        trainer.env.journal.clear()
+        env.journal.clear()
         metrics.write(json.dumps(record, default=str) + "\n")
         if trainer.completed_updates % 25 == 0:
             print("PROGRESS", trainer.completed_updates, trainer.total_env_steps, record["world_loss"], flush=True)
@@ -265,11 +291,14 @@ def main():
     trainer.train(100000, checkpoint_path=run / "latest.pt", checkpoint_every=25, on_update=calibrate)
     seconds_per_update = (time.perf_counter() - calibration_start) / 25
     trainer.save_checkpoint(run / "update_26.pt")
-    final = 26 + max(
-        4, math.floor((7200 - (time.perf_counter() - started) - 4 * baseline["seconds"] - 120) / seconds_per_update)
-    )
-    final = min(final, 100000)
-    checkpoints = sorted(set([26 + round((final - 26) * i / 4) for i in (1, 2, 3, 4)]))
+    if args.schedule == "original":
+        final, checkpoints = original_schedule()
+    else:
+        final = 26 + max(
+            4, math.floor((7200 - (time.perf_counter() - started) - 4 * baseline["seconds"] - 120) / seconds_per_update)
+        )
+        final = min(final, 100000)
+        checkpoints = sorted(set([26 + round((final - 26) * i / 4) for i in (1, 2, 3, 4)]))
     write(
         run / "budget.json",
         dict(
@@ -280,6 +309,7 @@ def main():
             final_env_steps=510 + 30 * (final - 1),
             evaluation_updates=checkpoints,
             recorded_before_later_evaluations=True,
+            schedule_mode=args.schedule,
         ),
     )
     print("BUDGET", final, checkpoints, seconds_per_update, flush=True)
@@ -315,10 +345,13 @@ def main():
             exploratory_best=max(scorecard, key=lambda x: x["mean_return"]),
         ),
     )
+    from report_learning import main as report_main
+
+    report_main(["--run-dir", str(run)])
     print("COMPLETE", final, flush=True)
     metrics.close()
     seedlog.close()
-    trainer.env.close()
+    env.close()
     trainer.tb.close()
 
 

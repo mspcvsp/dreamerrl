@@ -3,12 +3,21 @@
 import inspect
 import random
 from pathlib import Path
+from typing import Any, TypedDict
 
 import numpy as np
 import torch
+from gym.spaces import Box as LegacyBox
+from gym.spaces import Discrete
 from gymnasium.spaces import Box
 
 from dreamerrl.env.env import EnvInterface
+
+
+class ActionMapping(TypedDict):
+    index: int
+    name: str
+    description: str
 
 
 def make_blue_simulator(seed):
@@ -52,19 +61,21 @@ class Cage2BlueEnv(EnvInterface):
         initial = np.asarray(self.wrapper.reset())
         self.native_dtype = str(initial.dtype)
         self._obs_dim = initial.size
+        assert isinstance(self.wrapper.action_space, Discrete)
+        assert isinstance(self.wrapper.observation_space, LegacyBox)
         self._action_dim = int(self.wrapper.action_space.n)
         self._obs_space = Box(
             np.asarray(self.wrapper.observation_space.low, dtype=np.float32),
             np.asarray(self.wrapper.observation_space.high, dtype=np.float32),
             dtype=np.float32,
         )
-        self.action_mapping = [
-            dict(index=i, name=type(action).__name__, description=str(action))
+        self.action_mapping: list[ActionMapping] = [
+            ActionMapping(index=i, name=type(action).__name__, description=str(action))
             for i, action in enumerate(self.wrapper.get_attr("possible_actions"))
         ]
         assert len(self.action_mapping) == self._action_dim
         self._next_seed = env_cfg.seed
-        self.journal = []
+        self.journal: list[dict[str, Any]] = []
         self.venv = self  # Existing trainer resource-cleanup contract.
 
     @property
@@ -88,12 +99,13 @@ class Cage2BlueEnv(EnvInterface):
         self._next_seed += 1
         self.wrapper, _ = make_blue_wrapper(self.episode_seed, self.cfg.max_episode_steps)
         obs = np.asarray(self.wrapper.reset())
+        assert isinstance(self.wrapper.action_space, Discrete)
         assert obs.shape == self._obs_space.shape and int(self.wrapper.action_space.n) == self.action_dim
         self.steps = 0
         self.current = torch.as_tensor(obs.copy(), dtype=torch.float32, device=self.device).reshape(1, -1)
         return self.current.clone()
 
-    def reset(self, seed=None):
+    def reset(self, seed=None) -> dict[str, Any]:
         if seed is not None:
             self._next_seed = seed
         self.journal = []
@@ -108,7 +120,7 @@ class Cage2BlueEnv(EnvInterface):
             info={},
         )
 
-    def step(self, actions):
+    def step(self, actions) -> dict[str, Any]:
         action = int(actions.reshape(-1)[0].item())
         if not 0 <= action < self.action_dim:
             raise ValueError("Action outside installed ChallengeWrapper action space")

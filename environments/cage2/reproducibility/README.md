@@ -32,8 +32,21 @@ Required starting checkpoint:
 
 Check the hash before loading this trusted pickle checkpoint. It is not part of
 Git. A fresh run of the one-update producer is not a substitute for this exact
-checkpoint when reproducing the historical continuation. Back it up separately;
-no durable external archive or download location is currently recorded.
+checkpoint when reproducing the historical continuation. The user confirmed independent OneDrive copies of both the original one-update
+and learning-run directories. Supplied learning-run folder:
+`C:\Users\mspcv\OneDrive\Documents\Woodbadge\TTCP_CAGE2\cage2_blue_learning_seed0_20261123`.
+The expected update-1 location, using the confirmed additional directory copy, is:
+`C:\Users\mspcv\OneDrive\Documents\Woodbadge\TTCP_CAGE2\cage2_blue_cycle_seed0_20261123\latest.pt`.
+This sibling layout is inferred from the supplied parent and directory names;
+Windows layout and remote bytes were not independently inspected. On Windows,
+verify the restored file without changing it:
+
+```powershell
+Get-FileHash -Algorithm SHA256 -LiteralPath 'C:\Users\mspcv\OneDrive\Documents\Woodbadge\TTCP_CAGE2\cage2_blue_cycle_seed0_20261123\latest.pt'
+```
+
+Compare with the SHA256 above. The learning-run `latest.pt` is update 16899 and
+must not be substituted for the cycle directory's update-1 checkpoint.
 
 ## Configuration and exact execution schedule
 
@@ -75,12 +88,33 @@ zero-based scheduler index is completed update minus one, base LR is 0.0003,
 warmup is zero and floor is 10% of base. Matching both scheduler horizons above
 matters; training to a different total changes the LR trajectory.
 
-**The tagged `run_learning_clean.sh` is a timing-adaptive experiment launcher,
+**The original tagged `run_learning_clean.sh` is a timing-adaptive experiment launcher,
 not an exact fixed-schedule replay launcher.** It recalculates the final target
 and has no fixed-budget option. The historical `rerun_command.txt` reproduces
 that procedure, not necessarily the original schedule. An exact continuation
-must consume the saved schedule above rather than remeasure timing. This
-change adds documentation and a manifest, not a new training launcher.
+must consume the saved schedule above rather than remeasure timing.
+
+The maintained entry point now provides `--schedule original`: it preserves both
+original scheduler horizons and evaluation updates, validates the starting
+checkpoint fingerprint before unpickling, and checks scientific configuration
+against the tracked resolved configuration. The baseline tag is unchanged.
+`--schedule measured` retains the timing-adaptive procedure. No historical
+script under `runs/` is executed or imported.
+
+After review, the tracked launcher can prepare a future detached reproduction:
+
+```bash
+python3 -B environments/cage2/launch_learning.py \
+  --session cage2-original-replay \
+  --run-dir /absolute/path/to/NEW-run-directory \
+  --source /absolute/path/to/restored/update1/latest.pt \
+  --schedule original --dry-run
+```
+
+`--dry-run` prints the command without creating directories or starting tmux.
+Removing it starts training; no launch has been performed during this cleanup.
+Generated job directories contain only launch metadata, logs and exit status.
+All executable entry points remain under `environments/cage2/`.
 The nominal budget was 7200 seconds; actual recorded runtime was
 7814.591335489997 seconds. Do not force a two-hour wall-time cutoff when matching
 the original update budget.
@@ -135,6 +169,9 @@ Reporting is separate: `report_learning.py` reads `scorecard.json` and
 `complete.json`, and writes **`scorecard.csv` and `final_report.txt`**. The original
 tmux completion worker ran it with system Python after a successful training
 exit; it has only standard-library dependencies. It does not run evaluations.
+The maintained learning entry point now invokes this tracked reporter after
+successful completion, so a separate executable completion worker under `runs/`
+is no longer needed. Standalone reporting remains available.
 
 For a future NEW run directory, from a prepared Conda-deactivated environment:
 
@@ -164,11 +201,13 @@ run reporting, simulate an episode or train. The separate documentation-time
 checkpoint inspection also verified required keys and optimizer/replay counts.
 `verification.json` records the completed verification.
 
-Remaining limitations: local artifacts still need an independently preserved
-archive; the original tag cannot contain later documentation; exact scheduling
-requires the saved two-phase schedule rather than the adaptive CLI; live
+Remaining limitations: OneDrive copies are user-confirmed but remote byte hashes
+and Windows layout have not been independently checked; the original tag cannot
+contain later support changes; use maintained `--schedule original` instead of
+the tag's adaptive CLI for the recorded two-phase schedule; live
 simulator state is not checkpointed, so restarting midway can change collection;
 host libraries are not exhaustively locked; GPU/driver changes and future
 package availability may prevent bitwise reproduction. This one training seed
 and 20 development seeds do not measure variation across independent training
-runs. No training or historical report regeneration was performed here.
+runs. No training or writes to historical reports were performed here; reporting was
+regression-tested only in a temporary scratch directory.

@@ -1,3 +1,7 @@
+> Historical MiniHack research is OBE; CAGE2 is the primary environment.
+> Example paths below refer to old artifacts proposed for user-approved cleanup.
+> These examples may require regenerated data after cleanup; tracked environments and tests remain supported.
+
 # Offline MiniHack learning runs on DGX Spark
 
 The runner uses Rich for a local live dashboard, append-only JSONL for metrics,

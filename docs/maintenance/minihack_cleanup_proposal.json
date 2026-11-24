@@ -1,0 +1,406 @@
+{
+  "status": "PROPOSED ONLY; await explicit user approval; nothing deleted",
+  "root": "/home/mspcvsp/Documents/dreamerrl",
+  "proposed_entries": [
+    {
+      "path": "runs/__pycache__",
+      "kind": "directory (recursive)",
+      "files": 1,
+      "logical_bytes": 4296,
+      "allocated_bytes": 12288
+    },
+    {
+      "path": "runs/action_reward_frozen_update1160_20261122",
+      "kind": "directory (recursive)",
+      "files": 16,
+      "logical_bytes": 117451191,
+      "allocated_bytes": 117489664
+    },
+    {
+      "path": "runs/corridor_r2_cost001_seed0",
+      "kind": "directory (recursive)",
+      "files": 7,
+      "logical_bytes": 1094152186,
+      "allocated_bytes": 1094180864
+    },
+    {
+      "path": "runs/corridor_r2_demo_check_20261122",
+      "kind": "directory (recursive)",
+      "files": 57,
+      "logical_bytes": 3320086972,
+      "allocated_bytes": 3320291328
+    },
+    {
+      "path": "runs/corridor_r2_fresh_demos_seed0_20261122",
+      "kind": "directory (recursive)",
+      "files": 60,
+      "logical_bytes": 5809350418,
+      "allocated_bytes": 5809512448
+    },
+    {
+      "path": "runs/corridor_r2_local3x3_handoff_20261123",
+      "kind": "directory (recursive)",
+      "files": 14,
+      "logical_bytes": 33315739,
+      "allocated_bytes": 33366016
+    },
+    {
+      "path": "runs/corridor_r2_local3x3_seed0_20261122",
+      "kind": "directory (recursive)",
+      "files": 59,
+      "logical_bytes": 5953823182,
+      "allocated_bytes": 5520269312
+    },
+    {
+      "path": "runs/corridor_r2_recent_seed0_20261116",
+      "kind": "directory (recursive)",
+      "files": 37,
+      "logical_bytes": 2130377711,
+      "allocated_bytes": 2130505728
+    },
+    {
+      "path": "runs/corridor_r2_seed0",
+      "kind": "directory (recursive)",
+      "files": 11,
+      "logical_bytes": 1827774343,
+      "allocated_bytes": 1827811328
+    },
+    {
+      "path": "runs/corridor_r2_weighted_seed0_20261117",
+      "kind": "directory (recursive)",
+      "files": 18,
+      "logical_bytes": 1582375076,
+      "allocated_bytes": 1582436352
+    },
+    {
+      "path": "runs/repeat_room_seeds.py",
+      "kind": "file",
+      "files": 1,
+      "logical_bytes": 5124,
+      "allocated_bytes": 8192
+    },
+    {
+      "path": "runs/replication_console.log",
+      "kind": "file",
+      "files": 1,
+      "logical_bytes": 56135,
+      "allocated_bytes": 61440
+    },
+    {
+      "path": "runs/room_evaluation_modes.json",
+      "kind": "file",
+      "files": 1,
+      "logical_bytes": 36857,
+      "allocated_bytes": 36864
+    },
+    {
+      "path": "runs/room_replication_results.json",
+      "kind": "file",
+      "files": 1,
+      "logical_bytes": 25673,
+      "allocated_bytes": 28672
+    },
+    {
+      "path": "runs/room_replication_status.json",
+      "kind": "file",
+      "files": 1,
+      "logical_bytes": 1587,
+      "allocated_bytes": 4096
+    },
+    {
+      "path": "runs/room_seed0",
+      "kind": "directory (recursive)",
+      "files": 12,
+      "logical_bytes": 1732466730,
+      "allocated_bytes": 1732509696
+    },
+    {
+      "path": "runs/room_seed0_pilot_status.json",
+      "kind": "file",
+      "files": 1,
+      "logical_bytes": 74,
+      "allocated_bytes": 4096
+    },
+    {
+      "path": "runs/room_seed1",
+      "kind": "directory (recursive)",
+      "files": 10,
+      "logical_bytes": 1513386027,
+      "allocated_bytes": 1513431040
+    },
+    {
+      "path": "runs/room_seed2",
+      "kind": "directory (recursive)",
+      "files": 10,
+      "logical_bytes": 1992803950,
+      "allocated_bytes": 1992851456
+    },
+    {
+      "path": "runs/stair_direction_frozen_update1160_20261122",
+      "kind": "directory (recursive)",
+      "files": 14,
+      "logical_bytes": 40602117,
+      "allocated_bytes": 40644608
+    },
+    {
+      "path": "runs/stair_direction_mlp32_update1160_20261122",
+      "kind": "directory (recursive)",
+      "files": 17,
+      "logical_bytes": 1363917,
+      "allocated_bytes": 1409024
+    }
+  ],
+  "total_files": 349,
+  "total_logical_bytes": 27149459305,
+  "total_allocated_bytes": 26716864512,
+  "estimate_note": "Allocated lstat blocks with hard-linked inodes counted once; includes directories. Actual recovery may vary with shared storage/snapshots.",
+  "symlinks": [],
+  "multiply_linked_files": [
+    "runs/corridor_r2_local3x3_seed0_20261122/selected_sampled.pt",
+    "runs/corridor_r2_local3x3_seed0_20261122/update_0400.pt"
+  ],
+  "preserve": [
+    "runs/cage2_blue_cycle_seed0_20261123",
+    "runs/cage2_blue_cycle_seed0_20261123_job",
+    "runs/cage2_blue_learning_seed0_20261123",
+    "runs/cage2_blue_learning_seed0_20261123_job",
+    "runs/runs.txt"
+  ],
+  "tracked_paths_in_candidates": [],
+  "maintained_runtime_references": [],
+  "historical_documentation_references": [
+    {
+      "file": "docs/minihack_baseline.md",
+      "line": 374,
+      "targets": [
+        "runs/corridor_r2_recent_seed0_20261116"
+      ],
+      "text": "--checkpoint runs/corridor_r2_recent_seed0_20261116/latest.pt \\"
+    },
+    {
+      "file": "docs/minihack_baseline.md",
+      "line": 375,
+      "targets": [
+        "runs/corridor_r2_recent_seed0_20261116"
+      ],
+      "text": "--initial-checkpoint runs/corridor_r2_recent_seed0_20261116/initial.pt \\"
+    },
+    {
+      "file": "docs/minihack_baseline.md",
+      "line": 377,
+      "targets": [
+        "runs/corridor_r2_recent_seed0_20261116"
+      ],
+      "text": "--output runs/corridor_r2_recent_seed0_20261116/location_probe.json"
+    },
+    {
+      "file": "docs/minihack_baseline.md",
+      "line": 432,
+      "targets": [
+        "runs/corridor_r2_recent_seed0_20261116"
+      ],
+      "text": "--checkpoint runs/corridor_r2_recent_seed0_20261116/initial.pt \\"
+    },
+    {
+      "file": "docs/minihack_baseline.md",
+      "line": 433,
+      "targets": [
+        "runs/corridor_r2_recent_seed0_20261116"
+      ],
+      "text": "--checkpoint runs/corridor_r2_recent_seed0_20261116/location_probe_weights_update600.pt \\"
+    },
+    {
+      "file": "docs/minihack_baseline.md",
+      "line": 434,
+      "targets": [
+        "runs/corridor_r2_recent_seed0_20261116"
+      ],
+      "text": "--checkpoint runs/corridor_r2_recent_seed0_20261116/posterior_diagnostic_weights_update2100.pt \\"
+    },
+    {
+      "file": "docs/minihack_baseline.md",
+      "line": 436,
+      "targets": [
+        "runs/corridor_r2_recent_seed0_20261116"
+      ],
+      "text": "--output runs/corridor_r2_recent_seed0_20261116/posterior_diagnostics.json"
+    },
+    {
+      "file": "docs/minihack_baseline.md",
+      "line": 614,
+      "targets": [
+        "runs/corridor_r2_recent_seed0_20261116"
+      ],
+      "text": "--checkpoint runs/corridor_r2_recent_seed0_20261116/latest.pt \\"
+    },
+    {
+      "file": "docs/minihack_baseline.md",
+      "line": 616,
+      "targets": [
+        "runs/corridor_r2_recent_seed0_20261116"
+      ],
+      "text": "--output runs/corridor_r2_recent_seed0_20261116/event_scores.json"
+    },
+    {
+      "file": "docs/minihack_baseline.md",
+      "line": 695,
+      "targets": [
+        "runs/corridor_r2_recent_seed0_20261116"
+      ],
+      "text": "failure. See `runs/corridor_r2_recent_seed0_20261116/imagination_probe_summary.md`"
+    },
+    {
+      "file": "docs/minihack_offline.md",
+      "line": 49,
+      "targets": [
+        "runs/room_seed0"
+      ],
+      "text": "--run-dir runs/room_seed0 --eval-every 100 --eval-episodes 20"
+    },
+    {
+      "file": "docs/minihack_offline.md",
+      "line": 68,
+      "targets": [
+        "runs/room_seed0"
+      ],
+      "text": "--require-cuda --resume runs/room_seed0/latest.pt"
+    },
+    {
+      "file": "docs/minihack_offline.md",
+      "line": 103,
+      "targets": [
+        "runs/room_seed0"
+      ],
+      "text": "tail -n 5 runs/room_seed0/metrics.jsonl"
+    },
+    {
+      "file": "docs/minihack_offline.md",
+      "line": 104,
+      "targets": [
+        "runs/room_seed0"
+      ],
+      "text": "tail -n 30 runs/room_seed0/run.log"
+    },
+    {
+      "file": "docs/minihack_offline.md",
+      "line": 105,
+      "targets": [
+        "runs/room_seed0"
+      ],
+      "text": "cat runs/room_seed0/evaluation.json"
+    },
+    {
+      "file": "docs/minihack_offline.md",
+      "line": 111,
+      "targets": [
+        "runs/room_seed0"
+      ],
+      "text": "tensorboard --logdir runs/room_seed0/tensorboard"
+    },
+    {
+      "file": "docs/minihack_offline.md",
+      "line": 128,
+      "targets": [
+        "runs/room_seed0"
+      ],
+      "text": "--checkpoint runs/room_seed0/best.pt \\"
+    },
+    {
+      "file": "docs/minihack_offline.md",
+      "line": 129,
+      "targets": [
+        "runs/room_seed0"
+      ],
+      "text": "--initial-checkpoint runs/room_seed0/initial.pt \\"
+    },
+    {
+      "file": "docs/minihack_offline.md",
+      "line": 131,
+      "targets": [
+        "runs/room_seed0"
+      ],
+      "text": "--output runs/room_seed0/test_evaluation.json"
+    },
+    {
+      "file": "docs/minihack_offline.md",
+      "line": 183,
+      "targets": [
+        "runs/room_seed0"
+      ],
+      "text": "--checkpoint runs/room_seed0/latest.pt \\"
+    },
+    {
+      "file": "docs/minihack_offline.md",
+      "line": 184,
+      "targets": [
+        "runs/room_seed1"
+      ],
+      "text": "--checkpoint runs/room_seed1/latest.pt \\"
+    },
+    {
+      "file": "docs/minihack_offline.md",
+      "line": 185,
+      "targets": [
+        "runs/room_seed2"
+      ],
+      "text": "--checkpoint runs/room_seed2/latest.pt \\"
+    },
+    {
+      "file": "docs/minihack_offline.md",
+      "line": 187,
+      "targets": [
+        "runs/room_evaluation_modes.json"
+      ],
+      "text": "--output runs/room_evaluation_modes.json"
+    },
+    {
+      "file": "docs/minihack_offline.md",
+      "line": 208,
+      "targets": [
+        "runs/corridor_r2_seed0"
+      ],
+      "text": "--run-dir runs/corridor_r2_seed0 --eval-every 100 --eval-episodes 20"
+    },
+    {
+      "file": "docs/minihack_offline.md",
+      "line": 230,
+      "targets": [
+        "runs/corridor_r2_seed0"
+      ],
+      "text": "--checkpoint runs/corridor_r2_seed0/best.pt \\"
+    },
+    {
+      "file": "docs/minihack_offline.md",
+      "line": 231,
+      "targets": [
+        "runs/corridor_r2_seed0"
+      ],
+      "text": "--initial-checkpoint runs/corridor_r2_seed0/initial.pt \\"
+    },
+    {
+      "file": "docs/minihack_offline.md",
+      "line": 233,
+      "targets": [
+        "runs/corridor_r2_seed0"
+      ],
+      "text": "--output runs/corridor_r2_seed0/test_evaluation.json"
+    },
+    {
+      "file": "docs/minihack_offline.md",
+      "line": 237,
+      "targets": [
+        "runs/corridor_r2_seed0"
+      ],
+      "text": "`python -m dreamerrl.scripts.run_minihack_corridor --resume runs/corridor_r2_seed0/latest.pt`."
+    },
+    {
+      "file": "docs/minihack_offline.md",
+      "line": 268,
+      "targets": [
+        "runs/corridor_r2_cost001_seed0"
+      ],
+      "text": "--action-cost 0.001 --run-dir runs/corridor_r2_cost001_seed0"
+    }
+  ],
+  "approval_scope": "Only listed paths recursively and individual files. Recheck inventory and active processes before approved deletion. No glob deletion; no tracked MiniHack or CAGE2 removal."
+}

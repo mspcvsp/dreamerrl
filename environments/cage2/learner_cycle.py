@@ -297,6 +297,7 @@ def reload_and_evaluate(run):
         )
         batch = trainer.replay.sample(16, seed=99)
         assert batch["obs"].shape == (16, 16, 52)
+        assert isinstance(trainer.env, Cage2BlueEnv)
         trainer.cfg.train.deterministic_env = True
         trainer.world.eval()
         trainer.actor.eval()

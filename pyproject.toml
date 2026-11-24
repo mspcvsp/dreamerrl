@@ -41,6 +41,8 @@ exclude = ["tests*"]
 # Ruff configuration
 # -----------------------------
 [tool.ruff]
+extend-exclude = ["runs", "environments/cage2/vendor"]
+force-exclude = true
 line-length = 120
 target-version = "py310"
 

@@ -6,10 +6,10 @@ import json
 from pathlib import Path
 
 
-def main():
+def main(argv=None):
     parser = argparse.ArgumentParser()
     parser.add_argument("--run-dir", type=Path, required=True)
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
     run = args.run_dir
     scores = json.loads((run / "scorecard.json").read_text())
     complete = json.loads((run / "complete.json").read_text())

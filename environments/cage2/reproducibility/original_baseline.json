@@ -78,7 +78,20 @@
       "torch",
       "cuda"
     ],
-    "note": "Trusted local torch.save pickle. Check hash before loading. Retain model and slow-critic weights, optimizer states, replay, config, counters and Python/NumPy/Torch/CUDA RNG states. Simulator and unfinished episode state are not saved."
+    "note": "Trusted local torch.save pickle. Check hash before loading. Retain model and slow-critic weights, optimizer states, replay, config, counters and Python/NumPy/Torch/CUDA RNG states. Simulator and unfinished episode state are not saved.",
+    "independent_backup": {
+      "provider": "OneDrive",
+      "user_confirmed_folder": "C:\\Users\\mspcv\\OneDrive\\Documents\\Woodbadge\\TTCP_CAGE2\\cage2_blue_learning_seed0_20261123",
+      "source": "User confirmation in this session",
+      "folder_scope": "User confirmed copying both learning-run and original one-update directories to OneDrive.",
+      "checkpoint_relative_path": "cage2_blue_cycle_seed0_20261123\\latest.pt",
+      "expected_update1_sha256": "94f378899c0422e0af2db2e07cbb13eab9b27a1448cfbe2deb955617c0e5d2ff",
+      "remote_hash_verified": false,
+      "warning": "The learning-run latest.pt is update 16899; use the cycle directory latest.pt for update 1. Verify the expected SHA256 after restore.",
+      "user_confirmed_update1_directory_copy": true,
+      "expected_checkpoint_path": "C:\\Users\\mspcv\\OneDrive\\Documents\\Woodbadge\\TTCP_CAGE2\\cage2_blue_cycle_seed0_20261123\\latest.pt",
+      "path_evidence": "Expected sibling path derived from supplied TTCP_CAGE2 backup parent and user confirmation of the original one-update directory copy; Windows layout and bytes not independently inspected."
+    }
   },
   "configuration": {
     "file": "resolved_config.original.json",
@@ -288,9 +301,8 @@
     "preservation": "Reporting overwrites its two outputs: run it only in a NEW directory or a scratch copy of the two input JSON files, never the historical run."
   },
   "limitations": [
-    "Source checkpoint and historical run files are ignored local artifacts, not stored in the Git tag or a published durable archive. Preserve a backup independently.",
+    "Historical artifacts are gitignored. User confirms independent OneDrive copies of the learning-run and original one-update directories; remote bytes and Windows path layout have not been independently inspected.",
     "The tag predates this documentation; keep both baseline tag and subsequent reproduction-documentation revision.",
-    "Tagged timing-driven CLI cannot directly replay fixed schedule; do not mistake its saved rerun command for an exact schedule replay.",
     "Restart checkpoints omit live simulator state; resume starts a fresh episode with the project reset seed rule. Mid-run restart can change collection trajectory.",
     "GPU/driver/hardware differences and future package availability can prevent bitwise reproduction; successful GB10 checks do not guarantee all Torch kernels.",
     "Native host libraries and driver are documented tested versions, not a container or exhaustive system-library lock.",
@@ -549,5 +561,15 @@
       "sha256": "c549ca3b50e5edcbf639f1de069435ca8739a759b968dd56507ccfce78a4e18e",
       "bytes": 524
     }
+  },
+  "maintained_support": {
+    "launcher": "environments/cage2/launch_learning.py",
+    "learning_entrypoint": "environments/cage2/learning_curve.py",
+    "report_entrypoint": "environments/cage2/report_learning.py",
+    "fixed_schedule_option": "--schedule original",
+    "protocol_loader": "environments/cage2/experiment_protocol.py",
+    "authoritative_config": "environments/cage2/reproducibility/resolved_config.original.json",
+    "historical_runs_scripts": "Preserved as non-authoritative evidence only; never imported, executed, or sourced by maintained entrypoints.",
+    "schedule_note": "Current fixed-schedule mode reuses the original calibration/learner phases, restores exact checkpoint bytes and validates scientific config. Tagged historical code remains unchanged."
   }
 }
