@@ -21,6 +21,12 @@ from dreamerrl.debug.probe import DeterminismProbe
 from dreamerrl.env.env_factory import make_env
 from dreamerrl.logging.repo_logger import create_repro_logger
 from dreamerrl.models.actor import Actor
+from dreamerrl.models.hierarchical_actor import (
+    HierarchicalActor,
+    HierarchicalCritic,
+    HierarchyState,
+    validate_hierarchy,
+)
 from dreamerrl.models.value_head import ValueHead
 from dreamerrl.models.world_model import WorldModel, WorldModelState
 from dreamerrl.replay_buffer.replay_buffer import ReplayBuffer
@@ -84,6 +90,12 @@ class DreamerTrainer:
             raise ValueError("lambda_ must be finite and in [0, 1]")
         if not math.isfinite(cfg.ac.replay_value_scale) or cfg.ac.replay_value_scale < 0:
             raise ValueError("replay_value_scale must be finite and nonnegative")
+        if cfg.ac.hierarchical:
+            validate_hierarchy(cfg.ac.hierarchy_goals, cfg.ac.hierarchy_goal_dim, cfg.ac.hierarchy_interval)
+            if cfg.world.imagination_horizon < 1:
+                raise ValueError("Hierarchical imagination_horizon must be positive")
+        if cfg.ac.hierarchical and cfg.ac.replay_value_scale != 0:
+            raise ValueError("Hierarchical mode does not support flat replay_value_scale")
         if cfg.train.acting_context < -1:
             raise ValueError("acting_context must be -1 (full episode), 0 (disabled), or positive")
         self.acting_refresh_metrics: dict[str, int | float] = {}
@@ -213,8 +225,26 @@ class DreamerTrainer:
             value_bins=cfg.world.value_bins,
         )
 
-        self.actor = Actor(latent=latent, net=net_actor, probe=self.probe).to(self.device)
-        self.critic = ValueHead(latent=latent, net=net_critic, probe=self.probe).to(self.device)
+        self.policy_state: HierarchyState | None = None
+        if cfg.ac.hierarchical:
+            self.actor = HierarchicalActor(
+                latent=latent,
+                net=net_actor,
+                goals=cfg.ac.hierarchy_goals,
+                goal_dim=cfg.ac.hierarchy_goal_dim,
+                interval=cfg.ac.hierarchy_interval,
+                probe=self.probe,
+            ).to(self.device)
+            self.critic = HierarchicalCritic(
+                latent=latent,
+                net=net_critic,
+                goals=cfg.ac.hierarchy_goals,
+                interval=cfg.ac.hierarchy_interval,
+            ).to(self.device)
+            self.policy_state = self.actor.initial_state(self.env.batch_size, self.device)
+        else:
+            self.actor = Actor(latent=latent, net=net_actor, probe=self.probe).to(self.device)
+            self.critic = ValueHead(latent=latent, net=net_critic, probe=self.probe).to(self.device)
         self.slow_critic = copy.deepcopy(self.critic).requires_grad_(False).eval()
         self.slow_critic.probe = None
         if not 0 < cfg.ac.slow_critic_rate <= 1:
@@ -289,7 +319,7 @@ class DreamerTrainer:
         path = Path(path)
         path.parent.mkdir(parents=True, exist_ok=True)
         payload = {
-            "version": 4,
+            "version": 5 if self.cfg.ac.hierarchical else 4,
             "config": self.cfg,
             "world": self.world.state_dict(),
             "actor": self.actor.state_dict(),
@@ -361,7 +391,7 @@ class DreamerTrainer:
             )
         if payload.get("version") == 3:
             raise ValueError("MLP-RSSM checkpoint v3 is incompatible with the GRU transition; start a new run")
-        if payload.get("version") != 4:
+        if payload.get("version") not in (4, 5):
             raise ValueError("Unsupported Dreamer checkpoint version")
         cfg = payload["config"]
         if log_dir is not None:
@@ -388,8 +418,11 @@ class DreamerTrainer:
             )
         if payload.get("version") == 3:
             raise ValueError("MLP-RSSM checkpoint v3 is incompatible with the GRU transition; start a new run")
-        if payload.get("version") != 4:
+        if payload.get("version") not in (4, 5):
             raise ValueError("Unsupported Dreamer checkpoint version")
+        expected_version = 5 if self.cfg.ac.hierarchical else 4
+        if payload["version"] != expected_version:
+            raise ValueError("Checkpoint actor mode/schema does not match this trainer")
         saved_cfg = payload["config"]
         self.cfg.train.acting_context = vars(saved_cfg.train).get("acting_context", 0)
         if self.cfg.world != saved_cfg.world or self.cfg.ac != saved_cfg.ac or self.cfg.env != saved_cfg.env:
@@ -417,7 +450,9 @@ class DreamerTrainer:
         self.run_state = payload.get("run_state", {})
         self.recent_returns = list(payload["recent_returns"])
         self.episode_returns.zero_()
-        # The simulator cannot be snapshotted. Reset both collector and RSSM.
+        if isinstance(self.actor, HierarchicalActor):
+            self.policy_state = self.actor.initial_state(self.env.batch_size, self.device)
+        # The simulator cannot be snapshotted. Reset collector, hierarchy and RSSM.
         self.env_state = self.prepare_env_output(
             self.env.reset(seed=self.cfg.env.seed + self.total_env_steps),
             reset=True,
@@ -667,8 +702,20 @@ class DreamerTrainer:
         """
         for _ in range(self.cfg.train.collect_steps):
             # 1. Choose discrete action
-            if self.cfg.train.deterministic_env:
+            if isinstance(self.actor, HierarchicalActor) and (
+                self.cfg.train.deterministic_env or self.global_step >= self.cfg.train.random_exploration_steps
+            ):
+                assert self.policy_state is not None
+                result = self.actor.step(
+                    self.world_state.h,
+                    self.world_state.z,
+                    self.policy_state,
+                    deterministic=self.cfg.train.deterministic_env,
+                )
+                actions_discrete, self.policy_state = result.action, result.state
+            elif self.cfg.train.deterministic_env:
                 # Fully deterministic for reproducibility tests
+                assert isinstance(self.actor, Actor)
                 actions_discrete = self.actor(self.world_state.h, self.world_state.z).argmax(dim=-1)
             else:
                 # Normal Dreamer training behavior
@@ -680,6 +727,7 @@ class DreamerTrainer:
                         device=self.device,
                     )
                 else:
+                    assert isinstance(self.actor, Actor)
                     actions_discrete, _ = self.actor.act(self.world_state)
 
             # 2. Step environment
@@ -751,6 +799,9 @@ class DreamerTrainer:
                 done=env_out["is_last"].float().to(self.device),
                 is_terminal=env_out["is_terminal"].float().to(self.device),
             )
+
+            if self.policy_state is not None:
+                self.policy_state = self.policy_state.reset(env_out["is_last"])
 
             # 6. Update counters
             self.env_state = env_out

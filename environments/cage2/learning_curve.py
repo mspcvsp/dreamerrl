@@ -21,6 +21,7 @@ from experiment_protocol import original_schedule, verify_original_inputs
 from learner_cycle import optimizer_steps, state_hash
 
 from dreamerrl.env.cage2.cage2_env_wrapper import Cage2BlueEnv
+from dreamerrl.models.hierarchical_actor import policy_action
 from dreamerrl.training.trainer import DreamerTrainer
 
 PROJECT = Path(__file__).resolve().parent
@@ -82,9 +83,11 @@ def evaluate(trainer, policy, seeds=SEEDS) -> dict[str, Any]:
                 is_first=torch.ones(1, dtype=torch.bool, device=trainer.device),
             )["post"]
             actions, rewards, components = [], [], []
+            policy_state = None
             for step in range(30):
                 if policy == "actor":
-                    action = int(trainer.actor(state.h, state.z).argmax(-1).item())
+                    selected, _, policy_state = policy_action(trainer.actor, state, policy_state, deterministic=True)
+                    action = int(selected.item())
                 elif policy == "sleep":
                     action = next(x["index"] for x in env.action_mapping if x["name"] == "Sleep")
                 else:

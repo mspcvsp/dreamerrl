@@ -117,6 +117,12 @@ class ActorCriticConfig:
       • Discount factor for value targets
     """
 
+    # Opt-in manager/worker policy; flat mode preserves historical construction.
+    hierarchical: bool = False
+    hierarchy_goals: int = 8
+    hierarchy_goal_dim: int = 16
+    hierarchy_interval: int = 4
+
     actor_hidden: int = 256
     critic_hidden: int = 256
 

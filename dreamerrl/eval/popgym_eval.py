@@ -10,6 +10,8 @@ import numpy as np
 import torch
 from numpy.typing import NDArray
 
+from dreamerrl.models.hierarchical_actor import policy_action
+
 
 class PopGymTrainingResult(TypedDict):
     wm_loss: NDArray[np.float64]
@@ -43,6 +45,7 @@ def evaluate_popgym(env, world, actor, episodes=10, device=None, seed=10000, tas
         with torch.random.fork_rng(devices=devices):
             for episode in range(episodes):
                 obs = env.reset(seed=seed + episode * env.batch_size)
+                policy_state = None
                 state = world.init_state(env.batch_size)
                 action = torch.zeros(env.batch_size, action_dim, device=model_device)
                 done = torch.zeros(env.batch_size, dtype=torch.bool, device=model_device)
@@ -56,7 +59,9 @@ def evaluate_popgym(env, world, actor, episodes=10, device=None, seed=10000, tas
                     state = world.observe_step(state, observation, action, is_first=obs["is_first"].to(model_device))[
                         "post"
                     ]
-                    ids = actor(state.h, state.z).argmax(-1)
+                    ids, _, policy_state = policy_action(
+                        actor, state, policy_state, reset=obs["is_first"], deterministic=True
+                    )
                     obs = env.step(ids)
                     elapsed.add_(1)
                     elapsed[obs["is_first"].to(model_device)] = 0
