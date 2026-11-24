@@ -1,7 +1,8 @@
 # Host-aware encoder v1: implementation and proposed controlled experiment
 
-Formal training is **not authorized or started**. Source changes, uv migration,
-and configurations await user review before commits or an experiment tag.
+Formal training is **not authorized or started**. The implementation and uv
+migration were committed by the user at `5364c6f`; follow-up validation notes and
+manifest metadata await review before sealing an experiment tag.
 `host_aware_v1_manifest.json` is intentionally unsealed and fails the launch gate.
 Do not alter the immutable `cage2_baseline_v1` tag.
 
@@ -131,7 +132,8 @@ are unavailable, as in CI; they run on this Spark.
 
 1. Review all outstanding uv/cleanup and encoder changes. Commit relevant source,
    configuration, tests and policies. Ensure a clean working tree and clean pinned
-   CybORG submodule. No commit has been made for these changes yet.
+   CybORG submodule. Implementation commit `5364c6f` exists; finish reviewing the follow-up records
+   before creating the experiment source tag.
 2. Create a **new annotated** tag such as `cage2-host-aware-encoder-v1` at that
    implementation commit. Never reuse/force-update an existing tag. This tag does
    not exist yet; subsequent code changes require another commit and new tag.
@@ -172,3 +174,17 @@ reward shaping or auxiliary objectives are introduced here.
 
 Source: https://github.com/cage-challenge/cage-challenge-2 (official final results
 and evaluation protocol, checked 2026-11-24).
+
+## Implementation verification on 2026-11-24
+
+27 maintained CAGE2/host tests passed; the retained legacy suite passed 289 tests
+with 1 manual skip. Ruff passed and Pyright checked 227 files with zero errors
+and warnings. Both encoders completed one real, production-sized GB10 learner
+batch with finite losses, optimizer counters 1/1/1 and nonzero encoder gradients.
+Fresh non-encoder initialization hashes matched. Original update-1 loading and
+all 63 historical artifact fingerprints passed. The unsealed launch gate refused
+execution before creating an output directory. Detailed generated receipts are
+in `runs/cage2_host_encoder_checks_20261124/`; no executable source is stored there.
+The user committed implementation `5364c6f` during verification; this agent made
+no commits. No formal run or new experiment tag was created. Policy improvement
+is unmeasured pending the reviewed/tagged, explicitly approved experiment.
