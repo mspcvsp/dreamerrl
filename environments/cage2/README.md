@@ -1,160 +1,36 @@
-# Dreamer and CAGE2 on the DGX Spark
+# CAGE2 environment entry points
 
-This isolated uv project uses Python 3.10.19 and PyTorch 2.9.1+cu130 on Linux
-aarch64. The existing Conda environment remains available for MiniHack.
-`conda_reference.json` records its package versions, Python, Torch build and GPU.
-Torch was installed by pip there, but its original index was not recorded.
-
-## Setup
-
-Working directory on this Spark:
-`/home/mspcvsp/Documents/dreamerrl/environments/cage2`.
+The **root uv project** is the maintained development environment. See
+[uv environment management](../../docs/uv_environment.md) for locked setup,
+profiles, tests, native prerequisites, and the detached historical checkout.
 
 ```bash
-cd /home/mspcvsp/Documents/dreamerrl/environments/cage2
-bash --noprofile --norc setup.sh
+# From the repository root, no activation required:
+bash --noprofile --norc scripts/setup_uv.sh
+uv run --locked python scripts/verify_uv.py --gpu
+uv run --locked python environments/cage2/learning_curve.py --help
 ```
 
-The setup initializes the official `cage-challenge/cage-challenge-2` submodule at
-`26ce1c1253fa9e2e73f25e6a7f2da32860c11257`, prepares the hash-checked native wheel,
-and runs `uv sync --locked`. The Git submodule commit and `uv.lock` together pin
-the source and dependencies. `pyproject.toml` reuses the root Dreamer metadata as
-an editable dependency. No MiniHack, SB3, AWS emulation, or development extras
-are added. CybORG's own declared requirements include pytest and docutils.
-
-The uv executable is pinned to 0.13.9 (`~/.local/bin/uv` on this Spark), and Python
-comes from uv's managed installation, not Conda. A new clone needs Git submodule
-initialization, which `setup.sh` performs without forcing or discarding edits.
-
-## Locked verification
+The original local pyproject.toml and uv.lock are retained unchanged as the
+historical baseline dependency contract. Do not synchronize that frozen lock
+against modern root metadata. Instead, `setup.sh` provisions the immutable tag
+in `.baseline/cage2_baseline_v1`, then performs strict `uv sync --locked` there;
+`verify_clean.sh` runs its original GPU/30-step baseline smoke test with strict
+`uv run --locked`. This neither trains nor overwrites historical artifacts.
 
 ```bash
-bash --noprofile --norc verify_clean.sh --output verification_locked.json
+bash --noprofile --norc environments/cage2/setup.sh
+bash --noprofile --norc environments/cage2/verify_clean.sh --output /tmp/cage2-baseline-check.json
 ```
 
-This deactivates Conda in its child shell, removes Conda/Python/library-path
-contamination, runs `uv sync --locked`, then `uv run --locked python smoke.py`.
-It imports Dreamer and CybORG, runs an actual Dreamer actor forward/backward pass
-on `cuda:0`, checks finite nonzero gradients, and executes 30 BlueMonitorAgent
-steps against the supplied B_lineAgent in bundled Scenario2. Seed 0 gives a Blue
-return of -171.7. This is an environment check, not a trained-policy score.
+Maintained `run_cycle_clean.sh` and `run_learning_clean.sh` use the root project.
+The tracked `launch_learning.py` writes only generated logs/metadata under runs/;
+its `--dry-run` option prints commands without starting training. Successful
+learning invokes the tracked reporter. No executable snapshots under runs/ are
+used. `--schedule original` replays the recorded two-phase schedule; it requires
+the exact original update-1 checkpoint, fresh output paths and training approval.
 
-From an already clean shell, the direct commands are:
-
-```bash
-uv sync --locked
-uv run --locked python smoke.py --output verification_locked.json
-uv pip check --python .venv/bin/python
-```
-
-## Explicit packaging repairs
-
-The upstream CybORG wheel omits `version.txt` and scenario YAML files. Installing
-the pinned submodule's bundled `CybORG` package editable preserves those files;
-no manual file copying or changes to the official source are required.
-
-NVIDIA's cuSPARSELt 0.8.0 ARM wheel has an aarch64 filename but an invalid
-`manylinux2014_sbsa` internal tag. This makes uv reinstall it on every run and
-causes a platform error in dependency checking. `prepare_native_wheel.py` verifies
-the upstream SHA256, fixes the platform metadata, adds the visible local version
-`0.8.0+spark1`, and regenerates RECORD. The native library is byte-identical.
-The deterministic rebuilt wheel's SHA256 is pinned in both the helper and
-`uv.lock`; `==0.8.0+spark1` satisfies Torch's public `==0.8.0` requirement. The large
-wheel is generated under ignored `wheels/`, not committed. Its provenance JSON
-records both wheel hashes and the unchanged native-library hash. Generate it
-before locked sync using `setup.sh`; do not edit site-packages.
-
-## Native prerequisites outside the lock
-
-- Linux aarch64 with glibc >=2.28; tested on spark-3f04 with glibc 2.39.
-- NVIDIA GB10 and its host driver, tested with 580.95.05. `libcuda.so.1` and normal
-  system C/C++ runtime libraries come from the host, not uv.
-- Git, Bash, and the pinned uv executable; network access for initial downloads.
-
-CUDA 13 runtime libraries are locked wheels. The installed CUDA toolkit 13.0.3
-is not needed for these binary-wheel smoke tests; neither nvcc nor Conda library
-paths are used. Stock Torch 2.9.1 reports a capability warning for GB10 (12.1 versus
-its advertised maximum 12.0); the verification checks actual CUDA execution and
-gradients and does not permit CPU fallback. It does not certify every Torch kernel.
-
-## One real replay learner cycle
-
-```bash
-bash --noprofile --norc run_cycle_clean.sh \
-  --run-dir /home/mspcvsp/Documents/dreamerrl/runs/cage2_blue_cycle_seed0_20261123
-```
-
-Use a new run directory for every rerun. The existing smoke entry point delegates
-`--learner-cycle` to `learner_cycle.py`. The job uses the production collector,
-replay sampler, vector encoder, world-model learner, and imagination actor/critic
-learner. Sixteen collected 30-step episodes prepare replay; the normal trainer's
-collection adds a seventeenth episode before one update. Batch size is 16,
-sequence length 16, and burn-in 8. The data policy is seeded uniform discrete
-warmup. Actor/critic freezing and LR warmup are disabled for this one-update
-integration check; AMP/fused optimizers are off. No reward shaping is applied.
-
-The installed ChallengeWrapper returns 52 int64 values and 145 discrete actions;
-the adapter converts observations to float32 without changing their values. Its
-complete runtime action mapping is saved in `interface.json`. The wrapper's cap
-sets `done=True` at 30 while `info['done']` retains the native false flag. The
-adapter therefore records `is_last=True`, `is_terminal=False`, preserves the final
-transition observation, and resets the next observation separately. The cap is
-a continuing-task truncation (`finite_horizon=False`), so continuation bootstraps
-across it. If native done metadata is absent, done at the cap is assumed truncation
-and earlier done is assumed terminal. No finite-task clock is appended.
-
-The cycle saves a normal v4 checkpoint with replay and all optimizer states,
-reloads it in a fresh `uv run --locked` process, then runs 30 greedy Blue steps
-with posterior modes and seed 10000. The return is only a pipeline check. It also
-records native observation/action/reward alignment and a nonzero reward's path
-through replay, sampler, two-hot target, and the production reward loss. Recorded
-replay/optimizer state is restored; simulator state starts a new episode on reload,
-consistent with the existing checkpoint contract. The shell sets
-`CUBLAS_WORKSPACE_CONFIG=:4096:8` for deterministic CUDA matrix operations.
-
-Targeted adapter checks (independent of the MiniHack pytest configuration):
-
-```bash
-uv run --locked pytest -c /dev/null -q test_adapter.py
-```
-
-## Original measured baseline
-
-See [the original baseline reproduction record](reproducibility/README.md) for
-the verified checkpoint fingerprint, exact two-phase execution schedule, complete
-configuration, native dependency preparation, and separate reporting contract.
-The historical tag and run artifacts remain unchanged.
-
-## Maintained experiment launchers
-
-CAGE2 is the primary research environment. Authoritative source, configuration
-and manifests live here, never under `runs/`. Historical source snapshots are
-preserved as evidence only. After review, use the tracked launcher with a new
-output directory; preview without starting training:
-
-```bash
-python3 -B environments/cage2/launch_learning.py --session cage2-reproduction \
-  --run-dir /absolute/path/to/NEW-run-directory --schedule original --dry-run
-```
-
-Run the command from the repository root. `--schedule original` restores the
-recorded two-phase update/evaluation schedule; `--schedule measured` repeats the
-timing-adaptive procedure. Successful training invokes the tracked reporting
-entry point automatically. No executable launch/worker scripts under `runs/`
-are required. See the reproduction guide for the original checkpoint and
-user-confirmed OneDrive backup. The baseline tag remains immutable.
-
-## Editor import resolution on this Spark
-
-The workspace defaults to `environments/cage2/.venv/bin/python`. The tracked
-`pyrightconfig.json` resolves the pinned CybORG source, the uv Python 3.10
-site-packages, and optional legacy MiniHack/NLE/Minigrid packages from the retained
-`../../miniconda/envs/cage2_env/lib/python3.10/site-packages` directory. These are
-static-analysis paths only; they do not change runtime `PYTHONPATH`, install
-packages, or make MiniHack a dependency of the CAGE2 environment. This fallback
-assumes the documented Spark directory layout; adjust it for another machine.
-
-VS Code remembers previously selected interpreters independently of the default.
-If imports remain cached, run **Python: Select Interpreter**, select the CAGE2 uv
-Python above, then **Python: Restart Language Server** (or reload the window).
-Run legacy MiniHack tests with the preserved Conda interpreter as documented.
+[Original reproduction record](reproducibility/README.md) contains checkpoint
+fingerprints, schedule, dependency provenance and the OneDrive backup record.
+`conda_reference.json` is retained solely as historical evidence; no maintained
+workflow depends on that installation. The baseline tag remains immutable.

@@ -11,6 +11,7 @@ from gym.spaces import Box as LegacyBox
 from gym.spaces import Discrete
 from gymnasium.spaces import Box
 
+from dreamerrl.env.cage2.host_schema import visible_host_schema
 from dreamerrl.env.env import EnvInterface
 
 
@@ -59,6 +60,7 @@ class Cage2BlueEnv(EnvInterface):
         self.cfg, self.device, self.probe = env_cfg, device, probe
         self.wrapper, self.scenario = make_blue_wrapper(env_cfg.seed, env_cfg.max_episode_steps)
         initial = np.asarray(self.wrapper.reset())
+        self.host_order, self.subnet_ids = visible_host_schema(self.wrapper)
         self.native_dtype = str(initial.dtype)
         self._obs_dim = initial.size
         assert isinstance(self.wrapper.action_space, Discrete)
@@ -99,6 +101,8 @@ class Cage2BlueEnv(EnvInterface):
         self._next_seed += 1
         self.wrapper, _ = make_blue_wrapper(self.episode_seed, self.cfg.max_episode_steps)
         obs = np.asarray(self.wrapper.reset())
+        if visible_host_schema(self.wrapper) != (self.host_order, self.subnet_ids):
+            raise ValueError("Actor-visible host ordering/subnet membership changed across reset")
         assert isinstance(self.wrapper.action_space, Discrete)
         assert obs.shape == self._obs_space.shape and int(self.wrapper.action_space.n) == self.action_dim
         self.steps = 0

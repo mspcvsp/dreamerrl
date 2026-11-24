@@ -2,7 +2,7 @@
     // -----------------------------
     // Python interpreter & analysis
     // -----------------------------
-    "python.defaultInterpreterPath": "${workspaceFolder}/environments/cage2/.venv/bin/python",
+    "python.defaultInterpreterPath": "${workspaceFolder}/.venv/bin/python",
     "python.analysis.typeCheckingMode": "basic",
     "python.analysis.autoImportCompletions": true,
     "python.analysis.useLibraryCodeForTypes": true,

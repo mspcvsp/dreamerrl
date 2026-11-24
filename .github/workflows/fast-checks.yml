@@ -8,25 +8,24 @@ on:
 jobs:
   fast-checks:
     runs-on: ubuntu-latest
-
     steps:
       - uses: actions/checkout@v4
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
         with:
-          python-version: "3.10"
-
-      - name: Install project + dev deps
-        run: |
-          pip install --upgrade pip
-          pip install .[dev]
-
-      - name: Lint (ruff)
-        run: ruff check .
-
-      - name: Type check (mypy)
-        run: mypy .
-
-      - name: Run tests
-        run: pytest -q
+          submodules: recursive
+          fetch-depth: 0
+      - uses: astral-sh/setup-uv@v7
+        with:
+          version: "0.13.9"
+      - name: Install locked uv profiles
+        run: bash scripts/setup_uv.sh --legacy
+      - name: Lint
+        run: uv run --locked ruff check .
+      - name: Type check
+        run: uv run --locked pyright
+      - name: CAGE2 adapter and reproduction checks
+        run: uv run --locked pytest -c /dev/null -q environments/cage2/test_adapter.py environments/cage2/test_reproduction_support.py environments/cage2/test_uv_management.py environments/cage2/test_host_encoder.py environments/cage2/test_host_experiment_support.py
+      - name: Legacy regression suite (isolated Gymnasium 1.2.0)
+        env:
+          UV_PROJECT_ENVIRONMENT: .venv-legacy
+          CUDA_VISIBLE_DEVICES: ""
+        run: uv run --locked --no-default-groups --group legacy pytest -q

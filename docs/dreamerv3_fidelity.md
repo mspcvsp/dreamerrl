@@ -103,6 +103,6 @@ continuing-task semantics remain appropriate for artificial time-limit cutoffs.
 See [horizon handling](minihack_baseline.md#finite-trial-horizons-and-collection-chunks).
 
 ```bash
-python -m pytest dreamerrl/tests/invariants/test_dreamer_fidelity.py dreamerrl/tests/functional/test_checkpoint_resume.py -q
-python -m pytest dreamerrl/tests -q
+UV_PROJECT_ENVIRONMENT=.venv-legacy uv run --locked --no-default-groups --group legacy python -m pytest dreamerrl/tests/invariants/test_dreamer_fidelity.py dreamerrl/tests/functional/test_checkpoint_resume.py -q
+UV_PROJECT_ENVIRONMENT=.venv-legacy uv run --locked --no-default-groups --group legacy python -m pytest dreamerrl/tests -q
 ```

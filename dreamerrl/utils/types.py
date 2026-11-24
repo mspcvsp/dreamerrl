@@ -81,6 +81,11 @@ class WorldModelConfig:
     num_classes: int = 32
     hidden_size: int = 200
 
+    # Opt-in CAGE2 encoder. Scalar/tuple defaults preserve old pickled configs.
+    obs_encoder: str = "flat"
+    cage2_host_order: tuple[str, ...] = ()
+    cage2_subnet_ids: tuple[int, ...] = ()
+
     # Optional categorical MiniHack grid model; None preserves the vector MLP.
     glyph_shape: tuple[int, int] | None = None
     glyph_vocab_size: int = 0

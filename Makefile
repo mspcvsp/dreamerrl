@@ -1,30 +1,33 @@
+UV_RUN = uv run --locked
+LEGACY_RUN = UV_PROJECT_ENVIRONMENT=.venv-legacy uv run --locked --no-default-groups --group legacy
+
 # -----------------------------
 # Core test targets
 # -----------------------------
 
 test:
-	pytest -q
+	$(LEGACY_RUN) pytest -q
 
 cpu:
-	pytest tests/cpu -q
+	$(UV_RUN) pytest -c /dev/null -q environments/cage2/test_adapter.py environments/cage2/test_reproduction_support.py environments/cage2/test_uv_management.py
 
 gates:
-	pytest -m gates -q
+	$(LEGACY_RUN) pytest -m gates -q
 
 drift:
-	pytest -m drift -q
+	$(LEGACY_RUN) pytest -m drift -q
 
 policy:
-	pytest -m policy -q
+	$(LEGACY_RUN) pytest -m policy -q
 
 ppo:
-	pytest -m ppo -q
+	$(LEGACY_RUN) pytest -m ppo -q
 
 infra:
-	pytest -m infra -q
+	$(LEGACY_RUN) pytest -m infra -q
 
 fast:
-	pytest -m fast -q
+	$(LEGACY_RUN) pytest -m fast -q
 
 
 # -----------------------------
@@ -32,14 +35,14 @@ fast:
 # -----------------------------
 
 lint:
-	ruff check .
+	$(UV_RUN) ruff check .
 
 lint-fix:
-	ruff check --fix .
+	$(UV_RUN) ruff check --fix .
 
 format:
-	ruff format .
-	black .
+	$(UV_RUN) ruff format .
+	$(UV_RUN) black .
 
 style: lint-fix format
 
@@ -58,7 +61,7 @@ ci: lint test
 help:
 	@echo "Available targets:"
 	@echo "  test        - run all tests"
-	@echo "  cpu         - run CPU test suite"
+	@echo "  cpu         - run CAGE2 CPU adapter/reproduction checks"
 	@echo "  gates       - run gate-level invariants"
 	@echo "  drift       - run drift & stability invariants"
 	@echo "  policy      - run policy-level invariants"

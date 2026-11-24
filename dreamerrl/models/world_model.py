@@ -18,6 +18,7 @@ from .categorical_kl import structured_kl
 from .continue_head import ContinueHead
 from .decoder import ObsDecoder
 from .glyph_model import GlyphDecoder, GlyphEncoder
+from .host_obs_encoder import HostObsEncoder
 from .multi_reward_head import MultiRewardHead
 from .obs_encoder import build_obs_encoder, get_flat_obs_dim
 from .posterior import Posterior
@@ -103,7 +104,16 @@ class WorldModel(nn.Module):
         self.encoder: BaseEncoder
         self.decoder: ObsDecoder | GlyphDecoder
         cells = 0
-        if self.cfg.glyph_shape is not None:
+        encoder_kind = getattr(self.cfg, "obs_encoder", "flat")
+        if encoder_kind not in ("flat", "cage2_host"):
+            raise ValueError("Unknown observation encoder kind")
+        if encoder_kind == "cage2_host":
+            if self.cfg.glyph_shape is not None or self.flat_obs_dim != 52:
+                raise ValueError("Host encoder requires the unmodified 52-value CAGE2 vector")
+            self.encoder = HostObsEncoder(self.cfg.cage2_host_order, self.cfg.cage2_subnet_ids, self.embed_size).to(
+                self.device
+            )
+        elif self.cfg.glyph_shape is not None:
             if len(self.cfg.glyph_shape) != 2 or min(self.cfg.glyph_shape) < 1:
                 raise ValueError("Glyph grid dimensions must be positive (height, width)")
             cells = self.cfg.glyph_shape[0] * self.cfg.glyph_shape[1]

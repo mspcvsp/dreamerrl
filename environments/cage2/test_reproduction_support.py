@@ -72,6 +72,8 @@ def test_report_regenerated_only_in_scratch_matches_historical_outputs(tmp_path)
     from report_learning import main as report_main
 
     original = Path(__file__).resolve().parents[2] / "runs/cage2_blue_learning_seed0_20261123"
+    if not original.exists():
+        pytest.skip("Historical report artifacts are not bundled with source")
     for name in ("scorecard.json", "complete.json"):
         shutil.copyfile(original / name, tmp_path / name)
     report_main(["--run-dir", str(tmp_path)])

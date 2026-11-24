@@ -146,6 +146,15 @@ class DreamerTrainer:
         # Environment
         # -----------------------------------------------------
         self.env = make_env(cfg.env, device=self.device)
+        if getattr(cfg.world, "obs_encoder", "flat") == "cage2_host":
+            from dreamerrl.env.cage2.cage2_env_wrapper import Cage2BlueEnv
+
+            if not isinstance(self.env, Cage2BlueEnv) or cfg.env.finite_horizon:
+                raise ValueError("Host-aware encoder v1 requires the native CAGE2 Blue vector")
+            schema = (self.env.host_order, self.env.subnet_ids)
+            configured = (tuple(cfg.world.cage2_host_order), tuple(cfg.world.cage2_subnet_ids))
+            if configured != schema:
+                raise ValueError("Configured host schema differs from the actor-visible wrapper schema")
         obs_space = self.env.obs_space
         self.episode_steps = torch.zeros(self.env.batch_size, dtype=torch.long, device=self.device)
         if cfg.env.finite_horizon:
@@ -253,7 +262,7 @@ class DreamerTrainer:
         if cfg.log.enable_wandb:
             import wandb
 
-            self.wandb_run = wandb.init(project="dreamer_v3", config=cfg.__dict__)
+            self.wandb_run = getattr(wandb, "init")(project="dreamer_v3", config=cfg.__dict__)
 
         self.env_state: Dict[str, Any] = self.prepare_env_output(self.env.reset(), reset=True)
         with torch.no_grad():

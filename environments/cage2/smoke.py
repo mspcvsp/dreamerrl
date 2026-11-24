@@ -7,7 +7,6 @@ import importlib.metadata as metadata
 import inspect
 import json
 import math
-import os
 import platform
 import random
 import subprocess
@@ -32,9 +31,8 @@ def main():
     parser.add_argument("--learner-cycle", action="store_true")
     parser.add_argument("--run-dir", type=Path)
     args = parser.parse_args()
-    assert os.environ.get("CONDA_PREFIX") is None, "Deactivate Conda before this verification"
-    assert Path(sys.executable).parent == PROJECT / ".venv" / "bin", sys.executable
-    assert "miniconda" not in sys.base_prefix.lower()
+    assert sys.prefix != sys.base_prefix, "Use uv run --locked in the pinned project"
+    assert Path(sys.executable).parent == PROJECT.parents[1] / ".venv" / "bin", sys.executable
     assert platform.machine() == "aarch64", "This lock targets the Spark's Linux aarch64 platform"
     vendor = PROJECT / "vendor" / "cage-challenge-2"
     revision = subprocess.check_output(["git", "-C", str(vendor), "rev-parse", "HEAD"], text=True).strip()
@@ -98,7 +96,7 @@ def main():
         python_version=platform.python_version(),
         architecture=platform.machine(),
         base_prefix=sys.base_prefix,
-        conda_prefix=os.environ.get("CONDA_PREFIX"),
+        virtual_environment=sys.prefix,
         dreamerrl_module=dreamerrl.__file__,
         cyborg_module=cyborg_package.__file__,
         cyborg_version=metadata.version("cyborg"),

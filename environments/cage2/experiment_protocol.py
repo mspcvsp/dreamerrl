@@ -32,5 +32,11 @@ def verify_original_inputs(source, config):
         actual = json.loads(json.dumps(config))  # Dataclass tuples serialize as arrays in historical JSON.
         expected.pop("log")
         actual.pop("log")
+        # Older baseline configs predate encoder selection; only exact flat defaults
+        # are compatible. Never allow a host encoder to pass the baseline gate.
+        defaults = {"obs_encoder": "flat", "cage2_host_order": [], "cage2_subnet_ids": []}
+        for key, value in defaults.items():
+            if key not in expected.get("world", {}) and actual.get("world", {}).get(key) == value:
+                actual["world"].pop(key)
         if actual != expected:
             raise ValueError("Restored scientific configuration differs from the original baseline")

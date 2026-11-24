@@ -8,29 +8,20 @@ on:
 
 jobs:
   gpu-tests:
-    runs-on: [self-hosted, gpu, linux]
-
+    runs-on: [self-hosted, gpu, linux, ARM64]
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Verify GPU availability
-        run: |
-          echo "Checking GPU..."
-          nvidia-smi
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
+      - uses: actions/checkout@v4
         with:
-          python-version: "3.10"
-
-      - name: Install project + dev deps
-        run: |
-          pip install --upgrade pip
-          pip install .[dev]
-
-      - name: Run GPU-specific tests
+          submodules: recursive
+      - uses: astral-sh/setup-uv@v7
+        with:
+          version: "0.13.9"
+      - name: Install maintained locked uv environment
+        run: bash scripts/setup_uv.sh
+      - name: Real GPU forward and backward check
         env:
           CUDA_VISIBLE_DEVICES: "0"
-        run: |
-          pytest -q --disable-warnings --maxfail=1 -m "gpu"
+          CUBLAS_WORKSPACE_CONFIG: ":4096:8"
+        run: uv run --locked python scripts/verify_uv.py --gpu
+      - name: CPU/GPU actor invariant
+        run: uv run --locked pytest -q dreamerrl/tests/invariants/test_actor_cpu_gpu_determinism.py

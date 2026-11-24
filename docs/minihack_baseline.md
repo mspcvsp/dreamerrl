@@ -9,8 +9,8 @@ changed, so old checkpoints are not compatible with these model corrections.
 Use the `cage2_env` Python environment (Gymnasium >= 1.1 for vector autoreset).
 
 ```bash
-python -m dreamerrl.scripts.run_minihack --cpu --seed 0 --updates 1000
-python -m dreamerrl.scripts.run_minihack --cpu --seed 0 --updates 1000 --aux novelty
+UV_PROJECT_ENVIRONMENT=.venv-legacy uv run --locked --no-default-groups --group legacy python -m dreamerrl.scripts.run_minihack --cpu --seed 0 --updates 1000
+UV_PROJECT_ENVIRONMENT=.venv-legacy uv run --locked --no-default-groups --group legacy python -m dreamerrl.scripts.run_minihack --cpu --seed 0 --updates 1000 --aux novelty
 ```
 
 New runner invocations default to `--glyph-model spatial`: glyph IDs index a learned
@@ -112,7 +112,7 @@ the trainer's existing gradient clipping bounds optimizer gradients. Novelty
 excludes targets across resets and at the end of a sampled sequence.
 
 ```bash
-python -m pytest dreamerrl/tests -q
+UV_PROJECT_ENVIRONMENT=.venv-legacy uv run --locked --no-default-groups --group legacy python -m pytest dreamerrl/tests -q
 ```
 
 The suite includes numerical return references, KL gradients and scaling,
@@ -128,7 +128,7 @@ all three networks updating. For a paired three-seed experiment with random and
 untrained baselines and held-out greedy evaluation:
 
 ```bash
-python -m pytest dreamerrl/tests/manual/test_worldmodel_aux.py --run-manual --steps=1000 --eval-episodes=10 -s
+UV_PROJECT_ENVIRONMENT=.venv-legacy uv run --locked --no-default-groups --group legacy python -m pytest dreamerrl/tests/manual/test_worldmodel_aux.py --run-manual --steps=1000 --eval-episodes=10 -s
 ```
 
 Here `--steps` means optimizer updates per arm and seed. The experiment reports
@@ -147,13 +147,13 @@ interrupted or failed write leaves the last complete checkpoint available.
 
 ```bash
 # Start a run; choose a stable destination and save frequency.
-python -m dreamerrl.scripts.run_minihack --cpu --updates 1000 --checkpoint checkpoints/room.pt --checkpoint-every 50
+UV_PROJECT_ENVIRONMENT=.venv-legacy uv run --locked --no-default-groups --group legacy python -m dreamerrl.scripts.run_minihack --cpu --updates 1000 --checkpoint checkpoints/room.pt --checkpoint-every 50
 
 # Continue an interrupted run to its original target update count.
-python -m dreamerrl.scripts.run_minihack --cpu --resume checkpoints/room.pt
+UV_PROJECT_ENVIRONMENT=.venv-legacy uv run --locked --no-default-groups --group legacy python -m dreamerrl.scripts.run_minihack --cpu --resume checkpoints/room.pt
 
 # Extend a completed run to 2000 total updates (not 2000 additional updates).
-python -m dreamerrl.scripts.run_minihack --cpu --resume checkpoints/room.pt --updates 2000
+UV_PROJECT_ENVIRONMENT=.venv-legacy uv run --locked --no-default-groups --group legacy python -m dreamerrl.scripts.run_minihack --cpu --resume checkpoints/room.pt --updates 2000
 ```
 
 Resume uses the saved environment, seed, model, auxiliary objectives, and training
@@ -250,7 +250,7 @@ extension is experimental and defaults to 0 (disabled).
 An example experiment, not an established corridor configuration:
 
 ```bash
-python -m dreamerrl.scripts.run_minihack_corridor --seed 0 \
+UV_PROJECT_ENVIRONMENT=.venv-legacy uv run --locked --no-default-groups --group legacy python -m dreamerrl.scripts.run_minihack_corridor --seed 0 \
   --discount 0.997 --imagination-horizon 30 --seq-len 32 --burn-in 32 \
   --lambda-return 0.95 --replay-value-scale 1 --random-exploration-steps 10000
 ```
@@ -374,7 +374,7 @@ can change fixed-seed latent draws compared with the previous refresh path.
 To check whether position is decodable from a checkpoint's representation:
 
 ```bash
-python -m dreamerrl.scripts.probe_minihack_location \
+UV_PROJECT_ENVIRONMENT=.venv-legacy uv run --locked --no-default-groups --group legacy python -m dreamerrl.scripts.probe_minihack_location \
   --checkpoint runs/corridor_r2_recent_seed0_20261116/latest.pt \
   --initial-checkpoint runs/corridor_r2_recent_seed0_20261116/initial.pt \
   --train-episodes 32 --test-episodes 16 --max-steps 256 --epochs 100 \
@@ -432,7 +432,7 @@ Compare retained checkpoints on the same random-action traces without altering
 training:
 
 ```bash
-python -m dreamerrl.scripts.diagnose_posterior \
+UV_PROJECT_ENVIRONMENT=.venv-legacy uv run --locked --no-default-groups --group legacy python -m dreamerrl.scripts.diagnose_posterior \
   --checkpoint runs/corridor_r2_recent_seed0_20261116/initial.pt \
   --checkpoint runs/corridor_r2_recent_seed0_20261116/location_probe_weights_update600.pt \
   --checkpoint runs/corridor_r2_recent_seed0_20261116/posterior_diagnostic_weights_update2100.pt \
@@ -614,7 +614,7 @@ avoids crediting predictions of cleared terminal screens as player accuracy.
 For held-out scoring, freeze a spatial checkpoint and run:
 
 ```bash
-python -m dreamerrl.scripts.score_minihack_events \
+UV_PROJECT_ENVIRONMENT=.venv-legacy uv run --locked --no-default-groups --group legacy python -m dreamerrl.scripts.score_minihack_events \
   --checkpoint runs/corridor_r2_recent_seed0_20261116/latest.pt \
   --episodes 8 --max-steps 128 --max-frames 128 --sample-latents \
   --output runs/corridor_r2_recent_seed0_20261116/event_scores.json
@@ -659,7 +659,7 @@ These helpers do not implement the pending CAGE2 environment adapter.
 Run a frozen, action-conditioned comparison without changing training:
 
 ```bash
-python -m dreamerrl.scripts.probe_minihack_imagination \
+UV_PROJECT_ENVIRONMENT=.venv-legacy uv run --locked --no-default-groups --group legacy python -m dreamerrl.scripts.probe_minihack_imagination \
   --checkpoint runs/<run>/latest.pt --sample-latents \
   --horizons 1 3 5 10 --anchors 64 --episodes 8 \
   --output runs/<run>/imagination_probe.json
@@ -702,7 +702,7 @@ and its raw JSON report. Re-run after training with informative-cell weighting.
 ### Compare greedy and sampled policy behavior
 
 ```bash
-python -m dreamerrl.scripts.compare_minihack_policies --device cuda \
+UV_PROJECT_ENVIRONMENT=.venv-legacy uv run --locked --no-default-groups --group legacy python -m dreamerrl.scripts.compare_minihack_policies --device cuda \
   --checkpoint runs/<run>/policy_comparison_weights_update500.pt \
   --episodes 20 --seed-start 10000 \
   --output runs/<run>/policy_comparison_update500.json

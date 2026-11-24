@@ -1,0 +1,10 @@
+{
+  "schema_version": 1,
+  "source_tag": "cage2-host-aware-encoder-v1",
+  "source_commit": null,
+  "tag_object": null,
+  "launch_approval": null,
+  "source_fingerprints": {},
+  "config": "environments/cage2/host_aware_v1_config.json",
+  "status": "UNSEALED: implementation and uv migration await review/commit. No formal training authorized."
+}

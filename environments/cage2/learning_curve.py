@@ -4,7 +4,6 @@ import argparse
 import hashlib
 import json
 import math
-import os
 import pickle
 import random
 import shlex
@@ -55,7 +54,7 @@ def rng_equal(a, b):
 
 
 @torch.no_grad()
-def evaluate(trainer, policy):
+def evaluate(trainer, policy, seeds=SEEDS) -> dict[str, Any]:
     saved = rng_state()
     replay_before = (len(trainer.replay.episodes), trainer.replay.size, trainer.sample_step, trainer.total_env_steps)
     hashes = {k: state_hash(getattr(trainer, k)) for k in ("world", "actor", "critic")}
@@ -67,7 +66,7 @@ def evaluate(trainer, policy):
         trainer.world.eval()
         trainer.actor.eval()
         trainer.world.posterior.deterministic_latent_for_tests = True
-        for seed in SEEDS:
+        for seed in seeds:
             policy_seed = seed + 100_000
             random.seed(policy_seed)
             np.random.seed(policy_seed)
@@ -178,7 +177,7 @@ def main():
     parser.add_argument("--source", type=Path, default=ROOT / "runs/cage2_blue_cycle_seed0_20261123/latest.pt")
     parser.add_argument("--schedule", choices=["original", "measured"], default="measured")
     args = parser.parse_args()
-    assert os.environ.get("CONDA_PREFIX") is None and torch.cuda.is_available()
+    assert sys.prefix != sys.base_prefix and torch.cuda.is_available(), "Use uv run --locked"
     torch.set_num_threads(2)
     run = args.run_dir.resolve()
     run.mkdir(parents=True, exist_ok=False)
