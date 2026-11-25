@@ -10,6 +10,7 @@ import numpy as np
 import torch
 from host_experiment_support import CONFIG, ROOT, initialize_paired, load_config, sha256, verify_gate
 from learning_curve import evaluate, write
+from thermal_stop import ThermalStop, checkpoint_if_requested
 
 from dreamerrl.env.cage2.cage2_env_wrapper import Cage2BlueEnv
 from dreamerrl.training.trainer import DreamerTrainer
@@ -61,6 +62,7 @@ def run_arm(manifest_path, root, arm, seed):
             },
         )
         for _ in range(spec["initial_replay_episodes"]):
+            checkpoint_if_requested(run, trainer)
             trainer.collect_env_steps()
         assert trainer.total_env_steps == 480
         env.journal.clear()
@@ -76,12 +78,14 @@ def run_arm(manifest_path, root, arm, seed):
                     {row["seed"] for row in env.journal} & set(spec["development_seeds"] + spec["heldout_seeds"])
                 )
                 env.journal.clear()
+                checkpoint_if_requested(run, trainer)
                 if update % 100 == 0 or update in targets:
                     verify_gate(manifest_path)
                 if update in targets:
                     assert trainer.total_env_steps == targets[update]
                     trainer.save_checkpoint(run / f"update_{update}.pt")
                     report = evaluate(trainer, "actor", spec["development_seeds"])
+                    checkpoint_if_requested(run, trainer)
                     write(run / f"development_{update}.json", report)
                     curve.append(
                         dict(
@@ -98,6 +102,7 @@ def run_arm(manifest_path, root, arm, seed):
                 return update < spec["calibration_end_update"] if update <= spec["calibration_end_update"] else None
 
             # Same production training algorithm and two original LR horizons.
+            checkpoint_if_requested(run, trainer)
             trainer.train(
                 spec["calibration_scheduler_target"],
                 checkpoint_path=run / "latest.pt",
@@ -109,9 +114,11 @@ def run_arm(manifest_path, root, arm, seed):
             def main_callback(record):
                 callback(record)
 
+            checkpoint_if_requested(run, trainer)
             trainer.train(
                 spec["final_update"], checkpoint_path=run / "latest.pt", checkpoint_every=100, on_update=main_callback
             )
+        checkpoint_if_requested(run, trainer)
         assert trainer.total_env_steps == spec["final_env_steps"]
         verify_gate(manifest_path)
         write(
@@ -250,7 +257,11 @@ def main():
     root.mkdir(parents=True, exist_ok=False)
     write(root / "execution_selection.json", dict(execution_order=order, single_arm=args.arm is not None))
     for item in order:
-        run_arm(args.manifest, root, item["arm"], item["seed"])
+        try:
+            run_arm(args.manifest, root, item["arm"], item["seed"])
+        except ThermalStop as stop:
+            print(stop, flush=True)
+            raise SystemExit(75) from None
     if args.arm is None:
         evaluate_heldout(args.manifest, root)
         report_comparison(root)

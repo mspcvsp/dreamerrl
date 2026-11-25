@@ -166,6 +166,9 @@ retry. A detached session alone is not evidence of optimizer progress.
 
 ## Monitor sustained work
 
+The [DGX Spark thermal watchdog](THERMAL_WATCHDOG.md) can supervise both
+selected workers from its own tmux session and request a final checkpoint.
+
 After detaching, confirm both logs advance, world/actor/critic counters advance,
 and the first `latest.pt` is readable before treating startup as successful.
 Read-only model/replay inspection must not append to training replay. Use:
