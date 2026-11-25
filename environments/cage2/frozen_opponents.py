@@ -9,6 +9,8 @@ import platform
 import statistics
 import subprocess
 import sys
+import traceback
+from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -160,6 +162,27 @@ def main():
     if output.parent != ROOT / "runs":
         parser.error("Output must be a new directory directly under runs/")
     output.mkdir()
+    status = 1
+    try:
+        with (output / "console.log").open("x", buffering=1) as console:
+            with redirect_stdout(console), redirect_stderr(console):
+                try:
+                    run_evaluation(output, args.ready_channel)
+                except KeyboardInterrupt:
+                    status = 130
+                    traceback.print_exc()
+                except Exception:
+                    traceback.print_exc()
+                else:
+                    status = 0
+    finally:
+        (output / "exit_status").write_text(f"{status}\n")
+        if args.ready_channel and not (output / "started.json").is_file():
+            subprocess.run(["tmux", "wait-for", "-S", args.ready_channel], check=False)
+    return status
+
+
+def run_evaluation(output, ready_channel):
     spec = json.loads(MANIFEST.read_text())
     seeds = list(range(spec["first_seed"], spec["first_seed"] + spec["episodes_per_cell"]))
     if spec["horizon"] != 30:
@@ -216,8 +239,8 @@ def main():
             if not math.isfinite(smoke["mean_return"]):
                 raise ValueError(f"Non-finite smoke result for {item['id']} / {opponent}")
     write(output / "started.json", dict(cells=len(checkpoints) * len(OPPONENTS), smoke_seed=smoke_seed))
-    if args.ready_channel:
-        subprocess.run(["tmux", "wait-for", "-S", args.ready_channel], check=True)
+    if ready_channel:
+        subprocess.run(["tmux", "wait-for", "-S", ready_channel], check=True)
 
     rows = []
     for item in checkpoints:
@@ -234,4 +257,4 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())
