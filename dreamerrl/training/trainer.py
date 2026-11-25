@@ -1071,7 +1071,9 @@ class DreamerTrainer:
             remaining_steps = (obs[..., -1] * self.cfg.env.max_episode_steps).round().long()
 
         if self.cfg.train.use_amp:
-            with autocast(device_type="cuda", dtype=torch.float16, enabled=self.cfg.train.use_amp):
+            # Detached imagination and the differentiable forward share this context.
+            # Avoid reusing casts created in a no-grad region during recomputation.
+            with autocast(device_type="cuda", dtype=torch.float16, cache_enabled=False):
                 actor_loss, critic_loss = actor_critic_update(
                     world_model=self.world,
                     actor=self.actor,

@@ -21,7 +21,7 @@ from thermal_watchdog import NvidiaTelemetry
 from dreamerrl.scripts.run_minihack import main as train_minihack
 from dreamerrl.training.run_monitor import write_json
 
-TAG = "dreamerv3-director-room5x5-v1"
+TAG = "dreamerv3-director-room5x5-v1.1"
 CONFIG = Path(__file__).with_suffix(".json")
 
 

@@ -530,3 +530,19 @@ def test_director_tensor_gradient_and_achievement_contract(device, amp):
     assert has_gradient(ae.encoder) and has_gradient(ae.decoder)
     assert h.grad is None and z.grad is None
     assert not has_gradient(actor.manager) and not has_gradient(actor.worker)
+
+
+@pytest.mark.skipif(not torch.cuda.is_available(), reason="CUDA unavailable")
+def test_flat_amp_trainer_preserves_actor_and_critic_gradients(tmp_path):
+    cfg = small_config(tmp_path, hierarchical=False)
+    cfg.train.cuda = cfg.train.use_amp = True
+    trainer = DreamerTrainer(cfg)
+    try:
+        trainer.collect_env_steps()
+        losses = trainer.update_actor_critic(trainer.replay.sample(2, seed=3), 0)
+        assert np.isfinite(losses).all()
+        assert has_gradient(trainer.actor) and has_gradient(trainer.critic)
+        assert trainer._optimizer_steps["actor"] == trainer._optimizer_steps["critic"] == 1
+    finally:
+        trainer.env.venv.close()
+        trainer.tb.close()
