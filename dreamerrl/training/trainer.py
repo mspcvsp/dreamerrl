@@ -90,6 +90,8 @@ class DreamerTrainer:
             raise ValueError("lambda_ must be finite and in [0, 1]")
         if not math.isfinite(cfg.ac.replay_value_scale) or cfg.ac.replay_value_scale < 0:
             raise ValueError("replay_value_scale must be finite and nonnegative")
+        if cfg.ac.director_goals and not cfg.ac.hierarchical:
+            raise ValueError("Director goals require the hierarchical actor")
         if cfg.ac.hierarchical:
             validate_hierarchy(cfg.ac.hierarchy_goals, cfg.ac.hierarchy_goal_dim, cfg.ac.hierarchy_interval)
             if cfg.world.imagination_horizon < 1:
@@ -234,6 +236,7 @@ class DreamerTrainer:
                 goal_dim=cfg.ac.hierarchy_goal_dim,
                 interval=cfg.ac.hierarchy_interval,
                 probe=self.probe,
+                director_goals=cfg.ac.director_goals,
             ).to(self.device)
             self.critic = HierarchicalCritic(
                 latent=latent,
@@ -262,8 +265,16 @@ class DreamerTrainer:
         self.model_opt = torch.optim.Adam(
             self.world.parameters(), lr=cfg.train.model_lr, fused=self.cfg.train.enable_fused_adamw_kernels
         )
+        self.goal_opt = None
+        actor_parameters = list(self.actor.parameters())
+        if isinstance(self.actor, HierarchicalActor) and self.actor.goal_autoencoder is not None:
+            goal_parameters = list(self.actor.goal_autoencoder.parameters())
+            goal_parameter_ids = {id(parameter) for parameter in goal_parameters}
+            actor_parameters = [parameter for parameter in actor_parameters if id(parameter) not in goal_parameter_ids]
+            self.goal_opt = torch.optim.Adam(goal_parameters, lr=cfg.train.actor_lr)
+        self.actor_parameters = actor_parameters
         self.actor_opt = torch.optim.Adam(
-            self.actor.parameters(), lr=cfg.train.actor_lr, fused=self.cfg.train.enable_fused_adamw_kernels
+            actor_parameters, lr=cfg.train.actor_lr, fused=self.cfg.train.enable_fused_adamw_kernels
         )
         self.critic_opt = torch.optim.Adam(
             self.critic.parameters(), lr=cfg.train.critic_lr, fused=self.cfg.train.enable_fused_adamw_kernels
@@ -319,7 +330,7 @@ class DreamerTrainer:
         path = Path(path)
         path.parent.mkdir(parents=True, exist_ok=True)
         payload = {
-            "version": 5 if self.cfg.ac.hierarchical else 4,
+            "version": 6 if self.cfg.ac.director_goals else 5 if self.cfg.ac.hierarchical else 4,
             "config": self.cfg,
             "world": self.world.state_dict(),
             "actor": self.actor.state_dict(),
@@ -345,6 +356,8 @@ class DreamerTrainer:
                 "cuda": torch.cuda.get_rng_state_all() if self.device.type == "cuda" else None,
             },
         }
+        if self.goal_opt is not None:
+            payload["goal_opt"] = self.goal_opt.state_dict()
         temporary = None
         try:
             with tempfile.NamedTemporaryFile(
@@ -391,7 +404,7 @@ class DreamerTrainer:
             )
         if payload.get("version") == 3:
             raise ValueError("MLP-RSSM checkpoint v3 is incompatible with the GRU transition; start a new run")
-        if payload.get("version") not in (4, 5):
+        if payload.get("version") not in (4, 5, 6):
             raise ValueError("Unsupported Dreamer checkpoint version")
         cfg = payload["config"]
         if log_dir is not None:
@@ -418,9 +431,9 @@ class DreamerTrainer:
             )
         if payload.get("version") == 3:
             raise ValueError("MLP-RSSM checkpoint v3 is incompatible with the GRU transition; start a new run")
-        if payload.get("version") not in (4, 5):
+        if payload.get("version") not in (4, 5, 6):
             raise ValueError("Unsupported Dreamer checkpoint version")
-        expected_version = 5 if self.cfg.ac.hierarchical else 4
+        expected_version = 6 if self.cfg.ac.director_goals else 5 if self.cfg.ac.hierarchical else 4
         if payload["version"] != expected_version:
             raise ValueError("Checkpoint actor mode/schema does not match this trainer")
         saved_cfg = payload["config"]
@@ -434,6 +447,8 @@ class DreamerTrainer:
         for name in ("world", "actor", "critic", "model_opt", "actor_opt", "critic_opt"):
             getattr(self, name).load_state_dict(payload[name])
         self.slow_critic.load_state_dict(payload["slow_critic"])
+        if self.goal_opt is not None:
+            self.goal_opt.load_state_dict(payload["goal_opt"])
         if self.device.type == "cpu":
             for optimizer in (self.model_opt, self.actor_opt, self.critic_opt):
                 for group in optimizer.param_groups:
@@ -1101,7 +1116,7 @@ class DreamerTrainer:
             self.actor_opt.zero_grad()
             self.scaler.scale(actor_loss).backward()
             self.scaler.unscale_(self.actor_opt)
-            actor_grad_norm = torch.nn.utils.clip_grad_norm_(self.actor.parameters(), self.cfg.train.grad_clip)
+            actor_grad_norm = torch.nn.utils.clip_grad_norm_(self.actor_parameters, self.cfg.train.grad_clip)
             self.scaler.step(self.actor_opt)
             self.scaler.update()
 
@@ -1114,13 +1129,25 @@ class DreamerTrainer:
         else:
             self.actor_opt.zero_grad()
             actor_loss.backward()
-            actor_grad_norm = torch.nn.utils.clip_grad_norm_(self.actor.parameters(), self.cfg.train.grad_clip)
+            actor_grad_norm = torch.nn.utils.clip_grad_norm_(self.actor_parameters, self.cfg.train.grad_clip)
             self.actor_opt.step()
 
             self.critic_opt.zero_grad()
             critic_loss.backward()
             critic_grad_norm = torch.nn.utils.clip_grad_norm_(self.critic.parameters(), self.cfg.train.grad_clip)
             self.critic_opt.step()
+
+        if self.goal_opt is not None:
+            goal_loss = self.ac_metrics.pop("goal_autoencoder_objective")
+            self.goal_opt.zero_grad(set_to_none=True)
+            goal_loss.backward()
+            grad_norm = torch.nn.utils.clip_grad_norm_(
+                self.actor.goal_autoencoder.parameters(), self.cfg.train.grad_clip, error_if_nonfinite=True,
+            )
+            self.goal_opt.step()
+            self.ac_metrics.update(
+                goal_autoencoder_grad_norm=grad_norm, goal_optimizer_steps=grad_norm.new_tensor(1),
+            )
 
         if self.cfg.ac.hierarchical:
             self.ac_metrics.update(actor_grad_norm=actor_grad_norm, critic_grad_norm=critic_grad_norm)

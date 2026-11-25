@@ -234,12 +234,12 @@ def _diagnose_training_replay(path, *, batches=16, batch_size=8, seed=42):
     from dreamerrl.training.core.world_model_update import observe_batch
 
     saved = torch.load(path, map_location="cpu", weights_only=False)
-    if saved.get("version") != 4 or not saved.get("replay", {}).get("episodes"):
-        raise ValueError("Replay diagnostics need a v4 trainer checkpoint with completed episodes")
+    if saved.get("version") not in (4, 5, 6) or not saved.get("replay", {}).get("episodes"):
+        raise ValueError("Replay diagnostics need a compatible trainer checkpoint with completed episodes")
     with TemporaryDirectory(prefix="dreamerrl-posterior-replay-") as directory:
         weights = Path(directory) / "weights.pt"
         torch.save({key: saved[key] for key in ("version", "config", "world", "actor", "completed_updates")}, weights)
-        agent = load_frozen_agent(weights, sample_latents=True)
+        agent = load_frozen_agent(weights, sample_latents=True, allow_hierarchical=True)
     replay_state = saved["replay"]
     replay = ReplayBuffer(
         saved["config"].train, replay_state["obs_dim"], replay_state["action_dim"], torch.device("cpu")

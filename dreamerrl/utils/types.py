@@ -122,6 +122,7 @@ class ActorCriticConfig:
     hierarchy_goals: int = 8
     hierarchy_goal_dim: int = 16
     hierarchy_interval: int = 4
+    director_goals: bool = False
 
     actor_hidden: int = 256
     critic_hidden: int = 256

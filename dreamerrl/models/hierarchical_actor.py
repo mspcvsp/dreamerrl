@@ -7,6 +7,7 @@ from torch import nn
 from torch.distributions import Categorical
 
 from .actor import Actor
+from .goal_autoencoder import GoalAutoencoder
 from .value_head import ValueHead
 
 
@@ -45,12 +46,18 @@ class HierarchyStep:
 
 
 class HierarchicalActor(nn.Module):
-    def __init__(self, *, latent, net, goals=8, goal_dim=16, interval=4, probe=None):
+    def __init__(self, *, latent, net, goals=8, goal_dim=16, interval=4, probe=None, director_goals=False):
         super().__init__()
         validate_hierarchy(goals, goal_dim, interval)
-        self.num_goals, self.goal_dim, self.interval = goals, goal_dim, interval
         self.manager = Actor(latent=latent, net=replace(net, action_dim=goals))
-        self.goal_embedding = nn.Embedding(goals, goal_dim)
+        self.goal_autoencoder = None
+        if director_goals:
+            features = latent.deter_size + latent.stoch_size * latent.num_classes
+            self.goal_autoencoder = GoalAutoencoder(features, goals, goal_dim)
+            goal_dim = features
+        else:
+            self.goal_embedding = nn.Embedding(goals, goal_dim)
+        self.num_goals, self.goal_dim, self.interval = goals, goal_dim, interval
         self.worker = Actor(latent=replace(latent, deter_size=latent.deter_size + goal_dim + 1), net=net, probe=probe)
 
     def forward(self, h, z):
@@ -60,12 +67,19 @@ class HierarchicalActor(nn.Module):
         raise ValueError("Hierarchical policy requires explicit goal state: use step or policy_action")
 
     def initial_state(self, batch_size, device=None):
-        device = self.goal_embedding.weight.device if device is None else device
+        parameter = next(self.parameters())
+        device = parameter.device if device is None else device
         return HierarchyState(
             torch.zeros(batch_size, dtype=torch.long, device=device),
-            torch.zeros(batch_size, self.goal_dim, device=device, dtype=self.goal_embedding.weight.dtype),
+            torch.zeros(batch_size, self.goal_dim, device=device, dtype=parameter.dtype),
             torch.zeros(batch_size, dtype=torch.long, device=device),
         )
+
+    def decode_goals(self, ids):
+        if self.goal_autoencoder is None:
+            return self.goal_embedding(ids)
+        with torch.no_grad(), torch.autocast(ids.device.type, enabled=False):
+            return self.goal_autoencoder.decode_ids(ids)
 
     def worker_logits(self, h, z, goal, remaining):
         phase = remaining.to(h.dtype).unsqueeze(-1) / self.interval
@@ -98,7 +112,7 @@ class HierarchicalActor(nn.Module):
             selected = logits.argmax(-1) if deterministic else Categorical(logits=logits).sample()
             goal_id[decision] = selected
             # Latch the vector, including across later actor/codebook optimizer updates.
-            goal[decision] = self.goal_embedding(selected)
+            goal[decision] = self.decode_goals(selected).to(goal.dtype)
             remaining[decision] = self.interval
         logits = self.worker_logits(h, z, goal, remaining)
         action = logits.argmax(-1) if deterministic else Categorical(logits=logits).sample()

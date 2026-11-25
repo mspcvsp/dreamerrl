@@ -169,6 +169,7 @@ class MiniHackRunMonitor:
         if baseline is not None:
             # Older runs predate the optional replay critic loss (disabled then).
             baseline["spec"]["actor_critic"].setdefault("replay_value_scale", 0.0)
+            baseline["spec"]["actor_critic"].setdefault("director_goals", False)
             # Missing fields describe the previous uniform/weighted objective.
             for name, default in (
                 ("glyph_foreground_ids", ()),
@@ -216,12 +217,13 @@ class MiniHackRunMonitor:
         self.logger.info("Evaluating update %d on %d fixed levels", update, len(self.seeds))
         started = time.perf_counter()
         stair_modes: dict[str, list[CorridorEpisode]] = {}
+        goals: list[dict] = []
         if self.stair_diagnostics:
             stair_modes = {"greedy": [], "sampled": []}
             returns = self.evaluate(corridor_diagnostics=stair_modes["greedy"])
             self.evaluate(sample_actions=True, corridor_diagnostics=stair_modes["sampled"])
         else:
-            returns = self.evaluate()
+            returns = self.evaluate(goal_diagnostics=goals) if self.trainer.cfg.ac.director_goals else self.evaluate()
         baseline = self.state["baselines"]
         random_returns, untrained = baseline["random_returns"], baseline["untrained_returns"]
         record: dict[str, Any] = dict(
@@ -237,6 +239,9 @@ class MiniHackRunMonitor:
             vs_untrained=compare_returns(returns, untrained) if untrained is not None else None,
             evaluation_seconds=time.perf_counter() - started,
         )
+        if goals:
+            record["goal_diagnostics"] = goals
+            record["goal_completion_rate"] = mean(goal["achieved"] for goal in goals)
         if stair_modes:
             record["stair_diagnostics"] = {}
             for mode, episodes in stair_modes.items():

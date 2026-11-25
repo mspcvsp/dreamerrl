@@ -18,7 +18,8 @@ from minihack import MiniHack
 from dreamerrl.env.minihack.minihack_utils import extract_glyphs
 from dreamerrl.eval.corridor_diagnostics import CORRIDOR_R2, CorridorEpisode, compass_actions, stair_opportunity
 from dreamerrl.eval.movement import MovementMetrics, MovementTracker
-from dreamerrl.models.hierarchical_actor import policy_action
+from dreamerrl.models.goal_autoencoder import goal_features, goal_similarity
+from dreamerrl.models.hierarchical_actor import HierarchicalActor, policy_action
 
 
 class EpisodeDiagnostics(MovementMetrics):
@@ -42,6 +43,7 @@ def evaluate_minihack(
     sampling_seed=0,
     episode_diagnostics: list[EpisodeDiagnostics] | None = None,
     corridor_diagnostics: list[CorridorEpisode] | None = None,
+    goal_diagnostics: list[dict] | None = None,
 ) -> list[float]:
     """Whole episode returns on held-out seeds, including the final reward.
 
@@ -54,6 +56,10 @@ def evaluate_minihack(
     """
     if corridor_diagnostics is not None and (random_policy or cfg.env.env_id != CORRIDOR_R2):
         raise ValueError("Stair diagnostics require an actor in MiniHack Corridor R2")
+    if goal_diagnostics is not None and (
+        random_policy or not isinstance(actor, HierarchicalActor) or actor.goal_autoencoder is None
+    ):
+        raise ValueError("Goal diagnostics require a Director policy")
     device = next(world.parameters()).device
     devices = (
         [device.index if device.index is not None else torch.cuda.current_device()] if device.type == "cuda" else []
@@ -99,29 +105,36 @@ def evaluate_minihack(
                     movement_ids = {i for i, command in enumerate(commands) if command in compass_directions}
                 total = 0.0
                 opportunity = None
+                interval_best = -1.0
+                interval_start = 0
+
+                def observe(obs, t, state, action):
+                    observation = torch.as_tensor(
+                        extract_glyphs(obs).reshape(1, -1), dtype=torch.float32, device=device
+                    )
+                    if cfg.env.finite_horizon:
+                        observation = torch.cat(
+                            [
+                                observation,
+                                torch.tensor([[1 - t / cfg.env.max_episode_steps]], device=device),
+                            ],
+                            -1,
+                        )
+                    return world.observe_step(
+                        state,
+                        observation,
+                        action,
+                        is_first=torch.tensor([t == 0], device=device),
+                    )["post"]
+
                 for t in range(cfg.env.max_episode_steps):
                     if should_stop is not None and should_stop():
                         raise InterruptedError("Evaluation stop requested")
                     if random_policy:
                         action_id = env.action_space.sample()
                     else:
-                        observation = torch.as_tensor(
-                            extract_glyphs(obs).reshape(1, -1), dtype=torch.float32, device=device
-                        )
-                        if cfg.env.finite_horizon:
-                            observation = torch.cat(
-                                [
-                                    observation,
-                                    torch.tensor([[1 - t / cfg.env.max_episode_steps]], device=device),
-                                ],
-                                -1,
-                            )
-                        state = world.observe_step(
-                            state,
-                            observation,
-                            action,
-                            is_first=torch.tensor([t == 0], device=device),
-                        )["post"]
+                        if goal_diagnostics is None or t == 0:
+                            state = observe(obs, t, state, action)
                         selected, logits, policy_state = policy_action(
                             actor, state, policy_state, deterministic=not sample_actions
                         )
@@ -140,12 +153,25 @@ def evaluate_minihack(
                             turn_advanced=int(obs["blstats"][time_index]) != old_turn,
                         )
                     total += float(reward)
-                    if terminated or truncated:
-                        break
                     action = torch.nn.functional.one_hot(
                         torch.tensor([action_id], device=device),
                         action_dim,
                     ).float()
+                    if goal_diagnostics is not None:
+                        assert policy_state is not None
+                        state = observe(obs, t + 1, state, action)
+                        similarity = goal_similarity(policy_state.goal, goal_features(state.h, state.z)).item()
+                        interval_best = max(interval_best, similarity)
+                        if policy_state.remaining.item() == 0 or terminated or truncated:
+                            goal_diagnostics.append(dict(
+                                seed=seed, goal_id=int(policy_state.goal_id.item()),
+                                steps=t + 1 - interval_start, max_similarity=interval_best,
+                                achieved=interval_best >= 0.9, terminated=bool(terminated), truncated=bool(truncated),
+                            ))
+                            interval_start = t + 1
+                            interval_best = -1.0
+                    if terminated or truncated:
+                        break
                 returns.append(total)
                 if corridor_diagnostics is not None:
                     outcome = info["end_status"].name

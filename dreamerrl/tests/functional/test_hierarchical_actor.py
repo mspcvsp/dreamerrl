@@ -233,10 +233,13 @@ def small_config(tmp_path, hierarchical=True):
     return cfg
 
 
-def test_noncyber_collect_update_restart_evaluate(tmp_path):
+@pytest.mark.parametrize("director", [False, True])
+def test_noncyber_collect_update_restart_evaluate(tmp_path, director):
     from dreamerrl.eval.popgym_eval import evaluate_popgym
 
-    trainer = DreamerTrainer(small_config(tmp_path / "train"))
+    cfg = small_config(tmp_path / "train")
+    cfg.ac.director_goals = director
+    trainer = DreamerTrainer(cfg)
     restored = None
     try:
         trainer.collect_env_steps()
@@ -246,14 +249,14 @@ def test_noncyber_collect_update_restart_evaluate(tmp_path):
         a, c = trainer.update_actor_critic(batch, 0)
         assert np.isfinite([model.total_loss.item(), a, c]).all()
         assert trainer._optimizer_steps == dict(world_model=1, actor=1, critic=1)
-        for prefix in ("manager.", "worker.", "goal_embedding."):
+        for prefix in ("manager.", "worker.", "goal_autoencoder." if director else "goal_embedding."):
             assert any(
                 not torch.equal(before[k], v) for k, v in trainer.actor.named_parameters() if k.startswith(prefix)
             )
         trainer.completed_updates = 1
         path = tmp_path / "restart.pt"
         trainer.save_checkpoint(path)
-        assert torch.load(path, weights_only=False)["version"] == 5
+        assert torch.load(path, weights_only=False)["version"] == (6 if director else 5)
         restored = DreamerTrainer.from_checkpoint(path, cuda=False, log_dir=tmp_path / "reload")
         assert restored.completed_updates == 1 and len(restored.replay.episodes) == len(trainer.replay.episodes)
         assert restored.policy_state is not None
@@ -262,6 +265,11 @@ def test_noncyber_collect_update_restart_evaluate(tmp_path):
             torch.testing.assert_close(value, restored.actor.state_dict()[key], rtol=0, atol=0)
         for name in ("model_opt", "actor_opt", "critic_opt"):
             assert all(int(v["step"]) == 1 for v in getattr(restored, name).state.values())
+        if director:
+            assert all(int(v["step"]) == 1 for v in restored.goal_opt.state.values())
+            goal_ids = {id(p) for g in restored.goal_opt.param_groups for p in g["params"]}
+            actor_ids = {id(p) for g in restored.actor_opt.param_groups for p in g["params"]}
+            assert goal_ids and actor_ids and goal_ids.isdisjoint(actor_ids)
         saved_policy = restored.policy_state.remaining.clone()
         from dreamerrl.env.env_factory import make_env
 
@@ -482,3 +490,43 @@ def test_historical_flat_checkpoint_weights_and_optimizers_still_load(directory,
         trainer.env.venv.close()
         trainer.tb.close()
     assert hashlib.sha256(path.read_bytes()).hexdigest() == before
+
+
+@pytest.mark.parametrize("device,amp", [("cpu", False), ("cpu", True), ("cuda", True)])
+def test_director_tensor_gradient_and_achievement_contract(device, amp):
+    from dreamerrl.models.goal_autoencoder import goal_features, goal_similarity
+
+    if device == "cuda" and not torch.cuda.is_available():
+        pytest.skip("CUDA unavailable")
+    torch.manual_seed(10)
+    actor = HierarchicalActor(
+        latent=LatentConfig(deter_size=12, num_classes=3, stoch_size=4),
+        net=NetworkConfig(hidden_size=16, action_dim=5),
+        goals=4, goal_dim=6, interval=2, director_goals=True,
+    ).to(device)
+    h = torch.randn(2, 12, device=device, requires_grad=True)
+    z = torch.randn(2, 4, 3, device=device, requires_grad=True)
+    features = goal_features(h, z)
+    ae = actor.goal_autoencoder
+    logits, decoded = ae(features)
+    assert logits.shape == (2, 4)
+    assert decoded.shape == features.shape == (2, 24)
+    torch.testing.assert_close(goal_similarity(features, features), torch.ones(2, device=device))
+    torch.testing.assert_close(goal_similarity(-features, features), -torch.ones(2, device=device))
+    dtype = torch.float16 if device == "cuda" else torch.bfloat16
+    with torch.autocast(device, dtype=dtype, enabled=amp):
+        first = actor.step(h, z, actor.initial_state(2), deterministic=True)
+        with torch.no_grad():
+            ae.decoder[-1].bias.add_(2)
+        second = actor.step(h, z, first.state, deterministic=True)
+        third = actor.step(h, z, second.state, deterministic=True)
+        assert first.manager_decision.all() and not second.manager_decision.any() and third.manager_decision.all()
+        torch.testing.assert_close(first.state.goal, second.state.goal)
+        assert not torch.equal(second.state.goal, third.state.goal)
+        assert not torch.allclose(first.logits, third.logits)
+        objective, mse, _ = ae.reconstruction(features, torch.ones(2, device=device))
+    assert objective.dtype == torch.float32 and mse.item() > 0
+    objective.backward()
+    assert has_gradient(ae.encoder) and has_gradient(ae.decoder)
+    assert h.grad is None and z.grad is None
+    assert not has_gradient(actor.manager) and not has_gradient(actor.worker)

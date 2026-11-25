@@ -3,6 +3,7 @@
 import torch
 from torch.distributions import Categorical
 
+from dreamerrl.models.goal_autoencoder import goal_features, goal_similarity
 from dreamerrl.models.world_model import WorldModelState
 from dreamerrl.utils.transforms import symlog
 from dreamerrl.utils.twohot import twohot_encode
@@ -27,6 +28,8 @@ def imagine_hierarchy(world, actor, start, horizon, deterministic=False):
         state = start
         policy = actor.initial_state(start.h.shape[0], start.h.device)
         rows = {name: [] for name in ("h", "z", "goal_id", "remaining", "decision", "action", "reward", "continue")}
+        if actor.goal_autoencoder is not None:
+            rows.update(goal=[], achievement=[])
         action_dim = world.net_cfg.action_dim
         for _ in range(horizon):
             chosen = actor.step(state.h, state.z, policy, deterministic=deterministic)
@@ -42,6 +45,9 @@ def imagine_hierarchy(world, actor, start, horizon, deterministic=False):
                 rows[name].append(value)
             action = torch.nn.functional.one_hot(chosen.action, action_dim).float()
             state = world.imagine_step(state, actor.worker, action=action, deterministic_imagination=deterministic)
+            if actor.goal_autoencoder is not None:
+                rows["goal"].append(policy.goal)
+                rows["achievement"].append(goal_similarity(policy.goal, goal_features(state.h, state.z)))
             reward = world.reward_heads.main(state.h, state.z)
             rows["reward"].append(world.reward_heads.main.readout(reward))
             rows["continue"].append(world.continue_head.readout(world.continue_head(state.h, state.z)))
@@ -151,6 +157,12 @@ def hierarchical_actor_critic_update(
                 raise ValueError("remaining_steps must have replay shape (B, L)")
             remaining_steps = remaining_steps.to(h.device).reshape(-1)
             start_weight = start_weight * (remaining_steps > 0)
+    director = actor.goal_autoencoder is not None
+    if director and diagnostics is not None:
+        loss, mse, active_codes = actor.goal_autoencoder.reconstruction(goal_features(start.h, start.z), start_weight)
+        diagnostics.update(
+            goal_autoencoder_objective=loss, goal_reconstruction_loss=mse, goal_encoder_active_codes=active_codes,
+        )
     trajectory = imagine_hierarchy(world, actor, start, horizon, deterministic)
     h, z = trajectory["h"], trajectory["z"]
     T, N = h.shape[:2]
@@ -185,16 +197,25 @@ def hierarchical_actor_critic_update(
         weights = torch.cumprod(torch.cat((start_weight[None, :], discounts[:-1])), 0)
         # At a new goal boundary, bootstrap the expectation before selecting a goal.
         bootstrap_values = torch.where(trajectory["decision"], manager_values, worker_values)
-        worker_target = lambda_return(
-            trajectory["reward"], torch.cat((bootstrap_values, tail_value[None, :])), discounts, lam
-        )
+        if director:
+            # The worker's return ends with this goal. A partial final interval
+            # can bootstrap only from the worker under the same goal.
+            worker_target = lambda_return(
+                trajectory["achievement"], torch.cat((worker_values, tail_worker[None, :])),
+                discounts * (remaining > 1), lam,
+            )
+            tail_value = tail_manager
+        else:
+            worker_target = lambda_return(
+                trajectory["reward"], torch.cat((bootstrap_values, tail_value[None, :])), discounts, lam
+            )
         manager_target = manager_returns(
             trajectory["reward"], discounts, manager_values, tail_value, actor.interval, lam
         )
         worker_advantage = normalized_advantage(actor.worker, worker_target, worker_values, weights)
         manager_advantage = normalized_advantage(actor.manager, manager_target, manager_values[starts], weights[starts])
     # Recompute actor-owned embeddings outside no_grad; critic never shares this table.
-    goal = actor.goal_embedding(ids.flatten())
+    goal = trajectory["goal"].flatten(0, 1) if director else actor.goal_embedding(ids.flatten())
     worker_dist = Categorical(logits=actor.worker_logits(flat_h, flat_z, goal, remaining.flatten()).reshape(T, N, -1))
     manager_dist = Categorical(
         logits=actor.manager(h[starts].reshape(-1, h.shape[-1]), z[starts].reshape(-1, *z.shape[2:])).reshape(
@@ -227,7 +248,17 @@ def hierarchical_actor_critic_update(
         critic.manager, manager_logits, manager_target, weights[starts], slow_manager, slow_scale
     )
     if diagnostics is not None:
-        diagnostics.update(goal_diagnostics(ids, weights, actor.interval, actor.goal_embedding.weight))
+        embeddings = actor.decode_goals(torch.arange(actor.num_goals, device=h.device)) if director else actor.goal_embedding.weight
+        diagnostics.update(goal_diagnostics(ids, weights, actor.interval, embeddings))
+        if director:
+            achievement = trajectory["achievement"]
+            diagnostics.update(
+                goal_achievement_reward=(weights * achievement).sum() / weights.sum().clamp_min(1e-8),
+                imagined_goal_completion_rate=(
+                    (weights * (achievement >= 0.9)).sum() / weights.sum().clamp_min(1e-8)
+                ),
+                goal_embedding_pairwise_distance=torch.pdist(embeddings.float()).mean(),
+            )
         diagnostics.update(
             manager_critic_loss=manager_critic_loss.detach(),
             worker_critic_loss=worker_critic_loss.detach(),
