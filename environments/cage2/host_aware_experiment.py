@@ -86,6 +86,9 @@ def run_arm(manifest_path, root, arm, seed):
                     trainer.save_checkpoint(run / f"update_{update}.pt")
                     report = evaluate(trainer, "actor", spec["development_seeds"])
                     checkpoint_if_requested(run, trainer)
+                    if cfg.ac.hierarchical:
+                        report.update(training_seed=seed, arm=arm, update=update)
+                        trainer.tb.add_scalar("evaluation/development_return", report["mean_return"], update)
                     write(run / f"development_{update}.json", report)
                     curve.append(
                         dict(
@@ -134,6 +137,8 @@ def run_arm(manifest_path, root, arm, seed):
                 checkpoint=str(run / "latest.pt"),
                 config_sha256=sha256(CONFIG),
                 manifest_sha256=sha256(manifest_path),
+                **(dict(checkpoint_status="saved", termination_reason="fixed_budget_complete")
+                   if cfg.ac.hierarchical else {}),
             ),
         )
     finally:

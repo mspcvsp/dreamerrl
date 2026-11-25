@@ -513,6 +513,7 @@ class DreamerTrainer:
             lr_floor=0.1,
         )
         lr_schedule = CosineWarmupScheduler(lr_cfg)
+        hierarchy_started = time.monotonic() if self.cfg.ac.hierarchical else None
 
         for update_idx in range(self.completed_updates, total_updates):
             t0 = self._cadence_clock()
@@ -633,6 +634,11 @@ class DreamerTrainer:
             for name, value in cumulative_cadence.items():
                 self.tb.add_scalar(f"cadence_total/{name}", value, update_idx)
             reward_coverage: dict[str, Any] = {name: value.item() for name, value in wm_metrics.reward_metrics.items()}
+            credit_assignment = {name: value.item() for name, value in self.ac_metrics.items()}
+            if hierarchy_started is not None:
+                credit_assignment = {
+                    name: value if math.isfinite(value) else None for name, value in credit_assignment.items()
+                }
             record = dict(
                 event="train",
                 update=self.completed_updates,
@@ -644,7 +650,7 @@ class DreamerTrainer:
                 replay_positive_reward_steps=self.replay.positive_reward_steps,
                 replay_positive_reward_episodes=self.replay.positive_reward_episodes,
                 acting_state_refresh=dict(self.acting_refresh_metrics),
-                credit_assignment={name: value.item() for name, value in self.ac_metrics.items()},
+                credit_assignment=credit_assignment,
                 reconstruction_events={name: value.item() for name, value in wm_metrics.reconstruction_metrics.items()},
                 reward_coverage=reward_coverage,
                 sequence_length=batch["obs"].shape[1],
@@ -668,6 +674,16 @@ class DreamerTrainer:
                 },
                 cuda_memory_mb=torch.cuda.memory_allocated(self.device) / 2**20 if self.device.type == "cuda" else None,
             )
+            if hierarchy_started is not None:
+                record.update(
+                    training_seed=self.cfg.train.seed,
+                    environment_seed=self.cfg.env.seed,
+                    environment=self.cfg.env.env_id,
+                    run_name=self.cfg.log.run_name,
+                    tensorboard_dir=self.cfg.log.tb_logdir,
+                    train_call_elapsed_seconds=time.monotonic() - hierarchy_started,
+                    world_model_grad_norm=self._finite_metric(self.world_model_grad_norm),
+                )
             if self.cfg.env.env_id == "MiniHack-Corridor-R2-v0":
                 # The reward loss averages every supervised token in this batch.
                 # Replay episodes carry no source label, including on resume.
@@ -984,12 +1000,12 @@ class DreamerTrainer:
             assert self.scaler is not None, "GradScaler is None but use_amp is True"
             self.scaler.scale(loss).backward()
             self.scaler.unscale_(self.model_opt)
-            torch.nn.utils.clip_grad_norm_(self.world.parameters(), self.cfg.train.grad_clip)
+            grad_norm = torch.nn.utils.clip_grad_norm_(self.world.parameters(), self.cfg.train.grad_clip)
             self.scaler.step(self.model_opt)
             self.scaler.update()
         else:
             loss.backward()
-            torch.nn.utils.clip_grad_norm_(self.world.parameters(), self.cfg.train.grad_clip)
+            grad_norm = torch.nn.utils.clip_grad_norm_(self.world.parameters(), self.cfg.train.grad_clip)
             self.model_opt.step()
 
         if self._optimizer_steps["world_model"] > previous_model_steps:
@@ -999,6 +1015,11 @@ class DreamerTrainer:
 
         # TensorBoard logging
         step = update_idx
+        if self.cfg.ac.hierarchical:
+            self.world_model_grad_norm = grad_norm
+            value = self._finite_metric(grad_norm)
+            if value is not None:
+                self.tb.add_scalar("wm/grad_norm", value, step)
 
         self.tb.add_scalar("wm/total_loss", metrics.total_loss.item(), step)
         self.tb.add_scalar("wm/recon_loss", metrics.recon_loss.item(), step)
@@ -1080,31 +1101,40 @@ class DreamerTrainer:
             self.actor_opt.zero_grad()
             self.scaler.scale(actor_loss).backward()
             self.scaler.unscale_(self.actor_opt)
-            torch.nn.utils.clip_grad_norm_(self.actor.parameters(), self.cfg.train.grad_clip)
+            actor_grad_norm = torch.nn.utils.clip_grad_norm_(self.actor.parameters(), self.cfg.train.grad_clip)
             self.scaler.step(self.actor_opt)
             self.scaler.update()
 
             self.critic_opt.zero_grad()
             self.scaler.scale(critic_loss).backward()
             self.scaler.unscale_(self.critic_opt)
-            torch.nn.utils.clip_grad_norm_(self.critic.parameters(), self.cfg.train.grad_clip)
+            critic_grad_norm = torch.nn.utils.clip_grad_norm_(self.critic.parameters(), self.cfg.train.grad_clip)
             self.scaler.step(self.critic_opt)
             self.scaler.update()
         else:
             self.actor_opt.zero_grad()
             actor_loss.backward()
-            torch.nn.utils.clip_grad_norm_(self.actor.parameters(), self.cfg.train.grad_clip)
+            actor_grad_norm = torch.nn.utils.clip_grad_norm_(self.actor.parameters(), self.cfg.train.grad_clip)
             self.actor_opt.step()
 
             self.critic_opt.zero_grad()
             critic_loss.backward()
-            torch.nn.utils.clip_grad_norm_(self.critic.parameters(), self.cfg.train.grad_clip)
+            critic_grad_norm = torch.nn.utils.clip_grad_norm_(self.critic.parameters(), self.cfg.train.grad_clip)
             self.critic_opt.step()
 
+        if self.cfg.ac.hierarchical:
+            self.ac_metrics.update(actor_grad_norm=actor_grad_norm, critic_grad_norm=critic_grad_norm)
         for name, value in self.ac_metrics.items():
-            self.tb.add_scalar(f"ac/{name}", value.item(), update_idx)
+            scalar = value.item()
+            if not self.cfg.ac.hierarchical or math.isfinite(scalar):
+                self.tb.add_scalar(f"ac/{name}", scalar, update_idx)
         self.update_slow_critic()
         return float(actor_loss.item()), float(critic_loss.item())
+
+    @staticmethod
+    def _finite_metric(value: torch.Tensor) -> float | None:
+        scalar = float(value.item())
+        return scalar if math.isfinite(scalar) else None
 
     @torch.no_grad()
     def update_slow_critic(self) -> None:

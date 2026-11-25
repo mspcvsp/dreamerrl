@@ -92,6 +92,38 @@ def value_loss(head, logits, targets, weights, slow_values=None, slow_scale=1.0)
     return loss
 
 
+@torch.no_grad()
+def goal_diagnostics(ids, weights, interval, embeddings):
+    """Summarize only live imagined decisions and transitions."""
+    live = weights > 0
+    decisions = live[::interval]
+    counts = torch.zeros(len(embeddings), device=ids.device, dtype=torch.long)
+    counts.scatter_add_(0, ids[::interval].flatten(), decisions.flatten().long())
+    probability = counts.float() / counts.sum().clamp_min(1)
+    adjacent = live[1:] & live[:-1]
+    boundary = adjacent[interval - 1::interval]
+    repeated = ids[1:] == ids[:-1]
+    # Live steps per observed interval include horizon/task-censored segments.
+    lengths = torch.stack([part.sum(0) for part in live.split(interval)])
+    norms = embeddings.detach().float().norm(dim=-1)
+    result = dict(
+        goal_entropy=-(probability * probability.clamp_min(1e-12).log()).sum(),
+        goal_active_count=(counts > 0).sum(),
+        goal_persistence=(repeated & adjacent).sum() / adjacent.sum().clamp_min(1),
+        goal_boundary_repeat_rate=(repeated[interval - 1::interval] & boundary).sum()
+        / boundary.sum().clamp_min(1),
+        goal_boundary_pairs=boundary.sum(),
+        goal_adjacent_pairs=adjacent.sum(),
+        goal_configured_interval=ids.new_tensor(interval),
+        goal_observed_interval_mean=live.sum() / decisions.sum().clamp_min(1),
+        goal_full_intervals=(lengths == interval).sum(),
+        goal_embedding_norm_mean=norms.mean(),
+        goal_embedding_norm_max=norms.max(),
+    )
+    result.update({f"goal_{i}_decisions": count for i, count in enumerate(counts.unbind())})
+    return result
+
+
 def hierarchical_actor_critic_update(
     world,
     actor,
@@ -190,12 +222,15 @@ def hierarchical_actor_critic_update(
             slow_manager = slow_critic.manager.readout(
                 slow_critic.manager(h[starts].reshape(-1, h.shape[-1]), z[starts].reshape(-1, *z.shape[2:]))
             ).reshape(len(starts), N)
-    critic_loss = value_loss(critic.worker, worker_logits, worker_target, weights, slow_worker, slow_scale)
-    critic_loss = critic_loss + value_loss(
+    worker_critic_loss = value_loss(critic.worker, worker_logits, worker_target, weights, slow_worker, slow_scale)
+    manager_critic_loss = value_loss(
         critic.manager, manager_logits, manager_target, weights[starts], slow_manager, slow_scale
     )
     if diagnostics is not None:
+        diagnostics.update(goal_diagnostics(ids, weights, actor.interval, actor.goal_embedding.weight))
         diagnostics.update(
+            manager_critic_loss=manager_critic_loss.detach(),
+            worker_critic_loss=worker_critic_loss.detach(),
             manager_actor_loss=manager_loss.detach(),
             worker_actor_loss=worker_loss.detach(),
             manager_decisions=(weights[starts] > 0).sum(),
@@ -203,4 +238,4 @@ def hierarchical_actor_critic_update(
             imagined_return_mean=(weights * worker_target).sum() / weights.sum().clamp_min(1),
             manager_return_mean=(weights[starts] * manager_target).sum() / weights[starts].sum().clamp_min(1),
         )
-    return worker_loss + manager_loss, critic_loss
+    return worker_loss + manager_loss, worker_critic_loss + manager_critic_loss
