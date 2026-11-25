@@ -10,7 +10,6 @@ import os
 import subprocess
 import sys
 import time
-from dataclasses import asdict
 from pathlib import Path
 from unittest.mock import patch
 
@@ -102,7 +101,7 @@ def train(run, seed):
     cfg.world.disable_aux_losses, cfg.world.aux_objectives = True, []
     cfg.log.tb_logdir, cfg.log.run_name = str(run / "tensorboard"), "train"
     cfg.log.enable_wandb = False
-    write(run / "resolved_config.json", asdict(cfg))
+    write(run / "resolved_config.json", cfg.to_dict())
     write(
         run / "provenance.json",
         dict(

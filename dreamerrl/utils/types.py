@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from dataclasses import dataclass, field
-from typing import Callable, Dict, List
+from dataclasses import asdict, dataclass, field
+from typing import Any, Callable, Dict, List
 
 import torch
 
@@ -284,6 +284,10 @@ class DreamerConfig:
     env: EnvironmentConfig = field(default_factory=EnvironmentConfig)
     log: LoggingConfig = field(default_factory=LoggingConfig)
     debug: DebugConfig = field(default_factory=DebugConfig)
+
+    def to_dict(self) -> dict[str, Any]:
+        """Return a recursive snapshot of the resolved configuration."""
+        return asdict(self)
 
     def init_run_name(self):
         import datetime

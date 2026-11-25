@@ -11,7 +11,7 @@ import subprocess
 import sys
 import time
 from collections import Counter
-from dataclasses import asdict, replace
+from dataclasses import replace
 from pathlib import Path
 from typing import Any
 
@@ -189,13 +189,13 @@ def main():
         verify_original_inputs(source, None)
     trainer = DreamerTrainer.from_checkpoint(source, cuda=True, log_dir=run / "tensorboard")
     if args.schedule == "original":
-        verify_original_inputs(source, asdict(trainer.cfg))
+        verify_original_inputs(source, trainer.cfg.to_dict())
     env = trainer.env
     assert isinstance(env, Cage2BlueEnv)
     assert trainer.completed_updates == 1 and trainer.total_env_steps == 510
     assert trainer.env.obs_dim == 52 and trainer.action_dim == 145 and trainer.cfg.env.max_episode_steps == 30
     assert optimizer_steps(trainer) == {"model_opt": [1], "actor_opt": [1], "critic_opt": [1]}
-    write(run / "resolved_config.json", asdict(trainer.cfg))
+    write(run / "resolved_config.json", trainer.cfg.to_dict())
     write(
         run / "protocol.json",
         dict(

@@ -14,9 +14,7 @@ def test_spikes_missing_samples_and_targeted_shutdown(tmp_path, fail_checkpoint)
     for run in [*targets, unrelated]:
         run.mkdir()
     (targets[-1] / "complete.json").touch()
-    args = SimpleNamespace(
-        run=targets, warn_c=70, stop_c=80, sustain_seconds=20, checkpoint_timeout=40, gpu="0"
-    )
+    args = SimpleNamespace(run=targets, warn_c=70, stop_c=80, sustain_seconds=20, checkpoint_timeout=40, gpu="0")
     temperatures = iter([83, 65, 83, None, 83, 83, 83, 65])
     elapsed = 0
     events = []
@@ -40,9 +38,7 @@ def test_spikes_missing_samples_and_targeted_shutdown(tmp_path, fail_checkpoint)
                 with pytest.raises(OSError if fail_checkpoint else ThermalStop):
                     checkpoint_if_requested(run, trainer)
 
-    result = monitor(
-        args, lambda: {"temperature_c": next(temperatures)}, log, clock=lambda: elapsed, sleep=sleep
-    )
+    result = monitor(args, lambda: {"temperature_c": next(temperatures)}, log, clock=lambda: elapsed, sleep=sleep)
     assert result == int(fail_checkpoint)
     requests = [(time, data) for time, event, data in events if event == "stop_requested"]
     assert [(time, data["run"]) for time, data in requests] == [(60, str(run)) for run in targets[:2]]
@@ -50,6 +46,8 @@ def test_spikes_missing_samples_and_targeted_shutdown(tmp_path, fail_checkpoint)
     for run in targets[:2]:
         request = read_record(run / REQUEST)
         status = read_record(run / STATUS)
+        assert request is not None, f"No request record found for run {run}"
+        assert status is not None, f"No status record found for run {run}"
         assert status["request_id"] == request["request_id"]
         assert status["reason"]["type"] == "sustained_gpu_temperature"
         assert status["checkpoint_status"] == ("failed" if fail_checkpoint else "saved")
@@ -70,10 +68,16 @@ def test_timeout_does_not_count_old_checkpoint(tmp_path):
         nonlocal elapsed
         elapsed = next(ticks)
 
-    assert monitor(
-        args, lambda: {"temperature_c": 82}, lambda event, **data: events.append((event, data)),
-        clock=lambda: elapsed, sleep=sleep,
-    ) == 1
+    assert (
+        monitor(
+            args,
+            lambda: {"temperature_c": 82},
+            lambda event, **data: events.append((event, data)),
+            clock=lambda: elapsed,
+            sleep=sleep,
+        )
+        == 1
+    )
     assert events[-1][1]["checkpoint_status"] == "unconfirmed"
 
 

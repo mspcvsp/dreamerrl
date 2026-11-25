@@ -126,6 +126,9 @@ expected fingerprint failures must not be bypassed.
 
 ## Detached execution procedure (for a subsequently approved pair)
 
+The [experiment supervisor](EXPERIMENT_SUPERVISOR.md) can launch the pair
+with a single watchdog and a consolidated execution summary.
+
 Set `REPLICATION_MANIFEST` to the absolute path of the reviewed committed manifest.
 The example launches independent host-aware seeds 1 and 2, already in the existing
 configuration. Use fresh directory/session names for each new approved study.
