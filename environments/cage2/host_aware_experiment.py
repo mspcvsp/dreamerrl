@@ -8,7 +8,7 @@ from pathlib import Path
 
 import numpy as np
 import torch
-from host_experiment_support import CONFIG, ROOT, initialize_paired, load_config, sha256, verify_gate
+from host_experiment_support import CONFIG, ROOT, experiment_spec, initialize_paired, load_config, sha256, verify_gate
 from learning_curve import evaluate, write
 from thermal_stop import ThermalStop, checkpoint_if_requested
 
@@ -25,10 +25,10 @@ def episode_interval(differences):
 
 def run_arm(manifest_path, root, arm, seed):
     manifest = verify_gate(manifest_path)
-    spec = json.loads(CONFIG.read_text())
+    spec = experiment_spec(manifest)
     run = root / f"{arm}_seed{seed}"
     run.mkdir(parents=True, exist_ok=False)
-    cfg = load_config(arm, seed, run)
+    cfg = load_config(arm, seed, run, spec)
     trainer = DreamerTrainer(cfg)
     env = trainer.env
     assert isinstance(env, Cage2BlueEnv)
@@ -137,7 +137,8 @@ def run_arm(manifest_path, root, arm, seed):
                 checkpoint=str(run / "latest.pt"),
                 config_sha256=sha256(CONFIG),
                 manifest_sha256=sha256(manifest_path),
-                **(dict(checkpoint_status="saved", termination_reason="fixed_budget_complete")
+                **(dict(checkpoint_status="saved", termination_reason="fixed_budget_complete",
+                         hierarchy_config_sha256=manifest["hierarchy_config_sha256"])
                    if cfg.ac.hierarchical else {}),
             ),
         )
@@ -231,13 +232,12 @@ def main():
     parser.add_argument("--arm", choices=["flat", "cage2_host"])
     parser.add_argument("--seed", type=int)
     args = parser.parse_args()
-    spec = json.loads(CONFIG.read_text())
-    try:
-        order = execution_order(spec, args.arm, args.seed)
-    except ValueError as error:
-        parser.error(str(error))
     try:
         manifest = verify_gate(args.manifest, require_approval=not args.check_only)
+        spec = experiment_spec(manifest)
+        if manifest.get("hierarchy_config_sha256") and args.arm != "cage2_host":
+            raise ValueError("Hierarchical execution requires a single explicit cage2_host seed")
+        order = execution_order(spec, args.arm, args.seed)
     except ValueError as error:
         parser.error(str(error))
     if args.check_only:
@@ -255,7 +255,6 @@ def main():
         return
     assert torch.cuda.is_available() and torch.cuda.get_device_name(0) == "NVIDIA GB10"
     torch.set_num_threads(2)
-    spec = json.loads(CONFIG.read_text())
     root = args.output_root.resolve()
     if not root.is_relative_to(ROOT / "runs"):
         parser.error("Generated experiment artifacts must be under this checkout's runs/ directory")

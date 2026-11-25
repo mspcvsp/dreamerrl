@@ -73,7 +73,7 @@ def sample():
         sys.exit(9)
     if active and mode == 'missing':
         return {'temperature_c': None}
-    hot = (mode == 'hot' and active) or (mode == 'hot_pair' and active >= 2)
+    hot = (mode == 'hot' and active) or (mode == 'hot_pair' and active >= 2) or (mode == 'hot_three' and active >= 3)
     return {'temperature_c': 82 if hot else 45}
 
 def log(event, **data):
@@ -96,10 +96,10 @@ def prepare(root, modes):
     return jobs
 
 
-def execute(root, jobs, limit, telemetry="ok", timeout=0.35, ready_timeout: float = 2):
+def execute(root, jobs, limit, telemetry="ok", timeout=0.35, ready_timeout: float = 2, wall_seconds=None):
     command = [sys.executable, "-c", WATCHDOG, str(supervisor.PROJECT), str(root), telemetry]
     summary, code = supervisor.supervise(
-        root, jobs, command, limit, ready_timeout, timeout, poll_seconds=0.01
+        root, jobs, command, limit, ready_timeout, timeout, poll_seconds=0.01, wall_seconds=wall_seconds
     )
     assert json.loads((root / "execution_summary.json").read_text()) == summary
     pids = [int((root / "watchdog_pid").read_text())]
@@ -225,3 +225,18 @@ def test_supervisor_signal_requests_checkpoint(tmp_path):
     assert code == 143
     assert summary["shutdown_reason"]["type"] == "supervisor_signal"
     assert [row["state"] for row in summary["jobs"]] == ["checkpointed", "skipped"]
+
+
+@pytest.mark.parametrize(("telemetry", "wall_seconds", "reason", "status"), [
+    ("hot_three", None, "sustained_gpu_temperature", 75),
+    ("ok", 1, "wall_limit", 1),
+])
+def test_three_workers_share_watchdog_and_checkpoint(tmp_path, telemetry, wall_seconds, reason, status):
+    jobs = prepare(tmp_path, ["wait"] * 3)
+    summary, code = execute(tmp_path, jobs, 3, telemetry, timeout=2, wall_seconds=wall_seconds)
+    assert code == status
+    assert summary["shutdown_reason"]["type"] == reason
+    assert summary["watchdog_ready"]
+    assert [job["state"] for job in summary["jobs"]] == ["checkpointed"] * 3
+    assert len({job["console_log"] for job in summary["jobs"]}) == 3
+    assert len({job["checkpoint"]["request_id"] for job in summary["jobs"]}) == 3

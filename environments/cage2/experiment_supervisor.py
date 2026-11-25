@@ -133,7 +133,10 @@ class Job:
         )
 
 
-def supervise(root, jobs, watchdog_command, concurrency, readiness_timeout, checkpoint_timeout, poll_seconds=0.2):
+def supervise(
+    root, jobs, watchdog_command, concurrency, readiness_timeout, checkpoint_timeout,
+    poll_seconds=0.2, wall_seconds=None,
+):
     """Run queued jobs and return the durable summary and supervisor exit code."""
     queue = deque(jobs)
     active = []
@@ -157,6 +160,7 @@ def supervise(root, jobs, watchdog_command, concurrency, readiness_timeout, chec
     publish(root / "execution_plan.json", dict(
         supervisor_pid=os.getpid(), concurrency=concurrency, watchdog_command=watchdog_command,
         readiness_timeout_seconds=readiness_timeout, checkpoint_timeout_seconds=checkpoint_timeout,
+        wall_seconds_before_shutdown=wall_seconds,
         jobs=[job.record("queued") for _, job in jobs],
     ))
     previous = {sig: signal.signal(sig, request_shutdown) for sig in (signal.SIGINT, signal.SIGTERM, signal.SIGHUP)}
@@ -184,6 +188,8 @@ def supervise(root, jobs, watchdog_command, concurrency, readiness_timeout, chec
                     reason = trip
                 elif interrupted is not None:
                     reason = dict(type="supervisor_signal", signal=signal.Signals(interrupted).name)
+                elif wall_seconds is not None and now - started >= wall_seconds:
+                    reason = dict(type="wall_limit", seconds=wall_seconds)
                 elif watchdog_exit is not None:
                     reason = dict(type="watchdog_failure", exit_code=watchdog_exit)
                 elif not ready and now - started >= readiness_timeout:
@@ -282,7 +288,7 @@ def supervise(root, jobs, watchdog_command, concurrency, readiness_timeout, chec
     return summary, exit_code
 
 
-def main():
+def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--output-root", type=Path, required=True)
     parser.add_argument("--job", action="append", nargs=3, metavar=("MANIFEST", "ARM", "SEED"), required=True)
@@ -293,12 +299,15 @@ def main():
     parser.add_argument("--sustain-seconds", type=int, default=30)
     parser.add_argument("--readiness-timeout", type=int, default=60)
     parser.add_argument("--checkpoint-timeout", type=int, default=300)
-    args = parser.parse_args()
+    parser.add_argument("--wall-seconds", type=int, help="Request checkpoint shutdown at this elapsed time")
+    args = parser.parse_args(argv)
     root = args.output_root.resolve()
     if not root.is_relative_to(ROOT / "runs") or root.exists():
         parser.error("--output-root must be a fresh directory under this checkout's runs/")
     if min(args.concurrency, args.readiness_timeout, args.checkpoint_timeout) < 1:
         parser.error("concurrency and timeouts must be positive")
+    if args.wall_seconds is not None and args.wall_seconds < 1:
+        parser.error("--wall-seconds must be positive")
     if not 0 < args.warn_c < args.stop_c < math.inf or args.sustain_seconds < POLL_SECONDS:
         parser.error("require 0 < warn-c < stop-c and sustain-seconds >= 10")
 
@@ -331,7 +340,8 @@ def main():
         "--sustain-seconds", str(args.sustain_seconds),
     ]
     _, exit_code = supervise(
-        root, jobs, watchdog_command, args.concurrency, args.readiness_timeout, args.checkpoint_timeout
+        root, jobs, watchdog_command, args.concurrency, args.readiness_timeout, args.checkpoint_timeout,
+        wall_seconds=args.wall_seconds,
     )
     print("SUMMARY", root / "execution_summary.json", flush=True)
     return exit_code

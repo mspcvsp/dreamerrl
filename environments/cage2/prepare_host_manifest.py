@@ -6,14 +6,16 @@ import json
 from pathlib import Path
 from typing import Any
 
-from host_experiment_support import CONFIG, ROOT, git, sha256
+from host_experiment_support import CONFIG, HIERARCHY_CONFIG, ROOT, git, sha256
 
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--tag", required=True)
     parser.add_argument("--output", type=Path, required=True)
-    parser.add_argument("--pilot", action="store_true")
+    mode = parser.add_mutually_exclusive_group()
+    mode.add_argument("--pilot", action="store_true")
+    mode.add_argument("--hierarchy", action="store_true")
     parser.add_argument("--launch-approval")
     parser.add_argument("--historical-run", type=Path)
     args = parser.parse_args()
@@ -63,6 +65,10 @@ def main():
         manifest["historical_evaluations"] = {
             str(update): dict(path=str(path), sha256=sha256(path)) for update, path in paths.items()
         }
+    if args.hierarchy:
+        manifest["execution"] = json.loads(HIERARCHY_CONFIG.read_text())
+        manifest["hierarchy_config_sha256"] = sha256(HIERARCHY_CONFIG)
+        manifest["checkpoint_provenance"] = "Fresh hierarchical policy, world, optimizer and replay per seed."
     manifest["launch_approval"] = args.launch_approval
     if args.output.exists():
         raise ValueError("Refuse to overwrite an existing experiment manifest")

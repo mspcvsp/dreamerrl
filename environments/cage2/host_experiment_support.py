@@ -20,6 +20,24 @@ from dreamerrl.utils.types import LatentConfig, NetworkConfig, make_default_conf
 
 ROOT = Path(__file__).resolve().parents[2]
 CONFIG = ROOT / "environments/cage2/host_aware_v1_config.json"
+HIERARCHY_CONFIG = CONFIG.with_name("hierarchy_v2_config.json")
+
+
+def experiment_spec(manifest):
+    spec = json.loads(CONFIG.read_text())
+    expected = manifest.get("hierarchy_config_sha256")
+    if expected is None:
+        return spec
+    protocol = json.loads(HIERARCHY_CONFIG.read_text())
+    if sha256(HIERARCHY_CONFIG) != expected or manifest["execution"] != protocol:
+        raise ValueError("Hierarchical protocol fingerprint or execution manifest mismatch")
+    spec["dreamer"]["ac"].update(protocol["actor_critic"])
+    spec["sequential_run_order"] = [{"arm": "cage2_host", "seed": seed} for seed in protocol["training_seeds"]]
+    prefill = spec["initial_replay_episodes"] * spec["dreamer"]["train"]["collect_steps"]
+    spec["evaluation_env_steps"] = [
+        prefill + update * spec["dreamer"]["train"]["collect_steps"] for update in protocol["evaluation_updates"]
+    ]
+    return spec
 
 
 def sha256(path):
@@ -34,8 +52,9 @@ def git(*arguments, root=ROOT):
     return subprocess.check_output(["git", "-C", str(root), *arguments], text=True).strip()
 
 
-def load_config(arm, seed, run):
-    spec = json.loads(CONFIG.read_text())
+def load_config(arm, seed, run, spec=None):
+    if spec is None:
+        spec = json.loads(CONFIG.read_text())
     if arm not in spec["arms"] or seed not in spec["training_seeds"]:
         raise ValueError("Arm and seed must belong to the preregistered experiment")
     cfg = make_default_config()
@@ -88,30 +107,33 @@ def initialize_paired(trainer):
         reference = WorldModel(
             obs_space=trainer.env.obs_space, dreamer_cfg=cfg, latent=latent, net=net, device=trainer.device
         )
-        actor = Actor(
-            latent=latent,
-            net=NetworkConfig(hidden_size=cfg.ac.actor_hidden, action_dim=trainer.action_dim, unimix=cfg.ac.unimix),
-        ).to(trainer.device)
-        critic = ValueHead(
-            latent=latent, net=NetworkConfig(hidden_size=cfg.ac.critic_hidden, value_bins=cfg.world.value_bins)
-        ).to(trainer.device)
+        if not cfg.ac.hierarchical:
+            actor = Actor(
+                latent=latent,
+                net=NetworkConfig(hidden_size=cfg.ac.actor_hidden, action_dim=trainer.action_dim, unimix=cfg.ac.unimix),
+            ).to(trainer.device)
+            critic = ValueHead(
+                latent=latent, net=NetworkConfig(hidden_size=cfg.ac.critic_hidden, value_bins=cfg.world.value_bins)
+            ).to(trainer.device)
         weights = reference.state_dict()
         if trainer.cfg.world.obs_encoder == "cage2_host":
             weights = {name: value for name, value in weights.items() if not name.startswith("encoder.")}
         result = trainer.world.load_state_dict(weights, strict=False)
         assert not result.unexpected_keys and all(name.startswith("encoder.") for name in result.missing_keys)
-        trainer.actor.load_state_dict(actor.state_dict())
-        trainer.critic.load_state_dict(critic.state_dict())
-        trainer.slow_critic.load_state_dict(critic.state_dict())
+        if not cfg.ac.hierarchical:
+            trainer.actor.load_state_dict(actor.state_dict())
+            trainer.critic.load_state_dict(critic.state_dict())
+            trainer.slow_critic.load_state_dict(critic.state_dict())
     assert all(not opt.state for opt in (trainer.model_opt, trainer.actor_opt, trainer.critic_opt))
     # Separate collection/training RNG from architecture-dependent construction draws.
     set_global_seeds(cfg.train.seed + 123456)
+    batch_size = trainer.env.batch_size
     with torch.no_grad():
         trainer.world_state = trainer.world.observe_step(
-            trainer.world.init_state(1),
+            trainer.world.init_state(batch_size),
             trainer.env_state["state"],
-            torch.zeros(1, trainer.action_dim, device=trainer.device),
-            is_first=torch.ones(1, dtype=torch.bool, device=trainer.device),
+            torch.zeros(batch_size, trainer.action_dim, device=trainer.device),
+            is_first=torch.ones(batch_size, dtype=torch.bool, device=trainer.device),
         )["post"].detach()
     return {name: state_hash_without_encoder(getattr(trainer, name)) for name in ("world", "actor", "critic")}
 
