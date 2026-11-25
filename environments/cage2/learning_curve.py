@@ -54,11 +54,24 @@ def rng_equal(a, b):
     )
 
 
-@torch.no_grad()
 def evaluate(trainer, policy, seeds=SEEDS) -> dict[str, Any]:
-    saved = rng_state()
     replay_before = (len(trainer.replay.episodes), trainer.replay.size, trainer.sample_step, trainer.total_env_steps)
-    hashes = {k: state_hash(getattr(trainer, k)) for k in ("world", "actor", "critic")}
+    critic_hash = state_hash(trainer.critic)
+    report = evaluate_policy(trainer, policy, seeds)
+    assert replay_before == (
+        len(trainer.replay.episodes),
+        trainer.replay.size,
+        trainer.sample_step,
+        trainer.total_env_steps,
+    )
+    assert critic_hash == state_hash(trainer.critic)
+    return dict(report, training_replay_unchanged=True)
+
+
+@torch.no_grad()
+def evaluate_policy(trainer, policy, seeds, *, env_factory=Cage2BlueEnv, on_episode=None) -> dict[str, Any]:
+    saved = rng_state()
+    hashes = {k: state_hash(getattr(trainer, k)) for k in ("world", "actor")}
     training = trainer.world.training, trainer.actor.training
     old_mode = trainer.world.posterior.deterministic_latent_for_tests
     rows = []
@@ -72,7 +85,7 @@ def evaluate(trainer, policy, seeds=SEEDS) -> dict[str, Any]:
             random.seed(policy_seed)
             np.random.seed(policy_seed)
             torch.manual_seed(policy_seed)
-            env = Cage2BlueEnv(replace(trainer.cfg.env, seed=seed), trainer.device)
+            env = env_factory(replace(trainer.cfg.env, seed=seed), trainer.device)
             output = env.reset(seed=seed)
             # Environment construction seeds native RNGs; policy randomness uses its own generator.
             generator = np.random.default_rng(policy_seed)
@@ -123,25 +136,20 @@ def evaluate(trainer, policy, seeds=SEEDS) -> dict[str, Any]:
                 )
             )
             env.close()
+            if on_episode is not None:
+                on_episode(rows[-1])
     finally:
         trainer.world.posterior.deterministic_latent_for_tests = old_mode
         trainer.world.train(training[0])
         trainer.actor.train(training[1])
         restore_rng(saved)
     assert rng_equal(saved, rng_state())
-    assert replay_before == (
-        len(trainer.replay.episodes),
-        trainer.replay.size,
-        trainer.sample_step,
-        trainer.total_env_steps,
-    )
     assert hashes == {k: state_hash(getattr(trainer, k)) for k in hashes}
     return dict(
         episodes=rows,
         mean_return=float(np.mean([r["total_return"] for r in rows])),
         seconds=time.perf_counter() - started,
         training_rng_unchanged=True,
-        training_replay_unchanged=True,
         evaluation_mode="greedy actions, posterior modes" if policy == "actor" else policy,
     )
 
