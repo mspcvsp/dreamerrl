@@ -6,13 +6,15 @@ models, replay and optimizers for seeds 0, 1 and 2. The final budget is 16,899
 updates and 507,450 interactions per seed. Development evaluations follow the
 historical schedule. The historical −28.64 score is a one-seed reference.
 
-After review and separate launch authorization, commit the implementation and
-create an annotated `dreamerrl-hierarchy-v2` tag. From that clean source
-checkout, use `prepare_host_manifest.py --hierarchy --tag dreamerrl-hierarchy-v2`
-with an output path in a separate Git checkout. Record the explicit approval
-with `--launch-approval` and commit the manifest in that separate checkout.
-The tagged source, dependency inventory, sealed base and hierarchy
-configuration hashes, and approved manifest are enforced by the existing gate.
+The implementation source is the immutable annotated tag
+`dreamerv3-hierarchy-experiment-v3`. Generate the manifest from a clean checkout
+of that tag with `prepare_host_manifest.py --hierarchy --tag dreamerv3-hierarchy-experiment-v3`.
+Commit the output in the separate `experiment/hierarchy-v3-manifest` checkout.
+The tag's peeled SHA identifies the implementation. The manifest checkout's
+commit identifies the sealed manifest bytes. This keeps the manifest outside
+the source fingerprint inventory and avoids a self-referential commit hash.
+The readiness manifest leaves `launch_approval` null. The read-only gate can
+validate it, and formal launch requires a separately recorded approval.
 
 Build the launch plan with
 `bash scripts/run_hierarchy_v2.sh --manifest "$manifest" --output-root "$run" --check-only`.
@@ -40,3 +42,9 @@ For synthetic and POP Gym readiness checks, run
 `bash scripts/verify_hierarchy_v2.sh "$verification_root"` in a fresh existing
 directory under `runs/`. The verification command writes a pytest log, exit
 status and final report. It uses no formal training or real thermal trip.
+
+The v3 readiness script checks the committed manifest and runs the existing
+non-cyber POPGym checkpoint round trip, including version, parameters, replay,
+optimizer state and a post-reload update. The prior readiness report covers
+supervisor shutdown and isolation. POPGym does not establish full-size CAGE2
+checkpoint latency, throughput, or thermal headroom under sustained load.
