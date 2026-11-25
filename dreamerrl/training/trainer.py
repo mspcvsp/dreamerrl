@@ -90,6 +90,8 @@ class DreamerTrainer:
             raise ValueError("lambda_ must be finite and in [0, 1]")
         if not math.isfinite(cfg.ac.replay_value_scale) or cfg.ac.replay_value_scale < 0:
             raise ValueError("replay_value_scale must be finite and nonnegative")
+        if cfg.ac.director_goal_progress and (not cfg.ac.director_goals or cfg.env.env_id != "MiniHack-Room-5x5-v0"):
+            raise ValueError("Signed goal progress requires Director in MiniHack Room 5x5")
         if cfg.ac.director_goals and not cfg.ac.hierarchical:
             raise ValueError("Director goals require the hierarchical actor")
         if cfg.ac.hierarchical:
@@ -237,6 +239,7 @@ class DreamerTrainer:
                 interval=cfg.ac.hierarchy_interval,
                 probe=self.probe,
                 director_goals=cfg.ac.director_goals,
+                goal_progress=cfg.ac.director_goal_progress,
             ).to(self.device)
             self.critic = HierarchicalCritic(
                 latent=latent,

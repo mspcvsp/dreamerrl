@@ -62,6 +62,7 @@ def main(
         "--local-glyph-branch", action="store_true", help="Opt into a player-centered 3x3 glyph encoder branch"
     )
     parser.add_argument("--actor-mode", choices=["flat", "hierarchical", "director"])
+    parser.add_argument("--director-goal-progress", action="store_true", default=None)
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--updates", type=int, default=None, help="Total desired updates, including resumed updates")
     device = parser.add_mutually_exclusive_group()
@@ -204,6 +205,7 @@ def main(
             cfg.train.freeze_actor_critic_steps = 0
             cfg.ac.hierarchical = args.actor_mode in ("hierarchical", "director")
             cfg.ac.director_goals = args.actor_mode == "director"
+            cfg.ac.director_goal_progress = bool(args.director_goal_progress)
             if args.discount is not None:
                 cfg.ac.discount = args.discount
             if args.lambda_return is not None:
@@ -236,6 +238,8 @@ def main(
                 cfg.world.glyph_local_branch = True
                 cfg.world.glyph_player_ids = tuple(glyph_scoring_schema()[1])
             trainer = DreamerTrainer(cfg)
+        if args.resume and args.director_goal_progress and not trainer.cfg.ac.director_goal_progress:
+            parser.error("--director-goal-progress must match the checkpoint")
         if args.resume and args.actor_mode is not None:
             saved_mode = (
                 "director" if trainer.cfg.ac.director_goals else "hierarchical" if trainer.cfg.ac.hierarchical else "flat"

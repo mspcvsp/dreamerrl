@@ -1,7 +1,16 @@
 {
   "environment": "MiniHack-Room-5x5-v0",
-  "arms": {"flat": 19, "hierarchical": 19, "director": 19},
-  "updates": 2400,
+  "arms": {
+    "absolute": [
+      19,
+      23
+    ],
+    "progress": [
+      19,
+      23
+    ]
+  },
+  "updates": 1600,
   "num_envs": 4,
   "collect_steps": 32,
   "episode_steps": 32,
@@ -13,7 +22,7 @@
   "warmup_updates": 100,
   "eval_every": 100,
   "eval_episodes": 20,
-  "eval_seed_start": 531701,
+  "eval_seed_start": 531801,
   "checkpoint_every": 100,
   "max_wall_seconds": 3600,
   "gpu": "0",
@@ -21,5 +30,9 @@
   "stop_c": 87,
   "sustain_seconds": 30,
   "minimum_available_memory_gib_per_arm": 12,
-  "minimum_available_disk_gib": 20
+  "minimum_available_disk_gib": 20,
+  "max_concurrency": 3,
+  "diagnostic_seed_start": 839300,
+  "diagnostic_levels": 40,
+  "fallback_update": 1200
 }

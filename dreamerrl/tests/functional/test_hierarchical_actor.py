@@ -17,11 +17,14 @@ from dreamerrl.training.trainer import DreamerTrainer
 from dreamerrl.utils.types import DreamerConfig, LatentConfig, NetworkConfig
 
 
-def components(interval=3):
+def components(interval=3, *, progress=False):
     torch.manual_seed(42)
     latent = LatentConfig(deter_size=12, num_classes=3, stoch_size=4)
     net = NetworkConfig(hidden_size=16, action_dim=5, value_bins=21)
-    actor = HierarchicalActor(latent=latent, net=net, goals=4, goal_dim=6, interval=interval)
+    actor = HierarchicalActor(
+        latent=latent, net=net, goals=4, goal_dim=6, interval=interval,
+        director_goals=progress, goal_progress=progress,
+    )
     critic = HierarchicalCritic(latent=latent, net=net, goals=4, interval=interval)
     cfg = DreamerConfig()
     cfg.world.disable_aux_losses = True
@@ -144,8 +147,9 @@ def test_gradient_ownership_and_independent_optimizers():
     assert diagnostics["worker_decisions"] == 7 * 8
 
 
-def test_terminal_starts_and_task_horizon_mask_all_policy_losses():
-    world, actor, critic = components()
+@pytest.mark.parametrize("progress", [False, True])
+def test_terminal_starts_and_task_horizon_mask_all_policy_losses(progress):
+    world, actor, critic = components(progress=progress)
     batch = replay()
     batch["is_terminal"].fill_(1)
     a, c = actor_critic_update(world, actor, critic, batch, 5, 0.99, 0.95)
@@ -361,16 +365,17 @@ def test_invalid_state_rejected_instead_of_borrowing_goal():
 
 
 @pytest.mark.parametrize("amp", [False, True])
-def test_gpu_finite_backward_and_live_goal_state(amp):
+@pytest.mark.parametrize("progress", [False, True])
+def test_gpu_finite_backward_and_live_goal_state(amp, progress):
     if not torch.cuda.is_available():
         pytest.skip("CUDA unavailable")
-    world, actor, critic = components()
+    world, actor, critic = components(progress=progress)
     world, actor, critic = world.cuda(), actor.cuda(), critic.cuda()
     with torch.autocast("cuda", dtype=torch.float16, enabled=amp):
         a, c = actor_critic_update(world, actor, critic, replay(), 5, 0.99, 0.95)
     (a + c).backward()
     assert torch.isfinite(a) and torch.isfinite(c)
-    for module in (actor.manager, actor.worker, actor.goal_embedding, critic.manager, critic.worker):
+    for module in (actor.manager, actor.worker, critic.manager, critic.worker):
         assert has_gradient(module)
         assert all(p.device.type == "cuda" for p in module.parameters())
     initial = world.init_state(2)
@@ -546,3 +551,24 @@ def test_flat_amp_trainer_preserves_actor_and_critic_gradients(tmp_path):
     finally:
         trainer.env.venv.close()
         trainer.tb.close()
+
+
+def test_signed_progress_uses_same_goal_on_both_sides_of_transition(monkeypatch):
+    from dreamerrl.models.world_model import WorldModelState
+
+    world, actor, _ = components(interval=3, progress=True)
+    states = iter([0, 0, 1, 0, 1, 1])
+    z = torch.zeros(1, 4, 3)
+
+    def state(axis):
+        return WorldModelState(torch.nn.functional.one_hot(torch.tensor([axis]), 12).float(), z)
+
+    goals = iter([0, 1])
+    monkeypatch.setattr(actor, "decode_goals", lambda ids: torch.nn.functional.one_hot(
+        torch.tensor([next(goals)]), actor.goal_dim
+    ).float())
+    monkeypatch.setattr(world, "imagine_step", lambda *args, **kwargs: state(next(states)))
+    result = imagine_hierarchy(world, actor, state(1), 6, deterministic=True)
+    torch.testing.assert_close(result["progress"][:, 0], torch.tensor([1., 0., -1., -1., 1., 0.]))
+    torch.testing.assert_close(result["achievement"][:, 0], torch.tensor([1., 1., 0., 0., 1., 1.]))
+    assert result["decision"][:, 0].tolist() == [True, False, False, True, False, False]

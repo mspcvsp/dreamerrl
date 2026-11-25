@@ -82,6 +82,7 @@ def load_frozen_agent(path: Path, *, sample_latents=False, load_critic=False, al
         actor = HierarchicalActor(
             latent=latent, net=actor_net, goals=cfg.ac.hierarchy_goals, goal_dim=cfg.ac.hierarchy_goal_dim,
             interval=cfg.ac.hierarchy_interval, director_goals=cfg.ac.director_goals,
+            goal_progress=cfg.ac.director_goal_progress,
         )
     else:
         actor = Actor(latent=latent, net=actor_net)

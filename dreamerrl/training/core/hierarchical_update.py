@@ -30,6 +30,8 @@ def imagine_hierarchy(world, actor, start, horizon, deterministic=False):
         rows = {name: [] for name in ("h", "z", "goal_id", "remaining", "decision", "action", "reward", "continue")}
         if actor.goal_autoencoder is not None:
             rows.update(goal=[], achievement=[])
+            if actor.goal_progress:
+                rows["progress"] = []
         action_dim = world.net_cfg.action_dim
         for _ in range(horizon):
             chosen = actor.step(state.h, state.z, policy, deterministic=deterministic)
@@ -43,11 +45,16 @@ def imagine_hierarchy(world, actor, start, horizon, deterministic=False):
                 ("action", chosen.action),
             ):
                 rows[name].append(value)
+            previous = state
             action = torch.nn.functional.one_hot(chosen.action, action_dim).float()
             state = world.imagine_step(state, actor.worker, action=action, deterministic_imagination=deterministic)
             if actor.goal_autoencoder is not None:
                 rows["goal"].append(policy.goal)
-                rows["achievement"].append(goal_similarity(policy.goal, goal_features(state.h, state.z)))
+                similarity = goal_similarity(policy.goal, goal_features(state.h, state.z))
+                rows["achievement"].append(similarity)
+                if actor.goal_progress:
+                    initial = goal_similarity(policy.goal, goal_features(previous.h, previous.z))
+                    rows["progress"].append(similarity - initial)
             reward = world.reward_heads.main(state.h, state.z)
             rows["reward"].append(world.reward_heads.main.readout(reward))
             rows["continue"].append(world.continue_head.readout(world.continue_head(state.h, state.z)))
@@ -201,7 +208,7 @@ def hierarchical_actor_critic_update(
             # The worker's return ends with this goal. A partial final interval
             # can bootstrap only from the worker under the same goal.
             worker_target = lambda_return(
-                trajectory["achievement"], torch.cat((worker_values, tail_worker[None, :])),
+                trajectory.get("progress", trajectory["achievement"]), torch.cat((worker_values, tail_worker[None, :])),
                 discounts * (remaining > 1), lam,
             )
             tail_value = tail_manager
@@ -252,6 +259,8 @@ def hierarchical_actor_critic_update(
         diagnostics.update(goal_diagnostics(ids, weights, actor.interval, embeddings))
         if director:
             achievement = trajectory["achievement"]
+            if actor.goal_progress:
+                diagnostics["goal_progress_reward"] = (weights * trajectory["progress"]).sum() / weights.sum().clamp_min(1e-8)
             diagnostics.update(
                 goal_achievement_reward=(weights * achievement).sum() / weights.sum().clamp_min(1e-8),
                 imagined_goal_completion_rate=(

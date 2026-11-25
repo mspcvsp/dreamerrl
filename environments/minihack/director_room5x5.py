@@ -1,4 +1,4 @@
-"""Seal, supervise and report the opt-in MiniHack Director comparison."""
+"""Seal, supervise and report the MiniHack signed goal-progress comparison."""
 
 import argparse
 import importlib.metadata
@@ -21,7 +21,7 @@ from thermal_watchdog import NvidiaTelemetry
 from dreamerrl.scripts.run_minihack import main as train_minihack
 from dreamerrl.training.run_monitor import write_json
 
-TAG = "dreamerv3-director-room5x5-v1.1"
+TAG = "dreamerv3-director-progress-v1"
 CONFIG = Path(__file__).with_suffix(".json")
 
 
@@ -50,7 +50,7 @@ def snapshot():
     return dict(
         schema_version=1, source_tag=TAG, tag_object=git("rev-parse", TAG, root=ROOT), source_commit=revision,
         source_fingerprints=fingerprints, execution=json.loads(CONFIG.read_text()),
-        checkpoint_provenance="Three fresh initializations. No input checkpoint.",
+        checkpoint_provenance="Fresh matched initialization within each seed pair. No input checkpoint.",
         dependencies=dict(
             python=sys.version, uv=subprocess.check_output(["uv", "--version"], text=True).strip(),
             package_versions=sorted(f"{d.metadata['Name']}=={d.version}" for d in importlib.metadata.distributions()),
@@ -77,7 +77,7 @@ def verify_manifest(path, require_approval):
 
 def worker(run, arm, seed, spec):
     args = [
-        "--env", spec["environment"], "--actor-mode", arm, "--seed", str(seed),
+        "--env", spec["environment"], "--actor-mode", "director", "--seed", str(seed),
         "--run-dir", str(run), "--dashboard", "off", "--require-cuda", "--amp",
     ]
     for field in (
@@ -86,8 +86,16 @@ def worker(run, arm, seed, spec):
         "eval_episodes", "eval_seed_start", "checkpoint_every",
     ):
         args += ["--" + field.replace("_", "-"), str(spec[field])]
+    if arm == "progress":
+        args.append("--director-goal-progress")
+
+    def on_update(run, trainer):
+        checkpoint_if_requested(run, trainer)
+        if trainer.completed_updates == spec["fallback_update"]:
+            trainer.save_checkpoint(run / f"matched_{trainer.completed_updates}.pt")
+
     try:
-        train_minihack(argv=args, on_update=checkpoint_if_requested)
+        train_minihack(argv=args, on_update=on_update)
     except ThermalStop:
         return CHECKPOINT_EXIT
     checkpoint = run / "latest.pt"
@@ -101,7 +109,7 @@ def worker(run, arm, seed, spec):
     return 0
 
 
-def report(root, summary):
+def report(root, summary, spec):
     import matplotlib
     from dreamerrl.eval.posterior_diagnostics import diagnose_training_replay
     matplotlib.use("Agg")
@@ -111,7 +119,7 @@ def report(root, summary):
     metrics = {}
     fig, ax = plt.subplots()
     for job in summary["jobs"]:
-        arm = job["arm"]
+        arm = f"{job['arm']}_seed{job['seed']}"
         run = Path(job["run"])
         log = run / "metrics.jsonl"
         entries = [json.loads(line) for line in log.read_text().splitlines()] if log.exists() else []
@@ -157,16 +165,13 @@ def report(root, summary):
                 mean=statistics.mean(returns), episode_sd=statistics.stdev(returns), episodes=len(returns),
                 goal_completion_rate=row.get("goal_completion_rate"), random_mean=row["random_mean"],
             )
-    recommendation = (
-        "Repeat Room 5x5 with independent training seeds before progressing to Corridor R2. "
-        "Check sampled behavior and goal semantics against matched controls."
-    )
+    recommendation = "Keep Corridor R2 deferred pending review of the matched goal intervention results."
     write_json(root / "final_report.json", dict(
         common_env_steps=common, matched=matched, arms=metrics, curves=curves,
         recommendation=recommendation, supervisor=summary,
     ))
     lines = [
-        "# Director-inspired Room 5x5", "", f"Latest shared evaluation budget: {common} environment transitions.", "",
+        "# Signed goal-progress Room 5x5", "", f"Latest shared training-monitor evaluation budget: {common} environment transitions.", "",
         "| Arm | Mean task return | Episode SD | Episodes | Goal completion rate |",
         "|---|---:|---:|---:|---:|",
     ]
@@ -176,11 +181,14 @@ def report(root, summary):
         lines.append(f"| {arm} | {row['mean']:.3f} | {row['episode_sd']:.3f} | {row['episodes']} | {label} |")
     lines += [
         "", "![Learning curves](learning_curves.png)", "",
-        "Episode SD measures variation across test episodes for one fitted policy. Each arm uses one training seed.",
+        "Episode SD measures variation across test episodes for one fitted policy. Training seeds are paired across reward modes.",
         "Per-update goal and optimizer metrics are in the arm JSONL logs. The supervisor records GPU and host telemetry in thermal.jsonl.",
         "", recommendation, "",
     ]
     (root / "final_report.md").write_text("\n".join(lines))
+    from progress_report import report as report_progress
+    with (root / "final_report.md").open("a") as stream:
+        stream.write("\n" + report_progress(root, summary["jobs"], spec))
 
 
 def launch(manifest, output):
@@ -189,14 +197,15 @@ def launch(manifest, output):
 
     if not torch.cuda.is_available():
         raise RuntimeError("Formal AMP runs require CUDA")
-    if not output.is_relative_to(ROOT / "runs"):
-        raise ValueError("Run output must be inside the tagged checkout's ignored runs directory")
+    main = Path(git("rev-parse", "--path-format=absolute", "--git-common-dir", root=ROOT)).parent
+    if not output.is_relative_to(main / "runs"):
+        raise ValueError("Run output must be inside the main checkout's ignored runs directory")
     telemetry = NvidiaTelemetry(spec["gpu"])()
     if not 0 < (telemetry["temperature_c"] or 0) < spec["warn_c"]:
         raise RuntimeError("GPU temperature is unavailable or above the launch threshold")
     available = telemetry["host_memory_available_kib"] or 0
     concurrency = min(
-        len(spec["arms"]), available // (spec["minimum_available_memory_gib_per_arm"] * 2**20),
+        spec["max_concurrency"], available // (spec["minimum_available_memory_gib_per_arm"] * 2**20),
         max(1, len(os.sched_getaffinity(0)) // 2),
     )
     gpu_free = telemetry["gpu_memory_free_mib"]
@@ -208,11 +217,12 @@ def launch(manifest, output):
     shutil.copyfile(manifest, output / "execution_manifest.json")
     write_json(output / "preflight.json", dict(telemetry=telemetry, concurrency=concurrency))
     jobs = []
-    for index, (arm, seed) in enumerate(spec["arms"].items(), 1):
+    schedule = [(arm, seed) for seed in spec["arms"]["absolute"] for arm in ("absolute", "progress")]
+    for index, (arm, seed) in enumerate(schedule, 1):
         job_root = output / f"job_{index:03d}"
         run = job_root / "results" / f"{arm}_seed{seed}"
         job_root.mkdir()
-        command = [sys.executable, "-u", str(Path(__file__)), "worker", arm, str(run), str(manifest)]
+        command = [sys.executable, "-u", str(Path(__file__)), "worker", arm, str(seed), str(run), str(manifest)]
         jobs.append((index, Job(run, command, manifest, arm, seed)))
     watchdog = [
         sys.executable, "-u", str(CAGE / "thermal_watchdog.py"), "--supervisor-control", str(output),
@@ -224,7 +234,7 @@ def launch(manifest, output):
         output, jobs, watchdog, concurrency, readiness_timeout=60, checkpoint_timeout=300,
         wall_seconds=spec["max_wall_seconds"],
     )
-    report(output, summary)
+    report(output, summary, spec)
     return status
 
 
@@ -238,6 +248,7 @@ def main():
             command.add_argument("output", type=Path)
     command = commands.add_parser("worker")
     command.add_argument("arm")
+    command.add_argument("seed", type=int)
     command.add_argument("output", type=Path)
     command.add_argument("manifest", type=Path)
     args = parser.parse_args()
@@ -252,7 +263,9 @@ def main():
         return launch(args.manifest.resolve(), args.output.resolve())
     else:
         spec = verify_manifest(args.manifest.resolve(), require_approval=True)
-        return worker(args.output, args.arm, spec["arms"][args.arm], spec)
+        if args.seed not in spec["arms"][args.arm]:
+            parser.error("Unregistered arm and seed")
+        return worker(args.output, args.arm, args.seed, spec)
     return 0
 
 
