@@ -14,7 +14,11 @@ def dark(found):
     counter += 1
     body = found.group()
     if counter in (9, 15):
-        body = re.sub(r"(^\\begin\{frame\}\{[^}]*\})", r"\1\n\\color{PubIvory}\n\\hypersetup{urlcolor=PubMist,linkcolor=PubMist}", body, count=1)
+        body = re.sub(r"(^\\begin\{frame\}\{[^}]*\})", r"\1\n\\color{PubIvory}", body, count=1)
+    if counter == 15:
+        body, links = re.subn(r"(\\href\{[^{}]+\})\{([^{}]+)\}", r"\1{\\textcolor{PubMist}{\2}}", body)
+        if links != 3:
+            raise ValueError("Expected three readable closing-slide links")
     return body
 
 
