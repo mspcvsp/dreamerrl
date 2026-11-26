@@ -2,6 +2,9 @@
 import numpy as np
 import torch
 
+from dreamerrl.eval.memory.distributions import (  # noqa: F401 (legacy imports)
+    categorical_kl, entropy, paired_categorical, posterior_summary,
+)
 from dreamerrl.eval.memory.legacy_ridge import episode_split
 
 
@@ -114,43 +117,6 @@ def binary_metrics(scores, targets, groups, seed, draws=1000):
         positives = targets[order].cumsum()[endpoints]
         ap.append(np.sum(np.diff(positives, prepend=0) * positives / (endpoints + 1)) / total[1])
     result["average_precision"] = float(np.mean(ap))
-    return result
-
-
-def entropy(probs):
-    q = probs.double()
-    return -torch.special.xlogy(q, q).sum(-1)
-
-
-def categorical_kl(q, p):
-    q, p = q.double(), p.double()
-    return (torch.special.xlogy(q, q) - torch.special.xlogy(q, p)).sum(-1)
-
-
-def posterior_summary(q, p, z, threshold=.01):
-    """One row per state with trailing (factor, category) axes."""
-    q, p, z = [x.reshape(-1, *x.shape[-2:]) for x in (q, p, z)]
-    h = entropy(q).mean(0)
-    factor_information = entropy(q.double().mean(0)) - h
-    return dict(entropy_nats_by_factor=h.tolist(), kl_nats_by_factor=categorical_kl(q, p).mean(0).tolist(),
-                information_nats_by_factor=factor_information.tolist(),
-                active_factors=int((factor_information > threshold).sum()), active_threshold_nats=threshold,
-                occupied_categories=z.ne(0).any(0).sum(-1).tolist())
-
-
-def paired_categorical(q, other, z=None, other_z=None):
-    if q.shape != other.shape:
-        raise ValueError("Opposite distributions must align")
-    q, other = q.double(), other.double()
-    mean = (q + other)/2
-    js = ((categorical_kl(q, mean) + categorical_kl(other, mean))/2).clamp_min(0)
-    directional = torch.minimum(categorical_kl(q, other).sum(-1), categorical_kl(other, q).sum(-1))
-    equal = q.argmax(-1).eq(other.argmax(-1))
-    result = dict(js_nats_by_factor=js.reshape(-1, js.shape[-1]).mean(0).tolist(),
-                  argmax_pair_equal_fraction=float(equal.all(-1).double().mean()),
-                  mean_single_draw_bayes_accuracy_upper_bound=float((1 + (directional.clamp_min(0)/2).sqrt().clamp_max(1)).mean()/2))
-    if z is not None and other_z is not None:
-        result["realized_hard_pair_equal_fraction"] = float(z.eq(other_z).flatten(-2).all(-1).double().mean())
     return result
 
 

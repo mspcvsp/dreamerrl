@@ -10,7 +10,9 @@ from gymnasium.spaces import Box
 
 from dreamerrl.eval.memory.dreamer import DreamerAdapter, categorical_state
 from dreamerrl.eval.memory.interfaces import Episode, paired_episodes
-from dreamerrl.eval.memory.replay import replay_coverage
+from dreamerrl.eval.memory.distributions import (categorical_js, categorical_tv, product_single_draw_bayes_upper_bound,
+                                                 single_categorical_bayes_accuracy)
+from dreamerrl.eval.memory.replay import prefix_gradient_norms, replay_coverage
 from dreamerrl.eval.memory.statistics import binary_metrics, binary_probe, grouped_split, paired_categorical
 from dreamerrl.eval.memory.trajectory import filter_trajectory
 from dreamerrl.models.actor import Actor
@@ -129,12 +131,13 @@ def test_replay_structure_and_gradient_connectivity():
         burn_in_action=torch.zeros(1, 1, dtype=torch.long), burn_in_is_first=torch.ones(1, 1, dtype=torch.bool),
         burn_in_valid=torch.ones(1, 1, dtype=torch.bool))
     h = observe_batch(world, batch)[-1]["h"]
-    grad_current, grad_burn = torch.autograd.grad(h.square().sum(), (current, burn), allow_unused=True)
-    assert grad_burn is None and grad_current[0, 0].abs().max() > 0
+    gradients = prefix_gradient_norms(h.square().sum(), current, burn_in=burn)
+    assert gradients["burn_in"] == {"connected": False, "l2_by_frame": None}
+    assert gradients["supervised"]["connected"] and gradients["supervised"]["l2_by_frame"][0][0] > 0
 
 
 def test_cage2_truth_fixture_ignores_inactive_and_respects_order():
-    from environments.cage2.cage2_memory_pilot import active_host_labels
+    from dreamerrl.eval.memory.adapters.cage2 import active_host_labels
     def session(host, active):
         return SimpleNamespace(host=host, active=active)
 
@@ -190,7 +193,7 @@ def test_accepted_tmaze_artifact_parity():
     if not root:
         pytest.skip("Set DREAMER_MEMORY_ARTIFACT_ROOT for frozen artifact parity")
     from dreamerrl.eval.memory.dreamer import CheckpointSpec, verified_payload
-    from environments.minihack.tmaze_intervention import TMazeArchive
+    from dreamerrl.eval.memory.adapters.tmaze import TMazeArchive
 
     base = Path(root) / "runs/minihack_tmaze_representation_diagnostics_20261126"
     stored = json.loads((base / "checkpoints/seed19_4000.json").read_text())
@@ -226,3 +229,23 @@ def test_cage2_archive_numerical_parity():
     folder = Path(root) / "runs/cage2_latent_analysis_host_pilot_20261124"
     results = archive_parity(folder)
     assert results["episodes"] == 360 and results["observations"] == 10800
+
+
+
+def test_bayes_bounds_cover_exact_categorical_product_accuracy():
+    left = torch.tensor([[.8, .2], [.75, .25]], dtype=torch.float64)
+    right = torch.tensor([[.4, .6], [.95, .05]], dtype=torch.float64)
+    jl = torch.outer(*left).flatten()
+    jr = torch.outer(*right).flatten()
+    exact = single_categorical_bayes_accuracy(jl, jr)
+    assert exact.item() == pytest.approx(.71)
+    for method in ("pinsker", "affinity"):
+        bound = product_single_draw_bayes_upper_bound(left, right, method=method)
+        assert exact <= bound <= 1
+        equal = product_single_draw_bayes_upper_bound(left, left, method=method)
+        assert equal.item() == pytest.approx(.5, abs=1e-8)
+    a = torch.tensor([[1., 0.]])
+    b = torch.tensor([[0., 1.]])
+    assert categorical_tv(a, b).item() == 1
+    assert categorical_js(a, b).item() == pytest.approx(np.log(2))
+    assert product_single_draw_bayes_upper_bound(a, b).item() == 1

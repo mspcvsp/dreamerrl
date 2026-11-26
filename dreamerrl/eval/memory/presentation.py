@@ -1,6 +1,7 @@
-"""Shared publication settings and durable artifact writes."""
-import json
+"""Shared diagnostic visualization settings and export."""
 from pathlib import Path
+
+from dreamerrl.eval.memory.reporting import write_json  # noqa: F401 (legacy import)
 
 import matplotlib
 matplotlib.use("Agg")
@@ -21,9 +22,3 @@ def save_figure(fig, path: Path):
     for ext in (".svg", ".png"):
         fig.savefig(path.with_suffix(ext), dpi=320)
     plt.close(fig)
-
-
-def write_json(path: Path, data):
-    tmp = path.with_suffix(".tmp")
-    tmp.write_text(json.dumps(data, allow_nan=False, indent=2) + "\n")
-    tmp.replace(path)

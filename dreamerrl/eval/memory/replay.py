@@ -41,3 +41,24 @@ def replay_coverage(replay, *, delayed_at=None):
                 endpoint_windows_without_valid_reset=dict(first_missing), nonzero_reward_rows=nonzero,
                 unit="eligible episode/start combinations",
                 gradient_note="Burn-in runs under no_grad. Joint coverage permits temporal gradient connectivity; it does not measure gradient strength.")
+
+
+def prefix_gradient_norms(readout, supervised, *, burn_in=None):
+    """Probe a single scalar readout's actual gradient to its observed prefix.
+
+    Pass the tensors used in the evaluated graph, with axes (batch,time,...)
+    and requires_grad enabled. This consumes the diagnostic graph without
+    accumulating parameter gradients. A missing derivative indicates no graph
+    path. A connected zero only describes local sensitivity at the chosen input.
+    """
+    prefixes = {"supervised": supervised}
+    if burn_in is not None:
+        prefixes["burn_in"] = burn_in
+    if readout.ndim != 0 or not all(p.requires_grad and p.ndim >= 2 for p in prefixes.values()):
+        raise ValueError("Supply a scalar readout and differentiable batch/time prefixes")
+    derivatives = torch.autograd.grad(readout, tuple(prefixes.values()), allow_unused=True)
+    result = {}
+    for name, derivative in zip(prefixes, derivatives, strict=True):
+        norm = None if derivative is None else derivative.reshape(*derivative.shape[:2], -1).norm(dim=-1)
+        result[name] = dict(connected=derivative is not None, l2_by_frame=None if norm is None else norm.tolist())
+    return result
