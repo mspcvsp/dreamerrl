@@ -1,12 +1,13 @@
 {
   "include": [
     "dreamerrl",
-    "environments/cage2"
+    "environments/cage2",
+    "scripts"
   ],
   "exclude": [
     "runs",
     "environments/cage2/vendor",
-    "**/.venv",
+    "**/.venv*",
     "**/__pycache__"
   ],
   "ignore": [
@@ -16,8 +17,8 @@
   "extraPaths": [
     "environments/cage2/vendor/cage-challenge-2/CybORG",
     "environments/cage2",
-    "environments/cage2/.venv/lib/python3.10/site-packages",
-    "../../miniconda/envs/cage2_env/lib/python3.10/site-packages"
+    ".venv/lib/python3.10/site-packages",
+    ".venv-legacy/lib/python3.10/site-packages"
   ],
   "pythonVersion": "3.10",
   "typeCheckingMode": "basic"

@@ -1,0 +1,20 @@
+{
+  "experiment": "cage2-hierarchy-v2",
+  "base_source_tag": "dreamerv3-concurrency-v2",
+  "actor_critic": {
+    "hierarchical": true,
+    "hierarchy_goals": 8,
+    "hierarchy_goal_dim": 16,
+    "hierarchy_interval": 4
+  },
+  "training_seeds": [0, 1, 2],
+  "evaluation_updates": [1, 4244, 8462, 12681, 16899],
+  "reference_return": -28.64,
+  "reference_checkpoint_sha256": "8a2483a6add81e1db709f35079f086c50778b900c24164b99fa29b62240cc1bd",
+  "concurrency": 3,
+  "wall_seconds": 24900,
+  "checkpoint_timeout": 280,
+  "warn_c": 75,
+  "stop_c": 80,
+  "sustain_seconds": 30
+}

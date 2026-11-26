@@ -1,0 +1,191 @@
+{
+  "schema_version": 1,
+  "artifact_root": "runs/cage2_concurrency_20261124",
+  "source_revision_at_measurement": "99cea5e5214b35038956e5c12e436dfa3ff56fd9",
+  "source_sha256": "22ce125116459664c4c88bf646ee281180b9b306672e6d2bcb4b82700469d124",
+  "uv_lock_sha256": "7bb7f784c6b02c70f640052e5b3348f8f043089d4ee1f98e252650a01faefa38",
+  "measured_results": {
+    "phases": [
+      {
+        "processes": 1,
+        "measured_seconds": 132.39782151998952,
+        "measured_updates": 282,
+        "updates_per_worker": [
+          282
+        ],
+        "aggregate_updates_per_second": 2.1299444111882417,
+        "per_update_mean_seconds": {
+          "collection_seconds": 0.23831184827706095,
+          "world_model_seconds": 0.11663562649363943,
+          "actor_critic_seconds": 0.11020910012839587,
+          "update_seconds": 0.4660209297445679
+        },
+        "host_cpu_mean_percent": 5.207946337737629,
+        "workers_cpu_mean_percent_one_core_100": 97.22539169854203,
+        "available_gib_min": 112.28558731079102,
+        "swap_used_gib_max": 0.0,
+        "swap_in_mib": 0.0,
+        "swap_out_mib": 0.0,
+        "gpu_percent_mean": 16.837209302325583,
+        "gpu_percent_max": 31.0,
+        "gpu_temperature_c_mean": 48.6124031007752,
+        "gpu_temperature_c_max": 51.0
+      },
+      {
+        "processes": 2,
+        "measured_seconds": 131.47620894602733,
+        "measured_updates": 398,
+        "updates_per_worker": [
+          199,
+          199
+        ],
+        "aggregate_updates_per_second": 3.0271636457314046,
+        "per_update_mean_seconds": {
+          "collection_seconds": 0.32513168670942577,
+          "world_model_seconds": 0.1590712676105562,
+          "actor_critic_seconds": 0.16987996346647172,
+          "update_seconds": 0.6550416552589506
+        },
+        "host_cpu_mean_percent": 7.525905603479305,
+        "workers_cpu_mean_percent_one_core_100": 145.97270942300094,
+        "available_gib_min": 110.2844352722168,
+        "swap_used_gib_max": 0.0,
+        "swap_in_mib": 0.0,
+        "swap_out_mib": 0.0,
+        "gpu_percent_mean": 64.546875,
+        "gpu_percent_max": 85.0,
+        "gpu_temperature_c_mean": 54.5703125,
+        "gpu_temperature_c_max": 57.0
+      }
+    ],
+    "aggregate_speedup": 1.4212406811324372,
+    "sequential_two_runs_hours": 4.407783266088067,
+    "concurrent_two_runs_hours": 3.101363002483132,
+    "elapsed_seconds": 283.81393245002255,
+    "recommendation": "Parallel worthwhile for throughput",
+    "extrapolation": "Two 16899-update runs, compute/collection only; evaluation, startup/checkpoint overhead excluded"
+  },
+  "artifacts": {
+    "console.log": {
+      "sha256": "18eeba0c108087604820d438b0095a1c8967a4051a1d768319953861c70fa472",
+      "bytes": 3333
+    },
+    "final_report.txt": {
+      "sha256": "31992faa40307c54e04ea14e420078f8df4cfee60bed11ae9ed5723774f082d8",
+      "bytes": 2133
+    },
+    "manifest.json": {
+      "sha256": "49807021dc9d9ecea02bce0ab89492ecb915bef82005a334b060e39974f0c4a0",
+      "bytes": 746
+    },
+    "processes_1/go.json": {
+      "sha256": "fc6b9f78662a584c64a35e2d2c110d28a9e55ccb7810b238f6e477bfd040d0be",
+      "bytes": 30
+    },
+    "processes_1/summary.json": {
+      "sha256": "7e0e8ad4fa68bfce4c7c6bb8e50cb395ad873822a093fb4ca28cad952a6ac178",
+      "bytes": 776
+    },
+    "processes_1/telemetry.jsonl": {
+      "sha256": "d59fdccbef0f54d28d32c40066fc86961be621f9cf64d4da82c11c5a2bd8934d",
+      "bytes": 30318
+    },
+    "processes_1/worker0/complete.json": {
+      "sha256": "42b80d90d21dac734049a95528552fe948c4f0c1d778a2b4939e4eb1f57b8f5f",
+      "bytes": 130
+    },
+    "processes_1/worker0/console.log": {
+      "sha256": "6f6415b80a369ade190949580168dae3bc4d5a8834172518455e5e436977d503",
+      "bytes": 897
+    },
+    "processes_1/worker0/ready": {
+      "sha256": "f3b42874095276bef90e93961eefb53dd5e38881168b3b6e8777f9cac3f94a3c",
+      "bytes": 16
+    },
+    "processes_1/worker0/resolved_config.json": {
+      "sha256": "49211c0c82fe3b0b1c221b3f3296c3a0e707fdd347d7c2242e5df94934627e5b",
+      "bytes": 2710
+    },
+    "processes_1/worker0/tensorboard/train/events.out.tfevents.1795550491.spark-3f04.24511.0": {
+      "sha256": "de9453b2444b8bc46343a0f9ad311177ece7b31c6a246f724ab255abe05e80c6",
+      "bytes": 1338476
+    },
+    "processes_1/worker0/updates.jsonl": {
+      "sha256": "a9fa0611d70a2e7a2cb7fc8a4df4cb5b20e8060257674a02bef23e7901499907",
+      "bytes": 288800
+    },
+    "processes_2/go.json": {
+      "sha256": "9b6d715bc54dc9ac9f3cd232f03ac97b52bc96a593833aff7342e0999d04d103",
+      "bytes": 30
+    },
+    "processes_2/summary.json": {
+      "sha256": "a11902cec69dba72aa2273f1c1effc774575c9387b4a4f6113bdeb4deae70ff6",
+      "bytes": 769
+    },
+    "processes_2/telemetry.jsonl": {
+      "sha256": "5047ca9d3db2bd85520fc9df5eeb918903e7521bdfb67a80d39b48a5349b8265",
+      "bytes": 30386
+    },
+    "processes_2/worker0/complete.json": {
+      "sha256": "0e30667e953171ae15ab2de8f56ffd0e52ed7b8bc113b2627c3aeaccf74a5f6f",
+      "bytes": 130
+    },
+    "processes_2/worker0/console.log": {
+      "sha256": "2b057b5e702adba61eb6af40aa3b234dfb57c0540cfa27c590c3ee82c9a96cc1",
+      "bytes": 876
+    },
+    "processes_2/worker0/ready": {
+      "sha256": "ebf4b9e81aa7df5d8b1e70de0547d46a5da666b122cae4fb3b7f1d052be13294",
+      "bytes": 16
+    },
+    "processes_2/worker0/resolved_config.json": {
+      "sha256": "399723b8115a6f1c85dd9da73780f4fc82937678b7f544505b58bbab1334b7e2",
+      "bytes": 2710
+    },
+    "processes_2/worker0/tensorboard/train/events.out.tfevents.1795550632.spark-3f04.26209.0": {
+      "sha256": "1d0b0afcdf4f866a897e0c705da2fbe702c1dcb318530070889c6435a43c58cf",
+      "bytes": 950783
+    },
+    "processes_2/worker0/updates.jsonl": {
+      "sha256": "db6c8ddd2f1e1d5b9f9383831ba8a996c56c8095dd0b35b1244d20b1a0579403",
+      "bytes": 205364
+    },
+    "processes_2/worker1/complete.json": {
+      "sha256": "0e30667e953171ae15ab2de8f56ffd0e52ed7b8bc113b2627c3aeaccf74a5f6f",
+      "bytes": 130
+    },
+    "processes_2/worker1/console.log": {
+      "sha256": "56fd581469c1f86b2da9c07228b2481c6e1f981017bac1229ae36469a32d8517",
+      "bytes": 876
+    },
+    "processes_2/worker1/ready": {
+      "sha256": "4c0902c359344d417dc98073e0ba6f1cc6e7b8b2633fdc012bc42ef5d7e371ba",
+      "bytes": 16
+    },
+    "processes_2/worker1/resolved_config.json": {
+      "sha256": "0686c9d530eea90400097849db7747ac37914e00f3783655725f4d5664d41453",
+      "bytes": 2710
+    },
+    "processes_2/worker1/tensorboard/train/events.out.tfevents.1795550632.spark-3f04.26210.0": {
+      "sha256": "e26ca4448610be224e641d27c94cd05acb08fd464525f7960089149518f3aff3",
+      "bytes": 950783
+    },
+    "processes_2/worker1/updates.jsonl": {
+      "sha256": "37b6fb2ca24c6dac8214d1ef12d93da936c1536f2b71c6a6e48b375efd7e20ec",
+      "bytes": 205336
+    },
+    "rerun_command.txt": {
+      "sha256": "ebf86541e8147ac45d089fdca6b120d6f2207b4d440558af73c335d857e52566",
+      "bytes": 208
+    },
+    "results.json": {
+      "sha256": "31992faa40307c54e04ea14e420078f8df4cfee60bed11ae9ed5723774f082d8",
+      "bytes": 2133
+    },
+    "source.diff": {
+      "sha256": "ff511d2dde98bc9def2cea43e53e0cb5c9b7ee87f06f4d4c7cbe6a685504c52d",
+      "bytes": 11452
+    }
+  },
+  "verification_limit": "Fingerprint inventory established at finalization; pre-existing source hash and recorded numerical results independently cross-checked. No historical output rewritten."
+}

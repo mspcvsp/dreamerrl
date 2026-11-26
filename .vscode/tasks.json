@@ -4,35 +4,35 @@
         {
             "label": "Run Ruff Lint",
             "type": "shell",
-            "command": "ruff check .",
+            "command": "uv run --locked ruff check .",
             "group": "build",
             "problemMatcher": []
         },
         {
             "label": "Fix Ruff Issues",
             "type": "shell",
-            "command": "ruff check --fix .",
+            "command": "uv run --locked ruff check --fix .",
             "group": "build",
             "problemMatcher": []
         },
         {
             "label": "Format Code (Ruff + Black)",
             "type": "shell",
-            "command": "ruff format . && black .",
+            "command": "uv run --locked ruff format . && uv run --locked black .",
             "group": "build",
             "problemMatcher": []
         },
         {
             "label": "Run CPU Tests",
             "type": "shell",
-            "command": "pytest tests/cpu -q",
+            "command": "uv run --locked pytest -c /dev/null -q environments/cage2/test_adapter.py environments/cage2/test_reproduction_support.py environments/cage2/test_uv_management.py",
             "group": "test",
             "problemMatcher": []
         },
         {
             "label": "Run Drift Tests",
             "type": "shell",
-            "command": "pytest -m drift -q",
+            "command": "UV_PROJECT_ENVIRONMENT=.venv-legacy uv run --locked --no-default-groups --group legacy pytest -m drift -q",
             "group": "test",
             "problemMatcher": []
         }

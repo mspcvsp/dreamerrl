@@ -18,6 +18,7 @@ from minihack import MiniHack
 from dreamerrl.env.minihack.minihack_utils import extract_glyphs
 from dreamerrl.eval.corridor_diagnostics import CORRIDOR_R2, CorridorEpisode, compass_actions, stair_opportunity
 from dreamerrl.eval.movement import MovementMetrics, MovementTracker
+from dreamerrl.models.hierarchical_actor import policy_action
 
 
 class EpisodeDiagnostics(MovementMetrics):
@@ -80,6 +81,7 @@ def evaluate_minihack(
                 cast(MiniHack, env.unwrapped).seed(core=seed, disp=seed, reseed=False, lgen=seed)
                 obs, _ = env.reset(seed=seed)
                 env.action_space.seed(seed)
+                policy_state = None
                 state = world.init_state(1)
                 action_dim = world.net_cfg.action_dim
                 if action_dim is None:
@@ -120,7 +122,9 @@ def evaluate_minihack(
                             action,
                             is_first=torch.tensor([t == 0], device=device),
                         )["post"]
-                        selected, logits = actor.act(state, deterministic=not sample_actions)
+                        selected, logits, policy_state = policy_action(
+                            actor, state, policy_state, deterministic=not sample_actions
+                        )
                         action_id = int(selected.item())
                         if moves is not None and opportunity is None:
                             opportunity = stair_opportunity(

@@ -2,19 +2,18 @@
 
 from __future__ import annotations
 
-from dreamerrl.models.aux_objectives import AUX_OBJECTIVES
 from dreamerrl.utils.types import make_default_config
 
 
-def minihack_config(seed, logdir, novelty=False):
+def minihack_config(seed, logdir):
     cfg = make_default_config()
     cfg.env.env_id = "MiniHack-Room-5x5-v0"
     cfg.env.num_envs = 2
     cfg.env.max_episode_steps = 6
     cfg.env.parallel = False
     cfg.env.seed = seed
-    cfg.world.disable_aux_losses = not novelty
-    cfg.world.aux_objectives = [AUX_OBJECTIVES["novelty"]] if novelty else []
+    cfg.world.disable_aux_losses = True
+    cfg.world.aux_objectives = []
     cfg.world.deter_size = 16
     cfg.world.num_classes = 3
     cfg.world.stoch_size = 4
@@ -34,5 +33,5 @@ def minihack_config(seed, logdir, novelty=False):
     cfg.train.seq_len = 4
     cfg.log.enable_wandb = False
     cfg.log.tb_logdir = str(logdir)
-    cfg.log.run_name = f"seed{seed}_{'novelty' if novelty else 'baseline'}"
+    cfg.log.run_name = f"seed{seed}_baseline"
     return cfg

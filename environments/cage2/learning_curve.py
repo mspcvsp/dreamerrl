@@ -4,7 +4,6 @@ import argparse
 import hashlib
 import json
 import math
-import os
 import pickle
 import random
 import shlex
@@ -12,7 +11,8 @@ import subprocess
 import sys
 import time
 from collections import Counter
-from dataclasses import asdict, replace
+from collections.abc import Callable
+from dataclasses import replace
 from pathlib import Path
 from typing import Any
 
@@ -22,7 +22,9 @@ from experiment_protocol import original_schedule, verify_original_inputs
 from learner_cycle import optimizer_steps, state_hash
 
 from dreamerrl.env.cage2.cage2_env_wrapper import Cage2BlueEnv
+from dreamerrl.models.hierarchical_actor import policy_action
 from dreamerrl.training.trainer import DreamerTrainer
+from dreamerrl.utils.types import EnvironmentConfig
 
 PROJECT = Path(__file__).resolve().parent
 ROOT = PROJECT.parents[1]
@@ -54,11 +56,31 @@ def rng_equal(a, b):
     )
 
 
-@torch.no_grad()
-def evaluate(trainer, policy):
-    saved = rng_state()
+def evaluate(trainer, policy, seeds=SEEDS) -> dict[str, Any]:
     replay_before = (len(trainer.replay.episodes), trainer.replay.size, trainer.sample_step, trainer.total_env_steps)
-    hashes = {k: state_hash(getattr(trainer, k)) for k in ("world", "actor", "critic")}
+    critic_hash = state_hash(trainer.critic)
+    report = evaluate_policy(trainer, policy, seeds)
+    assert replay_before == (
+        len(trainer.replay.episodes),
+        trainer.replay.size,
+        trainer.sample_step,
+        trainer.total_env_steps,
+    )
+    assert critic_hash == state_hash(trainer.critic)
+    return dict(report, training_replay_unchanged=True)
+
+
+@torch.no_grad()
+def evaluate_policy(
+    trainer,
+    policy,
+    seeds,
+    *,
+    env_factory: Callable[[EnvironmentConfig, torch.device], Cage2BlueEnv] = Cage2BlueEnv,
+    on_episode=None,
+) -> dict[str, Any]:
+    saved = rng_state()
+    hashes = {k: state_hash(getattr(trainer, k)) for k in ("world", "actor")}
     training = trainer.world.training, trainer.actor.training
     old_mode = trainer.world.posterior.deterministic_latent_for_tests
     rows = []
@@ -67,12 +89,12 @@ def evaluate(trainer, policy):
         trainer.world.eval()
         trainer.actor.eval()
         trainer.world.posterior.deterministic_latent_for_tests = True
-        for seed in SEEDS:
+        for seed in seeds:
             policy_seed = seed + 100_000
             random.seed(policy_seed)
             np.random.seed(policy_seed)
             torch.manual_seed(policy_seed)
-            env = Cage2BlueEnv(replace(trainer.cfg.env, seed=seed), trainer.device)
+            env = env_factory(replace(trainer.cfg.env, seed=seed), trainer.device)
             output = env.reset(seed=seed)
             # Environment construction seeds native RNGs; policy randomness uses its own generator.
             generator = np.random.default_rng(policy_seed)
@@ -83,9 +105,11 @@ def evaluate(trainer, policy):
                 is_first=torch.ones(1, dtype=torch.bool, device=trainer.device),
             )["post"]
             actions, rewards, components = [], [], []
+            policy_state = None
             for step in range(30):
                 if policy == "actor":
-                    action = int(trainer.actor(state.h, state.z).argmax(-1).item())
+                    selected, _, policy_state = policy_action(trainer.actor, state, policy_state, deterministic=True)
+                    action = int(selected.item())
                 elif policy == "sleep":
                     action = next(x["index"] for x in env.action_mapping if x["name"] == "Sleep")
                 else:
@@ -121,25 +145,20 @@ def evaluate(trainer, policy):
                 )
             )
             env.close()
+            if on_episode is not None:
+                on_episode(rows[-1])
     finally:
         trainer.world.posterior.deterministic_latent_for_tests = old_mode
         trainer.world.train(training[0])
         trainer.actor.train(training[1])
         restore_rng(saved)
     assert rng_equal(saved, rng_state())
-    assert replay_before == (
-        len(trainer.replay.episodes),
-        trainer.replay.size,
-        trainer.sample_step,
-        trainer.total_env_steps,
-    )
     assert hashes == {k: state_hash(getattr(trainer, k)) for k in hashes}
     return dict(
         episodes=rows,
         mean_return=float(np.mean([r["total_return"] for r in rows])),
         seconds=time.perf_counter() - started,
         training_rng_unchanged=True,
-        training_replay_unchanged=True,
         evaluation_mode="greedy actions, posterior modes" if policy == "actor" else policy,
     )
 
@@ -178,7 +197,7 @@ def main():
     parser.add_argument("--source", type=Path, default=ROOT / "runs/cage2_blue_cycle_seed0_20261123/latest.pt")
     parser.add_argument("--schedule", choices=["original", "measured"], default="measured")
     args = parser.parse_args()
-    assert os.environ.get("CONDA_PREFIX") is None and torch.cuda.is_available()
+    assert sys.prefix != sys.base_prefix and torch.cuda.is_available(), "Use uv run --locked"
     torch.set_num_threads(2)
     run = args.run_dir.resolve()
     run.mkdir(parents=True, exist_ok=False)
@@ -187,13 +206,13 @@ def main():
         verify_original_inputs(source, None)
     trainer = DreamerTrainer.from_checkpoint(source, cuda=True, log_dir=run / "tensorboard")
     if args.schedule == "original":
-        verify_original_inputs(source, asdict(trainer.cfg))
+        verify_original_inputs(source, trainer.cfg.to_dict())
     env = trainer.env
     assert isinstance(env, Cage2BlueEnv)
     assert trainer.completed_updates == 1 and trainer.total_env_steps == 510
     assert trainer.env.obs_dim == 52 and trainer.action_dim == 145 and trainer.cfg.env.max_episode_steps == 30
     assert optimizer_steps(trainer) == {"model_opt": [1], "actor_opt": [1], "critic_opt": [1]}
-    write(run / "resolved_config.json", asdict(trainer.cfg))
+    write(run / "resolved_config.json", trainer.cfg.to_dict())
     write(
         run / "protocol.json",
         dict(

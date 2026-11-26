@@ -1,0 +1,14 @@
+{
+  "dataset_directory": "runs/cage2_latent_analysis_host_pilot_20261124",
+  "checkpoint_sha256": "8a2483a6add81e1db709f35079f086c50778b900c24164b99fa29b62240cc1bd",
+  "source_tag": "cage2-host-aware-pilot-v1",
+  "source_commit": "ac2ec1b936b29ccf37d11ab4e2656f6636211fb4",
+  "k_values": [2,3,4,5,6,7,8,9,10],
+  "initialization_seeds": [11,22,33],
+  "analysis_seed": 20261124,
+  "max_iterations": 60,
+  "silhouette_sample_size": 600,
+  "pca_variance_target": 0.95,
+  "episode_bootstrap_refits": 3,
+  "max_wall_seconds": 1800
+}

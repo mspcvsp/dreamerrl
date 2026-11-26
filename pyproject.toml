@@ -87,3 +87,52 @@ markers = [
 python_version = "3.10"
 ignore_missing_imports = true
 strict = false
+
+# Root development/regression environment. The historical CAGE2 project retains
+# its separate unchanged lockfile under environments/cage2/.
+[dependency-groups]
+tools = [
+    "pytest==9.2.0",
+    "pytest-env==1.5.0",
+    "ruff==0.14.14",
+    "mypy==1.19.1",
+    "pyright[nodejs]==1.1.414",
+    "black==26.1.0",
+    "cyborg==2.1",
+    "nvidia-cusparselt-cu13==0.8.0+spark1; sys_platform == 'linux' and platform_machine == 'aarch64'",
+]
+dev = [{ include-group = "tools" }, "gymnasium==1.4.0", "setuptools==84.2.1"]
+legacy = [
+    { include-group = "tools" },
+    "gymnasium==1.2.0", "setuptools==80.9.0", "minihack==1.0.2", "nle==1.3.0", "minigrid==3.1.0",
+]
+
+[tool.uv]
+required-version = "==0.13.9"
+python-preference = "only-managed"
+default-groups = ["dev"]
+conflicts = [[{ group = "dev" }, { group = "legacy" }]]
+constraint-dependencies = ["torch==2.9.1", "numpy==1.26.4", "grpcio==1.85.3", "packaging==26.3"]
+build-constraint-dependencies = ["setuptools==80.9.0", "wheel==0.45.1"]
+environments = [
+    "sys_platform == 'linux' and platform_machine == 'aarch64' and python_version == '3.10'",
+    "sys_platform == 'linux' and platform_machine == 'x86_64' and python_version == '3.10'",
+]
+
+[tool.uv.sources]
+torch = [
+    { index = "pytorch-cu130", marker = "sys_platform == 'linux' and platform_machine == 'aarch64'" },
+    { index = "pytorch-cpu", marker = "sys_platform == 'linux' and platform_machine == 'x86_64'" },
+]
+cyborg = { path = "environments/cage2/vendor/cage-challenge-2/CybORG", editable = true }
+nvidia-cusparselt-cu13 = { path = "environments/cage2/wheels/nvidia_cusparselt_cu13-0.8.0+spark1-py3-none-manylinux2014_aarch64.whl" }
+
+[[tool.uv.index]]
+name = "pytorch-cu130"
+url = "https://download.pytorch.org/whl/cu130"
+explicit = true
+
+[[tool.uv.index]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+explicit = true

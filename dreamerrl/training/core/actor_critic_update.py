@@ -28,6 +28,30 @@ def actor_critic_update(
     replay_value_scale=0.0,
     diagnostics=None,
 ):
+    from dreamerrl.models.hierarchical_actor import HierarchicalActor, HierarchicalCritic
+
+    if isinstance(actor, HierarchicalActor):
+        from .hierarchical_update import hierarchical_actor_critic_update
+
+        if not isinstance(critic, HierarchicalCritic):
+            raise ValueError("Hierarchical actor requires its goal-conditioned critic")
+        if replay_value_scale != 0:
+            raise ValueError("Hierarchical mode does not support flat replay-value targets")
+        return hierarchical_actor_critic_update(
+            world_model,
+            actor,
+            critic,
+            batch,
+            imagination_horizon,
+            discount,
+            lam,
+            deterministic_imagination,
+            slow_critic,
+            slow_critic_scale,
+            entropy_scale,
+            remaining_steps,
+            diagnostics,
+        )
     # Use every replay posterior as an imagination start, without model gradients.
     with torch.no_grad():
         posts = observe_batch(world_model, batch)

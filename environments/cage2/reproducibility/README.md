@@ -125,11 +125,15 @@ Preparation commands below are documented for a future reproduction; they were
 not executed as part of this documentation change:
 
 ```bash
-cd /home/mspcvsp/Documents/dreamerrl/environments/cage2
-bash --noprofile --norc setup.sh
+cd /home/mspcvsp/Documents/dreamerrl
+bash --noprofile --norc environments/cage2/setup.sh
 ```
 
-This initializes the official Git submodule at
+This now provisions a clean detached worktree of the immutable baseline tag
+under `.baseline/cage2_baseline_v1` and performs strict locked installation there.
+See [the complete uv procedure](../../../docs/uv_environment.md). The current
+root development metadata is intentionally separate from the historical lock.
+The setup initializes the official Git submodule at
 `26ce1c1253fa9e2e73f25e6a7f2da32860c11257`, uses its bundled CybORG 2.1 package
 editable (retaining scenario/version files), prepares the repaired native wheel,
 and runs locked sync. Use uv 0.13.9, managed Python 3.10.19, Torch 2.9.1+cu130 and
@@ -152,8 +156,8 @@ Tested host: spark-3f04, Linux aarch64, NVIDIA GB10, NVIDIA driver 580.95.05,
 glibc 2.39 (documented wheel minimum 2.28). Host `libcuda.so.1` and system C/C++
 runtime libraries are outside uv.lock. Git, Bash and initial download access
 are needed. CUDA runtime libraries are locked wheels; installed toolkit 13.0.3
-was not required. Run without Conda or injected Python/library paths; keep the
-existing Conda environment available for MiniHack. Exact launcher variables
+was not required. Use the root uv development profile or the isolated legacy
+uv profile; no activated external environment or injected library paths are needed. Exact launcher variables
 are recorded in the manifest. Stock Torch warns about GB10 capability 12.1;
 the original GPU checks and training passed, but cross-platform bitwise identity
 is not promised.
@@ -173,11 +177,10 @@ The maintained learning entry point now invokes this tracked reporter after
 successful completion, so a separate executable completion worker under `runs/`
 is no longer needed. Standalone reporting remains available.
 
-For a future NEW run directory, from a prepared Conda-deactivated environment:
+For a future NEW run directory, from the prepared root uv development environment:
 
 ```bash
-cd environments/cage2
-uv run --locked python report_learning.py --run-dir /absolute/path/to/NEW-run-directory
+uv run --locked python environments/cage2/report_learning.py --run-dir /absolute/path/to/NEW-run-directory
 ```
 
 To regenerate only a historical report, first copy the two input JSON files to

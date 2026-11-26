@@ -1,0 +1,42 @@
+{
+  "episodes_per_cell": 100,
+  "horizon": 30,
+  "first_seed": 1837491000,
+  "opponents": ["B-line", "Meander", "Sleep"],
+  "completed_updates": 16899,
+  "env_steps": 507450,
+  "checkpoints": [
+    {
+      "id": "flat_seed0",
+      "training_seed": 0,
+      "version": 4,
+      "source": "ac2ec1b936b29ccf37d11ab4e2656f6636211fb4",
+      "path": "runs/cage2_host_aware_pilot_seed0_20261124/latest.pt",
+      "sha256": "8a2483a6add81e1db709f35079f086c50778b900c24164b99fa29b62240cc1bd"
+    },
+    {
+      "id": "hierarchical_seed0",
+      "training_seed": 0,
+      "version": 5,
+      "source": "79b36459adac8c37f86bc97e40bae3ea02e4277b",
+      "path": "runs/hierarchy_v3_20261125T153127Z/group/job_001/results/cage2_host_seed0/latest.pt",
+      "sha256": "b531a0a749db3a18712b2ae8e34296e24899dcdbe2d3bcee6a9adbd29ff572fd"
+    },
+    {
+      "id": "hierarchical_seed1",
+      "training_seed": 1,
+      "version": 5,
+      "source": "79b36459adac8c37f86bc97e40bae3ea02e4277b",
+      "path": "runs/hierarchy_v3_20261125T153127Z/group/job_002/results/cage2_host_seed1/latest.pt",
+      "sha256": "ebba2b04745979047d606358c61fce98ac8d914d8ff4f3450a760dd689dbe48e"
+    },
+    {
+      "id": "hierarchical_seed2",
+      "training_seed": 2,
+      "version": 5,
+      "source": "79b36459adac8c37f86bc97e40bae3ea02e4277b",
+      "path": "runs/hierarchy_v3_20261125T153127Z/group/job_003/results/cage2_host_seed2/latest.pt",
+      "sha256": "b41694eda82286519a7fe5e137336e1f83d30b3335ba6fa85dcdae691d423cdd"
+    }
+  ]
+}

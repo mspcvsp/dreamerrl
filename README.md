@@ -1,6 +1,8 @@
 # DreamerRL
 
-TTCP CAGE Challenge 2 Blue is the primary research environment. Start with the
+TTCP CAGE Challenge 2 Blue is the primary research environment.
+Use the [root uv development environment](docs/uv_environment.md):
+`bash scripts/setup_uv.sh`, then `uv run --locked ...`. Start with the
 [CAGE2 setup](environments/cage2/README.md) and
 [baseline reproduction record](environments/cage2/reproducibility/README.md).
 Historical MiniHack runs are OBE; their tracked environments and regression

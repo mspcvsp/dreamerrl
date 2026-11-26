@@ -12,7 +12,6 @@ import torch
 
 from dreamerrl.env.minihack.minihack_utils import glyph_entity_ids, glyph_scoring_schema, glyph_vocab_size
 from dreamerrl.eval.corridor_diagnostics import CORRIDOR_R2
-from dreamerrl.models.aux_objectives import AUX_OBJECTIVES
 from dreamerrl.training.run_monitor import MiniHackRunMonitor, write_json
 from dreamerrl.training.trainer import DreamerTrainer
 from dreamerrl.utils.types import make_default_config
@@ -59,7 +58,6 @@ def main(*, default_env="MiniHack-Room-5x5-v0", default_episode_steps=200):
     parser.add_argument(
         "--local-glyph-branch", action="store_true", help="Opt into a player-centered 3x3 glyph encoder branch"
     )
-    parser.add_argument("--aux", choices=["none", "novelty"], default="none")
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--updates", type=int, default=None, help="Total desired updates, including resumed updates")
     device = parser.add_mutually_exclusive_group()
@@ -165,7 +163,7 @@ def main(*, default_env="MiniHack-Room-5x5-v0", default_episode_steps=200):
         run_dir = args.run_dir or (
             args.checkpoint.parent
             if args.checkpoint
-            else Path("runs") / f"{args.env}_{args.aux}_seed{args.seed}_{stamp}"
+            else Path("runs") / f"{args.env}_seed{args.seed}_{stamp}"
         )
         if (run_dir / "config.json").exists() or (args.checkpoint and args.checkpoint.exists()):
             parser.error("Run already exists: use --resume or choose a new --run-dir/--checkpoint")
@@ -182,8 +180,8 @@ def main(*, default_env="MiniHack-Room-5x5-v0", default_episode_steps=200):
             cfg.env.env_id, cfg.env.seed = args.env, args.seed
             cfg.env.num_envs, cfg.env.max_episode_steps = args.num_envs, args.episode_steps
             cfg.env.parallel, cfg.env.finite_horizon = args.parallel, args.finite_horizon
-            cfg.world.disable_aux_losses = args.aux == "none"
-            cfg.world.aux_objectives = [] if args.aux == "none" else [AUX_OBJECTIVES[args.aux]]
+            cfg.world.disable_aux_losses = True
+            cfg.world.aux_objectives = []
             cfg.world.deter_size, cfg.world.stoch_size, cfg.world.num_classes = 128, 32, 32
             cfg.world.hidden_size, cfg.world.imagination_horizon = 256, args.imagination_horizon
             cfg.train.action_cost = args.action_cost if args.action_cost is not None else 0.0

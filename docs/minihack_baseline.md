@@ -2,15 +2,15 @@
 > Example paths below refer to old artifacts proposed for user-approved cleanup.
 > These examples may require regenerated data after cleanup; tracked environments and tests remain supported.
 
-# MiniHack baseline and auxiliary ablation
+# MiniHack legacy baseline
 
 Start with a new run: continuation-head dimensions and reward/value bin buffers
 changed, so old checkpoints are not compatible with these model corrections.
-Use the `cage2_env` Python environment (Gymnasium >= 1.1 for vector autoreset).
+Use the explicitly selected locked legacy uv profile. Generic auxiliary objectives
+have been removed; historical implementations remain in existing Git tags.
 
 ```bash
-python -m dreamerrl.scripts.run_minihack --cpu --seed 0 --updates 1000
-python -m dreamerrl.scripts.run_minihack --cpu --seed 0 --updates 1000 --aux novelty
+UV_PROJECT_ENVIRONMENT=.venv-legacy uv run --locked --no-default-groups --group legacy python -m dreamerrl.scripts.run_minihack --cpu --seed 0 --updates 1000
 ```
 
 New runner invocations default to `--glyph-model spatial`: glyph IDs index a learned
@@ -37,27 +37,15 @@ Neither representation nor weighting has established a corridor learning gain;
 compare held-out success over multiple seeds at equal environment-step budgets.
 
 The default task is `MiniHack-Room-5x5-v0`. Use `--env` to select another task.
-The baseline disables auxiliary objectives; the ablation adds only novelty,
-a prediction of next-observation change. Novelty is representation supervision,
-not an intrinsic reward added to the actor's return.
+The baseline disables auxiliary objectives.
 
 Use [the offline/tmux workflow](minihack_offline.md) for persistent JSONL metrics,
 a Rich dashboard, periodic paired evaluations, and fresh-seed final testing.
-The runner writes a unique `runs/<environment>_<aux>_seed<seed>_<timestamp>/`
+The runner writes a unique `runs/<environment>_seed<seed>_<timestamp>/`
 directory unless `--run-dir` is specified. TensorBoard events are under that run's
 `tensorboard/train/` directory. Repeat training with seeds 1 and 2 before drawing
 conclusions. Establish Room-5x5 learning first, then try a harder task; a passing
 smoke test does not demonstrate learning.
-
-The other auxiliary heads remain available for experiments, with narrower claims:
-
-- `skill` predicts the recorded action; it does not discover options.
-- `reachability` duplicates continuation supervision.
-- `resource` duplicates reward supervision until real resource labels exist.
-- `affordance` requires actual action masks. The runner does not enable it because
-  the MiniHack wrapper does not currently supply these labels.
-- Latent clustering is deferred; its helper requires a caller-owned persistent
-  projection instead of constructing fresh random targets on every call.
 
 ## Contracts covered by regression tests
 
@@ -106,37 +94,14 @@ symexp to expected bin coordinates at readout. Continuation uses Bernoulli BCE.
 KL sums over latent factors before the free-nats floor, with separate 1.0 dynamics
 and 0.1 representation weights and the respective stop-gradient directions.
 
-Auxiliary binary targets retain their original labels. Scalar novelty/resource
-regression uses symlog rather than batch standardization. Losses are not clamped;
-the trainer's existing gradient clipping bounds optimizer gradients. Novelty
-excludes targets across resets and at the end of a sampled sequence.
-
 ```bash
-python -m pytest dreamerrl/tests -q
+UV_PROJECT_ENVIRONMENT=.venv-legacy uv run --locked --no-default-groups --group legacy python -m pytest dreamerrl/tests -q
 ```
 
 The suite includes numerical return references, KL gradients and scaling,
-observe/reset timing, imagination action alignment, actual auxiliary-to-RSSM
-gradients, sync/async autoreset sentinel tests, and two real MiniHack optimizer
+observe/reset timing, imagination action alignment, sync/async autoreset sentinel tests, and two real MiniHack optimizer
 cycles. It does not establish task success or CAGE readiness; use the training
 comparisons above for that milestone.
-
-## Optional paired learning experiment
-
-The regular suite now includes a same-seed CPU training repeatability check with
-all three networks updating. For a paired three-seed experiment with random and
-untrained baselines and held-out greedy evaluation:
-
-```bash
-python -m pytest dreamerrl/tests/manual/test_worldmodel_aux.py --run-manual --steps=1000 --eval-episodes=10 -s
-```
-
-Here `--steps` means optimizer updates per arm and seed. The experiment reports
-whole episode returns and saves a JSON report at the printed pytest temporary
-path. Copy it to preserve results. Passing verifies execution and finite metrics;
-learning and novelty benefit must be assessed from the reported returns. PopGym
-is optional; its repaired sync/async transition and evaluation contracts run in
-the regular suite. See the test README for its separate benchmark command.
 
 ## Checkpoint and resume
 
@@ -147,13 +112,13 @@ interrupted or failed write leaves the last complete checkpoint available.
 
 ```bash
 # Start a run; choose a stable destination and save frequency.
-python -m dreamerrl.scripts.run_minihack --cpu --updates 1000 --checkpoint checkpoints/room.pt --checkpoint-every 50
+UV_PROJECT_ENVIRONMENT=.venv-legacy uv run --locked --no-default-groups --group legacy python -m dreamerrl.scripts.run_minihack --cpu --updates 1000 --checkpoint checkpoints/room.pt --checkpoint-every 50
 
 # Continue an interrupted run to its original target update count.
-python -m dreamerrl.scripts.run_minihack --cpu --resume checkpoints/room.pt
+UV_PROJECT_ENVIRONMENT=.venv-legacy uv run --locked --no-default-groups --group legacy python -m dreamerrl.scripts.run_minihack --cpu --resume checkpoints/room.pt
 
 # Extend a completed run to 2000 total updates (not 2000 additional updates).
-python -m dreamerrl.scripts.run_minihack --cpu --resume checkpoints/room.pt --updates 2000
+UV_PROJECT_ENVIRONMENT=.venv-legacy uv run --locked --no-default-groups --group legacy python -m dreamerrl.scripts.run_minihack --cpu --resume checkpoints/room.pt --updates 2000
 ```
 
 Resume uses the saved environment, seed, model, auxiliary objectives, and training
@@ -250,7 +215,7 @@ extension is experimental and defaults to 0 (disabled).
 An example experiment, not an established corridor configuration:
 
 ```bash
-python -m dreamerrl.scripts.run_minihack_corridor --seed 0 \
+UV_PROJECT_ENVIRONMENT=.venv-legacy uv run --locked --no-default-groups --group legacy python -m dreamerrl.scripts.run_minihack_corridor --seed 0 \
   --discount 0.997 --imagination-horizon 30 --seq-len 32 --burn-in 32 \
   --lambda-return 0.95 --replay-value-scale 1 --random-exploration-steps 10000
 ```
@@ -374,7 +339,7 @@ can change fixed-seed latent draws compared with the previous refresh path.
 To check whether position is decodable from a checkpoint's representation:
 
 ```bash
-python -m dreamerrl.scripts.probe_minihack_location \
+UV_PROJECT_ENVIRONMENT=.venv-legacy uv run --locked --no-default-groups --group legacy python -m dreamerrl.scripts.probe_minihack_location \
   --checkpoint runs/corridor_r2_recent_seed0_20261116/latest.pt \
   --initial-checkpoint runs/corridor_r2_recent_seed0_20261116/initial.pt \
   --train-episodes 32 --test-episodes 16 --max-steps 256 --epochs 100 \
@@ -432,7 +397,7 @@ Compare retained checkpoints on the same random-action traces without altering
 training:
 
 ```bash
-python -m dreamerrl.scripts.diagnose_posterior \
+UV_PROJECT_ENVIRONMENT=.venv-legacy uv run --locked --no-default-groups --group legacy python -m dreamerrl.scripts.diagnose_posterior \
   --checkpoint runs/corridor_r2_recent_seed0_20261116/initial.pt \
   --checkpoint runs/corridor_r2_recent_seed0_20261116/location_probe_weights_update600.pt \
   --checkpoint runs/corridor_r2_recent_seed0_20261116/posterior_diagnostic_weights_update2100.pt \
@@ -614,7 +579,7 @@ avoids crediting predictions of cleared terminal screens as player accuracy.
 For held-out scoring, freeze a spatial checkpoint and run:
 
 ```bash
-python -m dreamerrl.scripts.score_minihack_events \
+UV_PROJECT_ENVIRONMENT=.venv-legacy uv run --locked --no-default-groups --group legacy python -m dreamerrl.scripts.score_minihack_events \
   --checkpoint runs/corridor_r2_recent_seed0_20261116/latest.pt \
   --episodes 8 --max-steps 128 --max-frames 128 --sample-latents \
   --output runs/corridor_r2_recent_seed0_20261116/event_scores.json
@@ -659,7 +624,7 @@ These helpers do not implement the pending CAGE2 environment adapter.
 Run a frozen, action-conditioned comparison without changing training:
 
 ```bash
-python -m dreamerrl.scripts.probe_minihack_imagination \
+UV_PROJECT_ENVIRONMENT=.venv-legacy uv run --locked --no-default-groups --group legacy python -m dreamerrl.scripts.probe_minihack_imagination \
   --checkpoint runs/<run>/latest.pt --sample-latents \
   --horizons 1 3 5 10 --anchors 64 --episodes 8 \
   --output runs/<run>/imagination_probe.json
@@ -702,7 +667,7 @@ and its raw JSON report. Re-run after training with informative-cell weighting.
 ### Compare greedy and sampled policy behavior
 
 ```bash
-python -m dreamerrl.scripts.compare_minihack_policies --device cuda \
+UV_PROJECT_ENVIRONMENT=.venv-legacy uv run --locked --no-default-groups --group legacy python -m dreamerrl.scripts.compare_minihack_policies --device cuda \
   --checkpoint runs/<run>/policy_comparison_weights_update500.pt \
   --episodes 20 --seed-start 10000 \
   --output runs/<run>/policy_comparison_update500.json

@@ -10,7 +10,6 @@ import os
 import subprocess
 import sys
 import time
-from dataclasses import asdict
 from pathlib import Path
 from unittest.mock import patch
 
@@ -102,7 +101,7 @@ def train(run, seed):
     cfg.world.disable_aux_losses, cfg.world.aux_objectives = True, []
     cfg.log.tb_logdir, cfg.log.run_name = str(run / "tensorboard"), "train"
     cfg.log.enable_wandb = False
-    write(run / "resolved_config.json", asdict(cfg))
+    write(run / "resolved_config.json", cfg.to_dict())
     write(
         run / "provenance.json",
         dict(
@@ -319,7 +318,7 @@ def reload_and_evaluate(run):
             assert state_hash(getattr(trainer, k)) == v
         report = dict(
             python_executable=sys.executable,
-            conda_prefix=os.environ.get("CONDA_PREFIX"),
+            virtual_environment=sys.prefix,
             restored_model_hashes_match=True,
             restored_optimizer_steps=optimizer_steps(trainer),
             restored_replay_episodes=expected["replay_episodes"],
@@ -349,7 +348,7 @@ def main(argv=None):
     parser.add_argument("--phase", choices=["all", "reload"], default="all")
     parser.add_argument("--seed", type=int, default=0)
     args = parser.parse_args(argv)
-    assert os.environ.get("CONDA_PREFIX") is None and torch.cuda.is_available()
+    assert sys.prefix != sys.base_prefix and torch.cuda.is_available(), "Use uv run --locked"
     torch.set_num_threads(2)
     if args.phase == "reload":
         return reload_and_evaluate(args.run_dir.resolve())
@@ -378,7 +377,7 @@ def main(argv=None):
         "--run-dir",
         str(run),
     ]
-    subprocess.run(command, cwd=PROJECT, env=env, check=True)
+    subprocess.run(command, cwd=ROOT, env=env, check=True)
     result = dict(
         training=json.loads((run / "train_result.json").read_text()),
         reward_trace=json.loads((run / "reward_trace.json").read_text()),

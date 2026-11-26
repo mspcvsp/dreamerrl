@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from dataclasses import dataclass, field
-from typing import Callable, Dict, List
+from dataclasses import asdict, dataclass, field
+from typing import Any, Callable, Dict, List
 
 import torch
 
@@ -9,41 +9,17 @@ from .transforms import symexp
 
 
 @dataclass(frozen=True)
-class AuxHeadConfig:
-    """
-    Shared config for auxiliary heads.
-
-    in_dim:  dimension of concatenated (h_t, z_t)
-    hidden:  hidden layer size
-    out_dim: output dimension (1 for scalar, N for vector)
-    """
-
-    in_dim: int
-    hidden: int
-    out_dim: int
-
-
-# ---------------------------------------------------------
-# Auxiliary Objective Config
-# ---------------------------------------------------------
-@dataclass(frozen=True)
 class AuxObjectiveConfig:
-    """
-    Environment‑agnostic auxiliary objective.
+    """Optional stateless environment-owned loss on (h, z, replay batch).
 
-    Each objective provides a function:
-        fn(batch, gamma) -> target tensor of shape (B, L)
-
-    Examples:
-        • affordance prediction
-        • reachability prediction
-        • novelty / event prediction
-        • resource dynamics
-        • skill discovery / options
+    The callback returns one finite normalized scalar, handles target detachment
+    and episode/validity masks, and must not own unregistered trainable parameters.
+    Weight is explicit; zero skips callback evaluation. No built-in objectives.
     """
 
     name: str
-    fn: Callable[[Dict[str, torch.Tensor], float], torch.Tensor]
+    fn: Callable[[torch.Tensor, torch.Tensor, Dict[str, torch.Tensor]], torch.Tensor]
+    weight: float = 1.0
 
 
 # ---------------------------------------------------------
@@ -81,6 +57,11 @@ class WorldModelConfig:
     num_classes: int = 32
     hidden_size: int = 200
 
+    # Opt-in CAGE2 encoder. Scalar/tuple defaults preserve old pickled configs.
+    obs_encoder: str = "flat"
+    cage2_host_order: tuple[str, ...] = ()
+    cage2_subnet_ids: tuple[int, ...] = ()
+
     # Optional categorical MiniHack grid model; None preserves the vector MLP.
     glyph_shape: tuple[int, int] | None = None
     glyph_vocab_size: int = 0
@@ -116,9 +97,8 @@ class WorldModelConfig:
     value_bins: int = 41
 
     # Optional project extensions; baseline DreamerV3 does not require these.
-    # Each callback produces a detached (B, L, D) target from replay.
+    # Each callback returns a normalized scalar loss; weighting is per objective.
     aux_objectives: List[AuxObjectiveConfig] = field(default_factory=list)
-    aux_reward_scale: float = 0.1
     disable_aux_losses: bool = False
 
 
@@ -136,6 +116,12 @@ class ActorCriticConfig:
       • λ‑return computation (lambda_)
       • Discount factor for value targets
     """
+
+    # Opt-in manager/worker policy; flat mode preserves historical construction.
+    hierarchical: bool = False
+    hierarchy_goals: int = 8
+    hierarchy_goal_dim: int = 16
+    hierarchy_interval: int = 4
 
     actor_hidden: int = 256
     critic_hidden: int = 256
@@ -298,6 +284,10 @@ class DreamerConfig:
     env: EnvironmentConfig = field(default_factory=EnvironmentConfig)
     log: LoggingConfig = field(default_factory=LoggingConfig)
     debug: DebugConfig = field(default_factory=DebugConfig)
+
+    def to_dict(self) -> dict[str, Any]:
+        """Return a recursive snapshot of the resolved configuration."""
+        return asdict(self)
 
     def init_run_name(self):
         import datetime

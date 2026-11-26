@@ -11,6 +11,7 @@ from gym.spaces import Box as LegacyBox
 from gym.spaces import Discrete
 from gymnasium.spaces import Box
 
+from dreamerrl.env.cage2.host_schema import visible_host_schema
 from dreamerrl.env.env import EnvInterface
 
 
@@ -20,23 +21,26 @@ class ActionMapping(TypedDict):
     description: str
 
 
-def make_blue_simulator(seed):
-    """Use the CAGE2 package's own Scenario2 and supplied B-line opponent."""
+def make_blue_simulator(seed, red_agent=None):
+    """Use the installed Scenario2 and a supplied opponent, defaulting to B-line."""
     from CybORG import CybORG
     from CybORG.Agents import B_lineAgent
+
+    if red_agent is None:
+        red_agent = B_lineAgent
 
     random.seed(seed)
     np.random.seed(seed)
     scenario = Path(inspect.getfile(CybORG)).parent / "Shared" / "Scenarios" / "Scenario2.yaml"
-    simulator = CybORG(str(scenario), "sim", agents={"Red": B_lineAgent})
+    simulator = CybORG(str(scenario), "sim", agents={"Red": red_agent})
     simulator.set_seed(seed)
     return simulator, scenario
 
 
-def make_blue_wrapper(seed, horizon):
+def make_blue_wrapper(seed, horizon, red_agent=None):
     from CybORG.Agents.Wrappers import ChallengeWrapper
 
-    simulator, scenario = make_blue_simulator(seed)
+    simulator, scenario = make_blue_simulator(seed, red_agent)
     return ChallengeWrapper(agent_name="Blue", env=simulator, max_steps=horizon), scenario
 
 
@@ -53,12 +57,14 @@ def boundary_flags(done, info, step, horizon):
 class Cage2BlueEnv(EnvInterface):
     """One Blue collector with same-step reset and a separate final observation."""
 
-    def __init__(self, env_cfg, device, probe=None):
+    def __init__(self, env_cfg, device, probe=None, *, red_agent=None):
         if env_cfg.num_envs != 1 or env_cfg.parallel:
             raise ValueError("The first CAGE2 integration supports one serial Blue environment")
         self.cfg, self.device, self.probe = env_cfg, device, probe
-        self.wrapper, self.scenario = make_blue_wrapper(env_cfg.seed, env_cfg.max_episode_steps)
+        self.red_agent = red_agent
+        self.wrapper, self.scenario = make_blue_wrapper(env_cfg.seed, env_cfg.max_episode_steps, red_agent)
         initial = np.asarray(self.wrapper.reset())
+        self.host_order, self.subnet_ids = visible_host_schema(self.wrapper)
         self.native_dtype = str(initial.dtype)
         self._obs_dim = initial.size
         assert isinstance(self.wrapper.action_space, Discrete)
@@ -97,8 +103,10 @@ class Cage2BlueEnv(EnvInterface):
     def _reset_episode(self):
         self.episode_seed = self._next_seed
         self._next_seed += 1
-        self.wrapper, _ = make_blue_wrapper(self.episode_seed, self.cfg.max_episode_steps)
+        self.wrapper, _ = make_blue_wrapper(self.episode_seed, self.cfg.max_episode_steps, self.red_agent)
         obs = np.asarray(self.wrapper.reset())
+        if visible_host_schema(self.wrapper) != (self.host_order, self.subnet_ids):
+            raise ValueError("Actor-visible host ordering/subnet membership changed across reset")
         assert isinstance(self.wrapper.action_space, Discrete)
         assert obs.shape == self._obs_space.shape and int(self.wrapper.action_space.n) == self.action_dim
         self.steps = 0

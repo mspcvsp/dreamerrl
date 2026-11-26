@@ -40,7 +40,7 @@ def imagine_trajectory_for_training(
                 deterministic_imagination=deterministic_imagination,
                 action=action,
             )
-            reward_logits, _ = world_model.reward_heads(s.h, s.z)
+            reward_logits = world_model.reward_heads.main(s.h, s.z)
             rewards.append(world_model.reward_heads.main.readout(reward_logits))
             continues.append(world_model.continue_head.readout(world_model.continue_head(s.h, s.z)))
         bootstrap_value = critic.readout(critic(s.h, s.z))
@@ -61,7 +61,7 @@ def imagine_trajectory_for_testing(world_model: WorldModel, actor: Actor, state:
     hs, zs, rewards = [], [], []
 
     for _ in range(horizon):
-        reward_main_logits, _ = world_model.reward_heads(s.h, s.z)
+        reward_main_logits = world_model.reward_heads.main(s.h, s.z)
         r = world_model.reward_heads.main.readout(reward_main_logits)
 
         rewards.append(r)

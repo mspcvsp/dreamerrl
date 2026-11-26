@@ -1,0 +1,35 @@
+{
+  "schema_version": 1,
+  "source_tag": "cage2-host-aware-encoder-v1",
+  "source_commit": null,
+  "tag_object": null,
+  "launch_approval": null,
+  "source_fingerprints": {},
+  "config": "environments/cage2/host_aware_v1_config.json",
+  "status": "UNSEALED: implementation committed; follow-up validation/manifest notes await review. No new experiment tag or formal launch approval.",
+  "config_sha256": "0f410325aaaa486bcafab78661ba4baa9aaa396a2265a918ebc45df7e9bd7c1b",
+  "root_lock_sha256": "7bb7f784c6b02c70f640052e5b3348f8f043089d4ee1f98e252650a01faefa38",
+  "training_seeds": [
+    0,
+    1,
+    2
+  ],
+  "final_env_steps": 507450,
+  "final_update": 16899,
+  "development_seed_range": [
+    1000000000,
+    1000000019
+  ],
+  "heldout_seed_range": [
+    2000000000,
+    2000000199
+  ],
+  "dependencies": {
+    "cyborg_revision": "26ce1c1253fa9e2e73f25e6a7f2da32860c11257",
+    "torch": "2.9.1+cu130",
+    "cuda": "13.0",
+    "numpy": "1.26.4",
+    "gymnasium": "1.4.0"
+  },
+  "implementation_commit": "5364c6f036877a44ebfdf8abdb459cf8ceadecf0"
+}

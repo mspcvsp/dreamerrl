@@ -10,4 +10,13 @@ checkpoints/
 logs/
 
 # Isolated uv project environments
-.venv/
+.venv*/
+
+# Immutable baseline worktrees and generated tool caches
+.baseline/
+.mypy_cache/
+.pytest_cache/
+.ruff_cache/
+
+# Tagged experiment source worktrees (created only after review)
+.experiments/

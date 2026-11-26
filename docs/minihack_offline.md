@@ -11,19 +11,22 @@ separate MiniHack environments and restores Python, NumPy and PyTorch RNG state.
 
 ## Prepare the environment before going offline
 
-Use the tested `cage2_env` environment, or an equivalent environment containing
-MiniHack/NLE, PyTorch, Gymnasium and the project's dependencies. DGX Spark is
-ARM64 with a GB10 GPU: use a compatible ARM64 PyTorch/CUDA environment, not an
-x86 wheel. See NVIDIA's [Spark system overview](https://docs.nvidia.com/dgx/dgx-spark/system-overview.html)
-and [Spark porting guide](https://docs.nvidia.com/dgx/dgx-spark-porting-guide/latest/dgx-spark-porting-guide.pdf).
-Install dependencies before disconnecting; the training/evaluation commands do
-not download models, datasets, packages, or credentials.
+Use the explicitly selected legacy uv profile. NLE 1.3.0 requires Gymnasium
+1.2.0; the default CAGE2 profile retains 1.4.0. Install without activation:
+
+```bash
+bash scripts/setup_uv.sh --legacy
+export UV_PROJECT_ENVIRONMENT="$PWD/.venv-legacy"
+```
+
+All commands below run from the repository root. See [uv profiles](uv_environment.md)
+for setuptools compatibility and native Spark dependencies. Prepare dependencies
+before disconnecting from the network.
 
 Check the selected Python environment:
 
 ```bash
-conda activate cage2_env
-python -c 'import torch, minihack, nle, gymnasium, rich; print(torch.__version__, torch.version.cuda); print(torch.cuda.is_available()); print(torch.cuda.get_device_name(0))'
+UV_PROJECT_ENVIRONMENT=.venv-legacy uv run --locked --no-default-groups --group legacy python -c 'import torch, minihack, nle, gymnasium, rich; print(torch.__version__, torch.version.cuda); print(torch.cuda.is_available()); print(torch.cuda.get_device_name(0))'
 ```
 
 A two-update FP32 training/evaluation smoke run was verified in this workspace on
@@ -44,11 +47,10 @@ tmux new-session -s dreamer-room
 Inside that session:
 
 ```bash
-conda activate cage2_env
 export OMP_NUM_THREADS=1
 export MKL_NUM_THREADS=1
 export CUBLAS_WORKSPACE_CONFIG=:4096:8
-python -u -m dreamerrl.scripts.run_minihack \
+UV_PROJECT_ENVIRONMENT=.venv-legacy uv run --locked --no-default-groups --group legacy python -u -m dreamerrl.scripts.run_minihack \
   --require-cuda --seed 0 --updates 10000 \
   --run-dir runs/room_seed0 --eval-every 100 --eval-episodes 20
 ```
@@ -68,7 +70,7 @@ The JSONL writer repairs an interrupted trailing record before appending on resu
 Resume:
 
 ```bash
-python -u -m dreamerrl.scripts.run_minihack \
+UV_PROJECT_ENVIRONMENT=.venv-legacy uv run --locked --no-default-groups --group legacy python -u -m dreamerrl.scripts.run_minihack \
   --require-cuda --resume runs/room_seed0/latest.pt
 ```
 
@@ -83,7 +85,7 @@ unavailable rather than mislabeling their trained weights as an initial policy.
 
 | File | Purpose |
 | --- | --- |
-| `config.json` | Initial configuration, including objective and auxiliary choices. |
+| `config.json` | Initial configuration, including task and model choices. |
 | `metrics.jsonl` | UTC timestamped/session-tagged startup, episode, update, evaluation, checkpoint, stop and error records. |
 | `run.log` | Human-readable diagnostics and tracebacks; rotates at 5 MiB with three backups. |
 | `baselines.json` | Original random/untrained episode returns, fixed validation seeds, and matching configuration. |
@@ -117,7 +119,7 @@ tensorboard --logdir runs/room_seed0/tensorboard
 
 ## Establish improvement, rather than just a successful run
 
-1. Start with `--aux none` (the default). The initial policy and uniform random
+1. Use the baseline (generic auxiliary objectives have been removed). The initial policy and uniform random
    policy are evaluated on the same fixed validation levels before learning.
 2. Compare whole-episode returns at equal environment-step budgets. Higher is
    better even when every score is negative. Loss decreases alone do not establish
@@ -128,7 +130,7 @@ tensorboard --logdir runs/room_seed0/tensorboard
    the saved initial policy and random actions:
 
 ```bash
-python -m dreamerrl.scripts.evaluate_minihack --cpu \
+UV_PROJECT_ENVIRONMENT=.venv-legacy uv run --locked --no-default-groups --group legacy python -m dreamerrl.scripts.evaluate_minihack --cpu \
   --checkpoint runs/room_seed0/best.pt \
   --initial-checkpoint runs/room_seed0/initial.pt \
   --episodes 100 --seed-start 1000000 \
@@ -171,7 +173,7 @@ seed set. New-run `--eval-episodes` and `--eval-seed-start` select that validati
 A short CPU wiring check:
 
 ```bash
-python -m dreamerrl.scripts.run_minihack --cpu --updates 2 \
+UV_PROJECT_ENVIRONMENT=.venv-legacy uv run --locked --no-default-groups --group legacy python -m dreamerrl.scripts.run_minihack --cpu --updates 2 \
   --num-envs 2 --episode-steps 10 --collect-steps 5 --batch-size 2 --seq-len 4 \
   --imagination-horizon 3 --eval-episodes 2 --eval-every 1 \
   --run-dir runs/smoke --dashboard off
@@ -183,7 +185,7 @@ Keep action selection and posterior latent selection independent when a high
 training return disagrees with deterministic validation:
 
 ```bash
-python -m dreamerrl.scripts.evaluate_minihack_modes --cpu \
+UV_PROJECT_ENVIRONMENT=.venv-legacy uv run --locked --no-default-groups --group legacy python -m dreamerrl.scripts.evaluate_minihack_modes --cpu \
   --checkpoint runs/room_seed0/latest.pt \
   --checkpoint runs/room_seed1/latest.pt \
   --checkpoint runs/room_seed2/latest.pt \
@@ -207,7 +209,7 @@ by generated corridors. It defaults to `MiniHack-Corridor-R2-v0` and a 1000-step
 episode cap; other training defaults and monitoring match the Room runner.
 
 ```bash
-python -u -m dreamerrl.scripts.run_minihack_corridor \
+UV_PROJECT_ENVIRONMENT=.venv-legacy uv run --locked --no-default-groups --group legacy python -u -m dreamerrl.scripts.run_minihack_corridor \
   --require-cuda --seed 0 --updates 10000 \
   --run-dir runs/corridor_r2_seed0 --eval-every 100 --eval-episodes 20
 ```
@@ -221,7 +223,7 @@ a run alone does not establish learning.
 For a short CPU wiring check:
 
 ```bash
-python -m dreamerrl.scripts.run_minihack_corridor --cpu --updates 2 \
+UV_PROJECT_ENVIRONMENT=.venv-legacy uv run --locked --no-default-groups --group legacy python -m dreamerrl.scripts.run_minihack_corridor --cpu --updates 2 \
   --num-envs 2 --episode-steps 10 --collect-steps 5 --batch-size 2 --seq-len 4 \
   --imagination-horizon 3 --eval-episodes 2 --eval-every 1 \
   --run-dir runs/corridor_smoke --dashboard off
@@ -230,7 +232,7 @@ python -m dreamerrl.scripts.run_minihack_corridor --cpu --updates 2 \
 Evaluate the selected checkpoint on fresh test levels using the same evaluator:
 
 ```bash
-python -m dreamerrl.scripts.evaluate_minihack \
+UV_PROJECT_ENVIRONMENT=.venv-legacy uv run --locked --no-default-groups --group legacy python -m dreamerrl.scripts.evaluate_minihack \
   --checkpoint runs/corridor_r2_seed0/best.pt \
   --initial-checkpoint runs/corridor_r2_seed0/initial.pt \
   --episodes 100 --seed-start 1000000 \
@@ -238,7 +240,7 @@ python -m dreamerrl.scripts.evaluate_minihack \
 ```
 
 The checkpoint supplies the corridor environment and episode limit. Resume with
-`python -m dreamerrl.scripts.run_minihack_corridor --resume runs/corridor_r2_seed0/latest.pt`.
+`UV_PROJECT_ENVIRONMENT=.venv-legacy uv run --locked --no-default-groups --group legacy python -m dreamerrl.scripts.run_minihack_corridor --resume runs/corridor_r2_seed0/latest.pt`.
 
 ## NetHack evaluation seeding
 
@@ -267,7 +269,7 @@ This is reward shaping, not an auxiliary prediction loss.
 For a separate corridor experiment:
 
 ```bash
-python -m dreamerrl.scripts.run_minihack_corridor \
+UV_PROJECT_ENVIRONMENT=.venv-legacy uv run --locked --no-default-groups --group legacy python -m dreamerrl.scripts.run_minihack_corridor \
   --require-cuda --updates 10000 --eval-every 500 \
   --action-cost 0.001 --run-dir runs/corridor_r2_cost001_seed0
 ```
