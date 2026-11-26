@@ -16,7 +16,7 @@
 | 10 · T-maze exercise | Show a card briefly, cover it and count eight pretend steps. Ask Scouts to indicate the branch. Repeat with the other cue using the same delay and gestures. | Could you work out the answer from your current view alone? |
 | 11 · Losing the clue | A reader could find the clue in the model’s probabilities. One hard choice compressed the distinction to about chance in this test. A note saying only “maze” illustrates what compression can leave out. | When is a short summary too short? |
 | 12 · Verify | The frozen intervention made the clue readable at the turn, yet the model’s choices stayed at chance. A plausible earlier plot label also needed correction after tracing the code. | What would you do if an AI answer sounded right but failed a test? How would you check AI-generated code? |
-| 13 · Start small | Keep the saved-results demo below. Ask for help with one part of a small supervised project. Inspect outputs before changing the next part. | What STEM project would you try with AI assistance? |
+| 13 · Start small | Keep the saved-results demo below. Explore AI with your parent or guardian, or work with an Artificial Intelligence merit badge counselor at a troop meeting. Choose one small piece and test it before moving on. | What STEM project would you try with AI assistance? |
 | 14 · Build skills | Practice Python and basic math. Learn to describe a problem, design a fair test and explain why a result is trustworthy. | Why does knowing the underlying science help you direct or correct an assistant? |
 | 15 · Keep learning | Invite each Scout to suggest a project and a check that could prove the first answer wrong. | What would you change if your first test failed? |
 
@@ -30,8 +30,8 @@ python3 docs/publication_figures/read_saved_results.py
 
 Predict which stage first drops near chance, then compare the printed values with slide 11. The command reads the tracked aggregate snapshot and needs no packages, weights, simulator, internet connection or training. Without a terminal, use slide 11 and reveal each bar in order.
 
-## Supervised experimentation
+## Explore AI together
 
-Use age-appropriate tools with adult supervision and follow the tool and group policies. Keep names, credentials, private files and network details out of prompts. Start with made-up data, a local toy project or an approved simulator. Have an adult review generated commands before anyone runs them. Begin with a small test that could reveal a mistake. Curiosity, learning, experimentation and verification are engineering skills.
+Explore AI with your parent or guardian, or work with an Artificial Intelligence merit badge counselor at a troop meeting. Keep names, credentials, private files and network details out of prompts. Start with made-up data, a local toy project or an approved simulator. Review generated commands together before running them. Begin with a small test that could reveal a mistake. Curiosity, learning, experimentation and verification are engineering skills.
 
 Read labels aloud and use the words LEFT and RIGHT on clue cards. Let Scouts point, speak or write their answers.

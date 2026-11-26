@@ -74,7 +74,7 @@ We checked both memory and choices. The clue was readable, but choices stayed at
 
 ![Read on GitHub, view a result and check the evidence.](figures/workflow.png){width=94%}
 
-With an adult, choose a small project. Ask for help, then test one piece at a time.
+Explore AI with your parent or guardian, or work with an Artificial Intelligence merit badge counselor at a troop meeting.
 
 ## What skills might you build?
 

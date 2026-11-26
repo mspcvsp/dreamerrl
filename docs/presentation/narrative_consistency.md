@@ -8,6 +8,6 @@
 | Workflow | Professional conductor figure links direction, engineering, outputs and verification. | Educational variant returns test results to the human for revised instructions. |
 | Scientific findings | T-maze separates encoding, hard-state transmission, recurrence and use. CAGE2 pilot, common-support stop and archived forecasting remain separate. | Slides 9–12 show local simulator returns, clue loss and the difference between reading a clue and acting on it. |
 | Verification and limits | Corrected tensor label and the predeclared CAGE2 stop are concrete examples. Scope and future work stay explicit. | Ask what test could prove a convincing answer wrong. Scout captions scope findings to this test. |
-| Next steps | Proposed world-model studies remain future research. | Try a small adult-supervised project or the saved-results demo. Practice programming and evidence checks. |
+| Next steps | Proposed world-model studies remain future research. | Explore AI with a parent or guardian, or with an Artificial Intelligence merit badge counselor at a troop meeting. Start with the saved-results demo. |
 
 Tool use and the manual Microsoft Copilot workflow are author-confirmed. Commit `a5eb49b` records a Codex recommendation for MiniHack changes, and the project history documents Codex-assisted implementation and verification. No task-by-task record for Microsoft Copilot was available. Collective work categories do not assign identical contributions to both tools. Figure captions and alt text describe the same feedback loop as the prose.
