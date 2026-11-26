@@ -34,7 +34,8 @@ def revision(path):
 
 def configuration(study):
     folder, module, _ = STUDIES[study]
-    return SOURCE / "environments" / folder / (module + ".json")
+    filename = "history_common_support_plan.json" if study == FINAL_STUDY else module + ".json"
+    return SOURCE / "environments" / folder / filename
 
 
 def load_spec(study):
