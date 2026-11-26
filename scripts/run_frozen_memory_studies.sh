@@ -8,11 +8,14 @@ out="$(realpath -m "${1:?Specify an output directory under the main runs/}")"
 case "$out" in "$root"/runs/*) ;; *) exit 2 ;; esac
 
 if [[ "${2:-}" == "--pane" ]]; then
+    study="${3:-all}"
+    export DIAGNOSTIC_READY_STUDY="$study"
+    if [[ "$study" == all ]]; then export DIAGNOSTIC_READY_STUDY=tmaze; fi
     export PYTHONPATH="$source_tree:$source_tree/environments/cage2:$root/environments/cage2/vendor/cage-challenge-2/CybORG"
     export CUDA_VISIBLE_DEVICES="" OMP_NUM_THREADS=2 OPENBLAS_NUM_THREADS=2 MPLBACKEND=Agg
     export UV_PROJECT_ENVIRONMENT="$root/.venv"
     command=(uv run --project "$root" --locked --offline --no-sync python -u
-             "$source_tree/scripts/frozen_memory_studies.py" "$root" --out "$out")
+             "$source_tree/scripts/frozen_memory_studies.py" "$root" --out "$out" --study "$study")
     printf '%q ' "${command[@]}" > "$out/launch_command"
     printf '\n' >> "$out/launch_command"
     set +e
@@ -23,7 +26,7 @@ if [[ "${2:-}" == "--pane" ]]; then
 fi
 
 mkdir -p "$out"
-printf -v pane 'bash %q %q --pane' "$source_tree/scripts/run_frozen_memory_studies.sh" "$out"
+printf -v pane 'bash %q %q --pane %q' "$source_tree/scripts/run_frozen_memory_studies.sh" "$out" "${2:-all}"
 if tmux has-session -t "=$session" 2>/dev/null; then
     [[ "$(tmux display-message -p -t "$session:0.0" '#{pane_dead}')" == 1 ]] || exit 3
     tmux respawn-pane -t "$session:0.0" "$pane"

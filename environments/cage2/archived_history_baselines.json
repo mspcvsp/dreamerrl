@@ -1,0 +1,11 @@
+{
+  "archive": "runs/cage2_latent_analysis_host_pilot_20261124",
+  "pilot": "runs/frozen_memory_integration_20261126/cage2/results.json",
+  "rng_seed": 404263,
+  "history_frames": 5,
+  "projected_features": 32,
+  "parameter_budget": 4096,
+  "learning_rates": [0.003, 0.01],
+  "epochs": 10,
+  "kinds": ["linear", "current_mlp", "fixed_mlp"]
+}

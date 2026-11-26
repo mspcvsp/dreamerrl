@@ -10,7 +10,7 @@ import subprocess
 import sys
 
 from dreamerrl.eval.memory.dreamer import file_sha256
-from dreamerrl.eval.memory.presentation import write_json
+from dreamerrl.eval.memory.reporting import write_json
 from experiment_supervisor import CHECKPOINT_EXIT, Job, supervise
 from thermal_stop import REQUEST, STATUS, read_record
 
@@ -18,6 +18,7 @@ SOURCE = Path(__file__).resolve().parents[1]
 STUDIES = {
     "tmaze": ("minihack", "tmaze_intervention", "legacy"),
     "cage2": ("cage2", "cage2_memory_pilot", "dev"),
+    "history": ("cage2", "archived_history_baselines", "dev"),
 }
 SESSION = "dreamer-frozen-memory-studies"
 
@@ -50,7 +51,7 @@ def worker(root, run_dir, study):
         metadata["cyborg_revision"] = revision(vendor)
         if metadata["cyborg_revision"] != "26ce1c1253fa9e2e73f25e6a7f2da32860c11257" or not Path(CybORG.__file__).resolve().is_relative_to(vendor):
             raise RuntimeError("Unpinned CAGE2 simulator")
-    else:
+    elif study == "tmaze":
         metadata["packages"].update({key: importlib.metadata.version(key) for key in ("nle", "minihack")})
     old = out / "execution_manifest.json"
     if old.exists():
@@ -59,7 +60,7 @@ def worker(root, run_dir, study):
             if previous[key] != metadata[key]:
                 raise ValueError(f"Resumption mismatch on {key}; choose a fresh output")
     write_json(old, metadata)
-    if study == "tmaze":
+    if study == os.environ.get("DIAGNOSTIC_READY_STUDY", "tmaze"):
         write_json(run_dir.parents[3] / "launch_ready.json", metadata)
         if os.environ.get("TMUX"):
             subprocess.run(["tmux", "wait-for", "-S", SESSION + "-ready"], check=True)
@@ -86,7 +87,8 @@ def _worker_command(root, study, run_dir):
             "python", "-u", str(Path(__file__).resolve()), str(root), "--worker", study, str(run_dir)]
 
 
-def orchestrate(root, out):
+def orchestrate(root, out, study):
+    studies = ("tmaze", "cage2") if study == "all" else (study,)
     if not out.is_relative_to(root / "runs") or out == root / "runs":
         raise ValueError("Use a dedicated directory inside the main runs directory")
     if subprocess.check_output(["git", "-C", SOURCE, "status", "--porcelain"], text=True).strip():
@@ -96,7 +98,7 @@ def orchestrate(root, out):
     out.mkdir(parents=True, exist_ok=True)
     attempt = out / datetime.now(timezone.utc).strftime("supervisor_%Y%m%dT%H%M%S%fZ")
     jobs = []
-    for index, study in enumerate(STUDIES, 1):
+    for index, study in enumerate(studies, 1):
         run_dir = attempt / f"job_{index:03d}" / "results" / study
         run_dir.mkdir(parents=True)
         spec = configuration(study)
@@ -112,11 +114,11 @@ def orchestrate(root, out):
     except Exception as exc:
         result = {"jobs": [], "error": repr(exc)}
     names = {j["arm"]: j for j in result["jobs"]}
-    successful = status == 0 and all(names.get(name, {}).get("state") == "completed" for name in STUDIES)
+    successful = status == 0 and all(names.get(name, {}).get("state") == "completed" for name in studies)
     failed = result.get("error") or any(j["state"] in ("failed", "launch_failed") for j in names.values())
     state = "successful" if successful else "failed" if failed else "incomplete"
     lines = ["# Frozen memory studies", "", f"Execution state **{state}**.", ""]
-    for name in STUDIES:
+    for name in studies:
         row = names.get(name, {})
         report = out / name / "report.md"
         suffix = f" [Study report]({name}/report.md)." if report.is_file() else ""
@@ -135,11 +137,12 @@ def main():
     command = parser.add_mutually_exclusive_group(required=True)
     command.add_argument("--out", type=Path)
     command.add_argument("--worker", nargs=2, metavar=("STUDY", "STATUS_DIR"))
+    parser.add_argument("--study", choices=("all", *STUDIES), default="all")
     args = parser.parse_args()
     if args.worker:
         study, run = args.worker
         return worker(args.root.resolve(), Path(run), study)
-    return orchestrate(args.root.resolve(), args.out.resolve())
+    return orchestrate(args.root.resolve(), args.out.resolve(), args.study)
 
 
 if __name__ == "__main__":
