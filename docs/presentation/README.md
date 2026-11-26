@@ -4,8 +4,8 @@ The article, slides, guide, visual identity and figure sources are tracked. The 
 
 | Source | Result |
 |---|---|
-| [LinkedIn draft](../linkedin/article.md) and `prepare_article.py` | `linkedin/article.md` with the cover and seven figure placements, captions and alt text |
-| [Shared palette](../publication_figures/palette.json), [figure register](../publication_figures/figure_manifest.json), and [renderer](../publication_figures/generate_figures.py) | Eight LinkedIn and ten Scout graphics, each as editable SVG, vector PDF and 320 DPI PNG |
+| [LinkedIn draft](../linkedin/article.md) and `prepare_article.py` | `linkedin/article.md` with the cover and eight figure placements, captions and alt text |
+| [Shared palette](../publication_figures/palette.json), [figure register](../publication_figures/figure_manifest.json), and [renderer](../publication_figures/generate_figures.py) | Nine LinkedIn and eleven Scout graphics, each as editable SVG, vector PDF and 320 DPI PNG |
 | [Scout Markdown](slides.md), [Beamer theme](theme.tex), and [PowerPoint reference](reference.pptx) | `presentation/scout_presentation.pdf` and `presentation/scout_presentation.pptx` |
 | [Presenter guide](presenter_guide.md) and [saved-results demo](../publication_figures/read_saved_results.py) | A ready-to-teach lesson plan and CPU-only, dependency-free terminal walkthrough |
 | `build.sh`, `manifest.py`, and `render_qa.py` | `build_manifest.json`, `figure_provenance.json` and the visual QA proof directory |

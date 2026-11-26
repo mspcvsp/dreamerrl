@@ -11,3 +11,7 @@ Proof corrections included:
 - Kept chart comparisons readable with direct labels, symbols and line styles, and identified conceptual drawings in captions.
 
 The generated `qa/` directory contains the actual slide renders, desktop and mobile previews and `automated_checks.json`. The PowerPoint proof demonstrates rendering in LibreOffice. Microsoft PowerPoint was unavailable on the build host.
+
+## Human–AI narrative revision
+
+The revised proofs were generated for all 15 slides in both formats. The Scout conductor’s feedback line was moved clear of its caption and the tool names were added to the diagram. The professional conductor figure was reviewed at 400 and 800 px. The other article previews were checked against the earlier visually approved exports. The [consistency matrix](narrative_consistency.md) records the attribution boundary and reviews the captions and descriptions. Revised outputs use a fresh ignored directory so the earlier release and its manifests remain available.

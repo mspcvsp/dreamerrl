@@ -27,6 +27,10 @@ An encoder extracts features from the current observation. The recurrent state c
 
 CAGE2 is the primary simulation. Its historical comparison included flat and hierarchical policies. Differences were small and changed direction across opponents in the local 30-step evaluation. MiniHack is retained for reproducing the controlled memory findings and running regression tests. It uses a separate environment profile.
 
+## How the project was developed
+
+The project used Microsoft Copilot and OpenAI Codex extensively across implementation, debugging, tests, diagnostics, analysis and communication. The human technical director set requirements, chose experiments, approved workloads and reviewed the evidence. The author uploaded text to Microsoft Copilot manually outside VS Code. GitHub hosts the code and version history. See the [consistency review](docs/presentation/narrative_consistency.md) for the scope of the tool attribution.
+
 ## Install the research software
 
 Use Git, Bash, uv and the managed Python version described in the [locked environment guide](docs/uv_environment.md). Follow the platform-specific guidance there, including the native-wheel preparation on Spark.

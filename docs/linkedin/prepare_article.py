@@ -9,6 +9,6 @@ cover = re.compile(r"\*\*Cover\*\* · `(\w+\.png)`\n\n\*\*Alt text\*\* · ([^\n]
 text, count = cover.subn(r"![\2](figures/\1)", text)
 figure = re.compile(r"(\*\*Figure \d+ · `(\w+\.png)`\.\*\*[^\n]+)\n\n\*\*Alt text:\*\* ([^\n]+)")
 text, figures = figure.subn(r"![\3](figures/\2)\n\n\1", text)
-if (count, figures) != (1, 7):
-    raise ValueError("Expected one cover and seven article placements")
+if (count, figures) != (1, 8):
+    raise ValueError("Expected one cover and eight article placements")
 output.write_text(text)

@@ -249,9 +249,40 @@ def careers():
     return fig
 
 
-FIGURES = {"linkedin": dict(cover=cover,architecture=architecture,behavior=behavior,maze=maze,
+def conductor(scout=False):
+    fig, ax = canvas((9.6,3.7) if scout else (5.3,6.6),
+                     None if scout else "Human-directed AI engineering")
+    if scout:
+        boxes(ax, ("Ask a clear\nquestion", "Get AI help\nwith one piece", "Test what\nhappened"),
+              .47,.25,24,(M,T,O))
+        label(ax,.5,.855,"Microsoft Copilot + OpenAI Codex",19,align="center")
+        ax.plot([.81,.81,.18],[.44,.31,.31],color=O,lw=2.2)
+        arrow(ax,(.18,.31),(.18,.44),O)
+        label(ax,.5,.16,"Use the evidence to revise your instructions.",20,align="center",bold=True)
+    else:
+        rows = (
+            (.68, "Human technical director", "Objectives · requirements · domain knowledge\nScientific questions · acceptance criteria · decisions", N),
+            (.48, "AI-assisted engineering", "Microsoft Copilot · OpenAI Codex\nImplement · debug · test · run · analyze · document", T),
+            (.28, "Project outputs", "DreamerV3 implementation · experimental results\nDiagnostic tools · reproducible publications", M),
+            (.08, "Verify and review", "Evaluate tests and evidence. Refine instructions.", O),
+        )
+        for y, heading, detail, color in rows:
+            ax.add_patch(FancyBboxPatch((.065,y),.84,.16,boxstyle="round,pad=.008,rounding_size=.02",
+                                        facecolor=color,edgecolor="none"))
+            ink=I if color==N else N
+            label(ax,.095,y+.113,heading,17,bold=True,color=ink)
+            label(ax,.095,y+.051,detail,11.7,color=ink)
+        for y in (.68,.48,.28):
+            arrow(ax,(.48,y-.006),(.48,y-.034))
+        ax.plot([.92,.948,.948],[.16,.16,.76],color=O,lw=2.3)
+        arrow(ax,(.948,.76),(.914,.76),O)
+        label(ax,.065,.033,"Define → Direct → Implement → Test → Review → Refine",11,bold=True)
+    return fig
+
+
+FIGURES = {"linkedin": dict(cover=cover,conductor=conductor,architecture=architecture,behavior=behavior,maze=maze,
                             bottleneck=bottleneck,intervention=intervention,training_signal=training_signal,cage_evidence=cage_evidence),
-           "presentation": dict(loop=loop,imagine=imagine,architecture=lambda:architecture(True),network=network,
+           "presentation": dict(loop=loop,imagine=imagine,architecture=lambda:architecture(True),network=network,conductor=lambda:conductor(True),
                                 behavior=lambda:behavior(True),maze=lambda:maze(True),bottleneck=lambda:bottleneck(True),
                                 intervention=lambda:intervention(True),workflow=workflow,careers=careers)}
 

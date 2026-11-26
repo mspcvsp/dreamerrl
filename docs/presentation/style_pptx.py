@@ -91,7 +91,7 @@ def text_style(box, size, color, font, bold=False):
 
 
 def slide(root, number, font, alt):
-    dark = number in (1,9,15)
+    dark = number in (1,7,15)
     root.set("showMasterSp", "0")
     main = root.find("p:cSld", NS)
     bg = main.find("p:bg", NS)

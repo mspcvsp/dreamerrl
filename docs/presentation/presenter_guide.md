@@ -1,37 +1,37 @@
 # Presenter guide
 
-**Learning Through Imagination** is a 25–30 minute session for Scouts new to AI. Bring two clue cards labeled LEFT and RIGHT, a sheet to cover a card, and the PDF. The visual lesson can run with the PDF alone. Reserve about five minutes for discussion.
+**Learning Through Imagination** is a 25–30 minute Scout lesson. Bring two clue cards labeled LEFT and RIGHT, a sheet to cover a card, and the deck. Reserve five minutes for questions.
 
-| Slide | What to say or do | Ask the audience |
+| Slide | What to say or do | Ask the group |
 |---|---|---|
-| 1 · Opening | Explain that this project tested a learning agent in a model of a computer network. Use the phrase “practice world.” | Where have you practiced before doing the real thing? |
-| 2 · Network | A signal can mean something needs attention. The defender sees part of the situation. Use a smoke-alarm analogy without naming attack methods. | What might a defender want to protect? |
-| 3 · Reinforcement learning | Observation is what the agent sees. Action is what it tries. Reward is feedback about the result. | If a reward gives the wrong signal, what might the agent learn? |
-| 4 · Feedback | Choose a route to camp. Announce feedback such as a wrong turn or taking less time. Ask for a revised choice. | What other reward might you care about besides speed? |
-| 5 · Imagination | Before moving, picture taking either path. The world model’s predictions can guide practice and can be wrong. | When would you stop trusting a prediction? |
-| 6 · DreamerV3 | The project builds on a published algorithm. The model learns a compact description and uses it to imagine possible experiences. | Why might a compact description help? What might it leave out? |
-| 7 · CAGE2 | The diagram is conceptual. Researchers test on simulated systems with permission, using a known scenario and scoring rules. | What could go wrong if someone tried the same tests on a real network? |
-| 8 · Performance | In this archived comparison the flat agent made each choice directly. The other used a higher-level controller as well. Higher scores are better. B-line and Meander are simulator opponent names. Sleep is idle. The slide shows averages to one decimal across three training seeds. | Which design looks better for B-line? Does your answer change for Meander? |
-| 9 · T-maze | Show one card for two seconds, cover it, then count eight pretend steps together. Ask everyone to point to the rewarded branch. Repeat with the other cue. Keep the gestures and delay identical. | What information did the path itself give you? |
-| 10 · Bottleneck | Ask one Scout to write “maze” only and pass that note forward. Ask a second to write “maze, left” or “maze, right.” Both summaries save space, but only one keeps the needed clue. In the recorded model runs, the cue was readable in the probabilities. A single hard choice left about a coin flip’s worth of accuracy. | When is a short summary too short? |
-| 11 · Utilization | In a second round, let a Scout hold the clue card while another person always picks left. Remembering the information and using it are separate. The frozen model’s special-state intervention showed the same separation in this test. | How would you tell whether a decision used the clue? |
-| 12 · Tools | Python ran the software. Git and GitHub kept reviewable versions. An AI assistant helped write checks, and people verified the claims against saved results. | What would you test before trusting a generated change? |
-| 13 · Demo | Show the saved stage figure or run the command below. Keep the discussion focused on predictions and evidence. | Which stages would you investigate first? |
-| 14 · Careers | Give examples of software engineering, defensive monitoring, and experimental research. Recommend learning Python and collaborating on a small project. | Which skill would you try this month and why? |
-| 15 · Wrap | Invite questions and show the source links. Ask participants to explain “read the clue” and “use the clue” in their own words. | What would make your proposed test fair? |
+| 1 · Can you use AI to build AI? | Introduce two stories. An agent learned in a practice world. A person directed AI assistants to help build and test that agent. | What might you build if you could get help with one difficult part? |
+| 2 · What is AI? | Give examples like finding a pattern, drafting code and learning from feedback. Explain that different AI systems do different jobs. | Which of those jobs needs feedback from the world? |
+| 3 · Reinforcement learning | An observation is what the agent sees. An action is what it tries. A reward is feedback. Let the group pick a route to camp and revise it after feedback. | What should count as a good route besides speed? |
+| 4 · Imagination | Ask Scouts to picture two routes before moving. DreamerV3 predicts what might happen and practices from those predictions. | How could you find out whether a prediction is reliable? |
+| 5 · Safe simulation | CAGE2 provides a practice network. The diagram is conceptual. Try computer-security exercises only in approved learning environments. | Why would we keep the exercise off a real network? |
+| 6 · Development tools | Name Microsoft Copilot and OpenAI Codex. I uploaded text to Microsoft Copilot manually, outside VS Code. Both tools assisted the project. DreamerV3 learned in the simulator. GitHub hosts the project, and Git records changes. | Which tool helped with development, and which system learned to choose actions? |
+| 7 · The conductor | A conductor sets the goal, explains requirements, tests outputs, reviews evidence and decides what to change. Point out the return arrow. | If AI helps write the code, what is the human’s job? How could you explain a task clearly enough to get help? |
+| 8 · Build it in pieces | I directed work on smaller pieces such as reading an observation, testing a model component and checking a result. The assistants helped implement and debug them. | What small piece would you build and check first? |
+| 9 · Performance | Flat agents choose actions directly. The other agents had two decision levels. These are local simulator averages over three training seeds. Higher scores are better. | Does the same design lead in both active opponent scenarios? |
+| 10 · T-maze exercise | Show a card briefly, cover it and count eight pretend steps. Ask Scouts to indicate the branch. Repeat with the other cue using the same delay and gestures. | Could you work out the answer from your current view alone? |
+| 11 · Losing the clue | A reader could find the clue in the model’s probabilities. One hard choice compressed the distinction to about chance in this test. A note saying only “maze” illustrates what compression can leave out. | When is a short summary too short? |
+| 12 · Verify | The frozen intervention made the clue readable at the turn, yet the model’s choices stayed at chance. A plausible earlier plot label also needed correction after tracing the code. | What would you do if an AI answer sounded right but failed a test? How would you check AI-generated code? |
+| 13 · Start small | Keep the saved-results demo below. Ask for help with one part of a small supervised project. Inspect outputs before changing the next part. | What STEM project would you try with AI assistance? |
+| 14 · Build skills | Practice Python and basic math. Learn to describe a problem, design a fair test and explain why a result is trustworthy. | Why does knowing the underlying science help you direct or correct an assistant? |
+| 15 · Keep learning | Invite each Scout to suggest a project and a check that could prove the first answer wrong. | What would you change if your first test failed? |
 
 ## Three-minute CPU demo
 
-From the repository root, run this with Python 3. It reads the tracked, aggregate snapshot extracted by the existing diagnostic reporting workflow. It needs no simulator, weights, packages, or internet connection.
+From the repository root, run:
 
 ```bash
 python3 docs/publication_figures/read_saved_results.py
 ```
 
-Before revealing the output, ask the group to predict which stage first drops near chance. Read the three printed numbers, then compare them with slide 10. To run the lesson without a terminal, use slide 10 and reveal the bars one at a time. An educator can also open `docs/publication_figures/evidence.json` and find the same values under `reset`.
+Predict which stage first drops near chance, then compare the printed values with slide 11. The command reads the tracked aggregate snapshot and needs no packages, weights, simulator, internet connection or training. Without a terminal, use slide 11 and reveal each bar in order.
 
-The case study uses frozen results. The live clue game is a teaching exercise. It supplies no new evidence about the trained agent.
+## Supervised experimentation
 
-## Accessibility and setup
+Use age-appropriate tools with adult supervision and follow the tool and group policies. Keep names, credentials, private files and network details out of prompts. Start with made-up data, a local toy project or an approved simulator. Have an adult review generated commands before anyone runs them. Begin with a small test that could reveal a mistake. Curiosity, learning, experimentation and verification are engineering skills.
 
-Read the chart labels aloud. Use the words LEFT and RIGHT on clue cards so the exercise works without color recognition. Let Scouts point, speak, or write their answer. If the projector is small, zoom the deck to fit the screen and read the chart values aloud. The repository and paper links appear on the final slide.
+Read labels aloud and use the words LEFT and RIGHT on clue cards. Let Scouts point, speak or write their answers.
