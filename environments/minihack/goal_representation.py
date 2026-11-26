@@ -38,8 +38,8 @@ def digest(path):
     return value.hexdigest()
 
 
-def provenance(base, spec):
-    if git("cat-file", "-t", TAG) != "tag" or git("rev-parse", TAG + "^{}") != git("rev-parse", "HEAD"):
+def provenance(base, spec, *, tag=TAG, config=CONFIG, entry=Path(__file__)):
+    if git("cat-file", "-t", tag) != "tag" or git("rev-parse", tag + "^{}") != git("rev-parse", "HEAD"):
         raise ValueError("Use the annotated experiment checkout")
     if git("status", "--porcelain"):
         raise ValueError("Experiment checkout has local changes")
@@ -62,8 +62,8 @@ def provenance(base, spec):
     import dreamerrl
     if not Path(dreamerrl.__file__).resolve().is_relative_to(ROOT):
         raise ValueError("Dreamer was imported from a different checkout")
-    return dict(spec=spec, tag=TAG, revision=git("rev-parse", "HEAD"), tag_object=git("rev-parse", TAG),
-                reference_revision=revision, config_sha256=digest(CONFIG), entry_sha256=digest(Path(__file__)),
+    return dict(spec=spec, tag=tag, revision=git("rev-parse", "HEAD"), tag_object=git("rev-parse", tag),
+                reference_revision=revision, config_sha256=digest(config), entry_sha256=digest(entry),
                 python=sys.version, torch=torch.__version__, lock_sha256=records["lock_sha256"], device="cpu",
                 dataset_seeds=records["seeds"], command=sys.argv)
 

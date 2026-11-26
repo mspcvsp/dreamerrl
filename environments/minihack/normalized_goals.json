@@ -1,0 +1,9 @@
+{
+  "standard_deviation_floor": 0.01,
+  "arms": {
+    "A": {"name": "Unweighted absolute", "standardized": false, "displacement": false, "h_only": false},
+    "B": {"name": "Standardized absolute", "standardized": true, "displacement": false, "h_only": false},
+    "C": {"name": "Standardized displacement", "standardized": true, "displacement": true, "h_only": false},
+    "D": {"name": "Standardized deterministic h", "standardized": true, "displacement": false, "h_only": true}
+  }
+}
