@@ -11,6 +11,7 @@ import subprocess
 import sys
 import time
 from collections import Counter
+from collections.abc import Callable
 from dataclasses import replace
 from pathlib import Path
 from typing import Any
@@ -23,6 +24,7 @@ from learner_cycle import optimizer_steps, state_hash
 from dreamerrl.env.cage2.cage2_env_wrapper import Cage2BlueEnv
 from dreamerrl.models.hierarchical_actor import policy_action
 from dreamerrl.training.trainer import DreamerTrainer
+from dreamerrl.utils.types import EnvironmentConfig
 
 PROJECT = Path(__file__).resolve().parent
 ROOT = PROJECT.parents[1]
@@ -69,7 +71,14 @@ def evaluate(trainer, policy, seeds=SEEDS) -> dict[str, Any]:
 
 
 @torch.no_grad()
-def evaluate_policy(trainer, policy, seeds, *, env_factory=Cage2BlueEnv, on_episode=None) -> dict[str, Any]:
+def evaluate_policy(
+    trainer,
+    policy,
+    seeds,
+    *,
+    env_factory: Callable[[EnvironmentConfig, torch.device], Cage2BlueEnv] = Cage2BlueEnv,
+    on_episode=None,
+) -> dict[str, Any]:
     saved = rng_state()
     hashes = {k: state_hash(getattr(trainer, k)) for k in ("world", "actor")}
     training = trainer.world.training, trainer.actor.training
