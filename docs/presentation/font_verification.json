@@ -1,0 +1,33 @@
+{
+  "family": "Inter",
+  "faces": {
+    "regular": {
+      "fontconfig": {
+        "family": "Inter",
+        "style": "Regular",
+        "postscript": "Inter-Regular",
+        "filename": "Inter-Regular.otf",
+        "sha256": "be6d709dcb730ddaf050cbdae6fe89bd56d5d14dc66885639bbf6f06bd03521b"
+      },
+      "matplotlib": {
+        "filename": "Inter-Regular.otf",
+        "sha256": "be6d709dcb730ddaf050cbdae6fe89bd56d5d14dc66885639bbf6f06bd03521b"
+      }
+    },
+    "bold": {
+      "fontconfig": {
+        "family": "Inter",
+        "style": "Bold",
+        "postscript": "Inter-Bold",
+        "filename": "Inter-Bold.otf",
+        "sha256": "00fd6f4691ee8884a33b46bf45851b341927c37c30064f558e1befb242971c49"
+      },
+      "matplotlib": {
+        "filename": "Inter-Bold.otf",
+        "sha256": "00fd6f4691ee8884a33b46bf45851b341927c37c30064f558e1befb242971c49"
+      }
+    }
+  },
+  "matplotlib": "3.10.9",
+  "pillow": "12.3.0"
+}

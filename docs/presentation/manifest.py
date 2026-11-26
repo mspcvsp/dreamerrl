@@ -26,6 +26,7 @@ for audience in ("linkedin","presentation"):
 manifest = dict(
     source_revision=version(["git","-C",str(root),"rev-parse","HEAD"]),
     platform=platform.machine(), typography=font, figure_dpi=320,
+    font_resolution=json.loads((output/"font_resolution.json").read_text()),
     palette_sha256=hashlib.sha256((root/"docs/publication_figures/palette.json").read_bytes()).hexdigest(),
     source_sha256={str(p.relative_to(root)): hashlib.sha256(p.read_bytes()).hexdigest()
                    for folder in ("linkedin","presentation","publication_figures")

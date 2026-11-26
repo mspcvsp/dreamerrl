@@ -4,28 +4,32 @@ set -euo pipefail
 source_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 root="$(cd "$source_dir/../.." && pwd)"
 repo="$(dirname "$(git -C "$root" rev-parse --path-format=absolute --git-common-dir)")"
-out="$(realpath -m "${1:?Supply an output directory under runs/}")"
+for cmd in pandoc xelatex kpsewhich pdftoppm pdftotext pdfinfo pdffonts fc-match rsvg-convert python3 uv; do
+    command -v "$cmd" >/dev/null || { echo "Missing $cmd. See docs/presentation/README.md for system prerequisites." >&2; exit 2; }
+done
+kpsewhich beamer.cls >/dev/null || { echo "Missing Beamer class. Install Beamer for the active TeX distribution." >&2; exit 2; }
+if ! command -v libreoffice >/dev/null; then
+    echo "LibreOffice missing. PPTX export is available; install Impress for rendered PPTX QA." >&2
+fi
+palette="$root/docs/publication_figures/palette.json"
+uv_project="${PUBLICATION_UV_PROJECT:-$repo}"
+export UV_PROJECT_ENVIRONMENT="${PUBLICATION_ENVIRONMENT:-$uv_project/.venv}"
+export OMP_NUM_THREADS=2 OPENBLAS_NUM_THREADS=2
+if ! font_record="$(uv run --project "$uv_project" --locked --no-sync python "$source_dir/preflight.py")"; then
+    echo "Publication preflight failed. Check the locked uv project and environment paths in docs/presentation/README.md." >&2
+    exit 2
+fi
+if [[ "${1:-}" == --check ]]; then
+    printf '%s\n' "$font_record"
+    exit 0
+fi
+out="$(realpath -m "${1:?Supply --check or an output directory under runs/}")"
 case "$out" in "$repo"/runs/*|"$root"/runs/*) ;; *) echo "Use a publication directory under runs/" >&2; exit 2 ;; esac
 [[ ! -e "$out/build_manifest.json" ]] || { echo "Choose a fresh publication output" >&2; exit 2; }
 mkdir -p "$out"/{linkedin,presentation,qa}
-for cmd in pandoc xelatex kpsewhich pdftoppm pdfinfo pdffonts fc-match rsvg-convert python3 uv; do command -v "$cmd" >/dev/null; done
-kpsewhich beamer.cls >/dev/null
-palette="$root/docs/publication_figures/palette.json"
-font="$(python3 - "$palette" <<'PY'
-from pathlib import Path
-import json, subprocess, sys
-p=json.loads(Path(sys.argv[1]).read_text())
-for name in [p["preferred_font"],p["fallback_font"]]:
-    if name in subprocess.check_output(["fc-match","--format=%{family}",name],text=True).split(","):
-        print(name)
-        break
-else:
-    raise SystemExit("Neither publication font is installed")
-PY
-)"
-export OMP_NUM_THREADS=2 OPENBLAS_NUM_THREADS=2 MPLCONFIGDIR="$out/qa/matplotlib"
-uv_project="${PUBLICATION_UV_PROJECT:-$repo}"
-export UV_PROJECT_ENVIRONMENT="${PUBLICATION_ENVIRONMENT:-$uv_project/.venv}"
+export MPLCONFIGDIR="$out/qa/matplotlib"
+printf '%s\n' "$font_record" > "$out/font_resolution.json"
+font="$(python3 -c 'import json,sys; print(json.load(sys.stdin)["family"])' <<< "$font_record")"
 uv run --project "$uv_project" --locked --no-sync python "$root/docs/publication_figures/generate_figures.py" "$out"
 python3 "$root/docs/linkedin/prepare_article.py" "$root/docs/linkedin/article.md" "$out/linkedin/article.md"
 cp "$source_dir/"{slides.md,presenter_guide.md} "$out/presentation/"
