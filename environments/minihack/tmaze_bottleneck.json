@@ -1,0 +1,19 @@
+{
+  "baseline_run": "runs/minihack_tmaze_memory_20261126T140604Z/comparison",
+  "smoke_runs": [
+    "runs/minihack_tmaze_verification_20261126T135143Z/smoke",
+    "runs/minihack_tmaze_preflight_20261126T140032Z/supervisor/job_001/results/flat_seed19"
+  ],
+  "source_worktree": ".experiments/minihack-tmaze-memory",
+  "source_revision": "4746126f02e7fcd49f4ac2ffc9a468f7753da13f",
+  "seeds": [19, 23, 29],
+  "lags": [0, 1, 2, 4, 6, 8],
+  "split_seed": 1729,
+  "sampling_seed": 931447,
+  "sample_repeats": 24,
+  "bootstrap_repeats": 2000,
+  "shuffle_repeats": 199,
+  "ridge_penalties": [0.001, 0.03, 1.0],
+  "rbf_bandwidth_multipliers": [0.5, 1.0, 2.0],
+  "active_latent_nats": 0.01
+}
