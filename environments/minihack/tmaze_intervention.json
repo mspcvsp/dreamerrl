@@ -1,0 +1,6 @@
+{
+  "accepted": "runs/minihack_tmaze_representation_diagnostics_20261126",
+  "seeds": [19, 23, 29],
+  "rng_seed": 918247,
+  "draws_per_fit_posterior": 64
+}

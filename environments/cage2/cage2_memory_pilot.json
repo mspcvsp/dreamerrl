@@ -1,0 +1,10 @@
+{
+  "host_pilot_features": "runs/cage2_latent_analysis_host_pilot_20261124",
+  "matched": "runs/cage2_frozen_matched_20261126T133406Z",
+  "action_mapping": "runs/cage2_blue_learning_seed0_20261123/action_mapping.json",
+  "checkpoint_id": "flat_seed0",
+  "episodes": 24,
+  "posterior_draws": 8,
+  "rng_seed": 918247,
+  "split_seed": 723142
+}
