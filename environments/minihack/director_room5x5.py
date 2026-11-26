@@ -1,4 +1,4 @@
-"""Seal, supervise and report the MiniHack signed goal-progress comparison."""
+"""Seal, supervise and report the MiniHack normalized-goal learning comparison."""
 
 import argparse
 import importlib.metadata
@@ -20,8 +20,9 @@ from thermal_stop import ThermalStop, checkpoint_if_requested
 from thermal_watchdog import NvidiaTelemetry
 from dreamerrl.scripts.run_minihack import main as train_minihack
 from dreamerrl.training.run_monitor import write_json
+from normalized_learning import calibration_path, source_path, worker_inputs, world_fingerprint
 
-TAG = "dreamerv3-director-progress-v1"
+TAG = "dreamerv3-director-normalized-learning-v1"
 CONFIG = Path(__file__).with_suffix(".json")
 
 
@@ -47,10 +48,13 @@ def snapshot():
         dreamerrl.__file__
     ).resolve().is_relative_to(ROOT):
         raise ValueError("Imported dependencies or project code are outside the tagged checkout")
+    execution = json.loads(CONFIG.read_text())
+    source_path(execution)
+    calibration_path(execution)
     return dict(
         schema_version=1, source_tag=TAG, tag_object=git("rev-parse", TAG, root=ROOT), source_commit=revision,
-        source_fingerprints=fingerprints, execution=json.loads(CONFIG.read_text()),
-        checkpoint_provenance="Fresh matched initialization within each seed pair. No input checkpoint.",
+        source_fingerprints=fingerprints, execution=execution,
+        checkpoint_provenance="Frozen pretrained world only. Fresh matched actor, critic, goal model, optimizers, and replay.",
         dependencies=dict(
             python=sys.version, uv=subprocess.check_output(["uv", "--version"], text=True).strip(),
             package_versions=sorted(f"{d.metadata['Name']}=={d.version}" for d in importlib.metadata.distributions()),
@@ -78,7 +82,7 @@ def verify_manifest(path, require_approval):
 def worker(run, arm, seed, spec):
     args = [
         "--env", spec["environment"], "--actor-mode", "director", "--seed", str(seed),
-        "--run-dir", str(run), "--dashboard", "off", "--require-cuda", "--amp",
+        "--run-dir", str(run), "--dashboard", "off", "--require-cuda",
     ]
     for field in (
         "updates", "num_envs", "collect_steps", "episode_steps", "batch_size", "seq_len", "burn_in",
@@ -86,16 +90,39 @@ def worker(run, arm, seed, spec):
         "eval_episodes", "eval_seed_start", "checkpoint_every",
     ):
         args += ["--" + field.replace("_", "-"), str(spec[field])]
-    if arm == "progress":
-        args.append("--director-goal-progress")
+    if spec["amp"]:
+        args.append("--amp")
+    frozen_world, normalizer = worker_inputs(spec)
+    if arm == "absolute":
+        normalizer = None
+
+    def verify_frozen(trainer):
+        if trainer._optimizer_steps["world_model"] or world_fingerprint(
+            trainer.world.state_dict()
+        ) != spec["source_world_sha256"]:
+            raise RuntimeError("The pretrained world model changed during learning")
+        if any(trainer._optimizer_steps[name] != trainer.completed_updates for name in ("actor", "critic")):
+            raise RuntimeError("Actor or critic optimizer cadence differs from the interaction budget")
+        if not trainer.goal_opt.state or any(
+            int(state["step"]) != trainer.completed_updates for state in trainer.goal_opt.state.values()
+        ):
+            raise RuntimeError("Goal autoencoder optimizer cadence differs from the interaction budget")
+        if normalizer is not None:
+            model = trainer.actor.goal_autoencoder
+            if any(not current.detach().cpu().equal(expected) for current, expected in zip(
+                (model.goal_center, model.goal_scale), normalizer
+            )):
+                raise RuntimeError("Frozen normalization statistics changed")
 
     def on_update(run, trainer):
+        if trainer.completed_updates in (1, spec["updates"], spec["fallback_update"]):
+            verify_frozen(trainer)
         checkpoint_if_requested(run, trainer)
         if trainer.completed_updates == spec["fallback_update"]:
             trainer.save_checkpoint(run / f"matched_{trainer.completed_updates}.pt")
 
     try:
-        train_minihack(argv=args, on_update=on_update)
+        train_minihack(argv=args, on_update=on_update, frozen_world=frozen_world, goal_normalizer=normalizer)
     except ThermalStop:
         return CHECKPOINT_EXIT
     checkpoint = run / "latest.pt"
@@ -171,7 +198,7 @@ def report(root, summary, spec):
         recommendation=recommendation, supervisor=summary,
     ))
     lines = [
-        "# Signed goal-progress Room 5x5", "", f"Latest shared training-monitor evaluation budget: {common} environment transitions.", "",
+        "# Standardized absolute goals in Room 5x5", "", f"Latest shared training-monitor evaluation budget: {common} environment transitions.", "",
         "| Arm | Mean task return | Episode SD | Episodes | Goal completion rate |",
         "|---|---:|---:|---:|---:|",
     ]
@@ -215,9 +242,10 @@ def launch(manifest, output):
         raise RuntimeError("Insufficient memory or disk space")
     output.mkdir(parents=True)
     shutil.copyfile(manifest, output / "execution_manifest.json")
+    shutil.copyfile(calibration_path(spec), output / "normalization.npz")
     write_json(output / "preflight.json", dict(telemetry=telemetry, concurrency=concurrency))
     jobs = []
-    schedule = [(arm, seed) for seed in spec["arms"]["absolute"] for arm in ("absolute", "progress")]
+    schedule = [(arm, seed) for seed in spec["arms"]["absolute"] for arm in ("absolute", "standardized")]
     for index, (arm, seed) in enumerate(schedule, 1):
         job_root = output / f"job_{index:03d}"
         run = job_root / "results" / f"{arm}_seed{seed}"

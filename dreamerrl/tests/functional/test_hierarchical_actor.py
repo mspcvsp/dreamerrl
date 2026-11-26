@@ -572,3 +572,25 @@ def test_signed_progress_uses_same_goal_on_both_sides_of_transition(monkeypatch)
     torch.testing.assert_close(result["progress"][:, 0], torch.tensor([1., 0., -1., -1., 1., 0.]))
     torch.testing.assert_close(result["achievement"][:, 0], torch.tensor([1., 1., 0., 0., 1., 1.]))
     assert result["decision"][:, 0].tolist() == [True, False, False, True, False, False]
+
+
+def test_standardized_goal_buffers_and_native_decode():
+    from dreamerrl.models.goal_autoencoder import GoalAutoencoder, fit_goal_scale
+
+    fitting = torch.tensor([[1., 4., 0.], [1., 4.0001, 2.]])
+    center, scale = fit_goal_scale(fitting, .01)
+    torch.testing.assert_close(scale, torch.tensor([.01, .01, 1.]))
+    model = GoalAutoencoder(3, 4, 6, standardized=True)
+    model.set_normalization(center, scale)
+    torch.testing.assert_close(model.to_native_coordinates(model.to_training_coordinates(fitting)), fitting)
+    logits, native = model(fitting)
+    ids = logits.argmax(-1)
+    torch.testing.assert_close(native, model.decode_ids(ids))
+    objective, _, _ = model.reconstruction(fitting.requires_grad_(), torch.ones(2))
+    objective.backward()
+    assert fitting.grad is None
+    assert not model.goal_center.requires_grad and not model.goal_scale.requires_grad
+    assert has_gradient(model.encoder) and has_gradient(model.decoder)
+    restored = GoalAutoencoder(3, 4, 6, standardized=True)
+    restored.load_state_dict(model.state_dict(), strict=True)
+    torch.testing.assert_close(restored.decode_ids(ids), native)

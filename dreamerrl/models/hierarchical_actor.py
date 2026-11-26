@@ -48,6 +48,7 @@ class HierarchyStep:
 class HierarchicalActor(nn.Module):
     def __init__(
         self, *, latent, net, goals=8, goal_dim=16, interval=4, probe=None, director_goals=False, goal_progress=False,
+        goal_standardized=False,
     ):
         super().__init__()
         validate_hierarchy(goals, goal_dim, interval)
@@ -56,7 +57,7 @@ class HierarchicalActor(nn.Module):
         self.goal_progress = goal_progress
         if director_goals:
             features = latent.deter_size + latent.stoch_size * latent.num_classes
-            self.goal_autoencoder = GoalAutoencoder(features, goals, goal_dim)
+            self.goal_autoencoder = GoalAutoencoder(features, goals, goal_dim, standardized=goal_standardized)
             goal_dim = features
         else:
             self.goal_embedding = nn.Embedding(goals, goal_dim)

@@ -19,7 +19,7 @@ from dreamerrl.utils.types import make_default_config
 
 def main(
     *, default_env="MiniHack-Room-5x5-v0", default_episode_steps=200,
-    on_update=None, argv=None,
+    on_update=None, argv=None, frozen_world=None, goal_normalizer=None,
 ):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--env", default=default_env)
@@ -237,7 +237,14 @@ def main(
                     parser.error("--local-glyph-branch requires --glyph-model spatial")
                 cfg.world.glyph_local_branch = True
                 cfg.world.glyph_player_ids = tuple(glyph_scoring_schema()[1])
-            trainer = DreamerTrainer(cfg)
+            if frozen_world is not None:
+                if cfg.world != frozen_world["config"].world or cfg.env.env_id != frozen_world["config"].env.env_id:
+                    parser.error("Source world configuration differs from the resolved MiniHack configuration")
+                cfg.train.freeze_world_model = True
+                cfg.ac.director_goal_standardized = goal_normalizer is not None
+            trainer = DreamerTrainer(cfg, world_weights=frozen_world["world"] if frozen_world is not None else None)
+            if goal_normalizer is not None:
+                trainer.actor.goal_autoencoder.set_normalization(*goal_normalizer)
         if args.resume and args.director_goal_progress and not trainer.cfg.ac.director_goal_progress:
             parser.error("--director-goal-progress must match the checkpoint")
         if args.resume and args.actor_mode is not None:

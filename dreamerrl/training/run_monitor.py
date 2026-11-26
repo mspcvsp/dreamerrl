@@ -171,6 +171,7 @@ class MiniHackRunMonitor:
             baseline["spec"]["actor_critic"].setdefault("replay_value_scale", 0.0)
             baseline["spec"]["actor_critic"].setdefault("director_goals", False)
             baseline["spec"]["actor_critic"].setdefault("director_goal_progress", False)
+            baseline["spec"]["actor_critic"].setdefault("director_goal_standardized", False)
             # Missing fields describe the previous uniform/weighted objective.
             for name, default in (
                 ("glyph_foreground_ids", ()),

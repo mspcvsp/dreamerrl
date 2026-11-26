@@ -76,7 +76,7 @@ class DreamerTrainer:
       • ReplayBuffer: stores raw env transitions, samples (B, L, ·) sequences
     """
 
-    def __init__(self, cfg: DreamerConfig):
+    def __init__(self, cfg: DreamerConfig, *, world_weights=None):
         for name, value in (
             ("seq_len", cfg.train.seq_len),
             ("collect_steps", cfg.train.collect_steps),
@@ -90,6 +90,12 @@ class DreamerTrainer:
             raise ValueError("lambda_ must be finite and in [0, 1]")
         if not math.isfinite(cfg.ac.replay_value_scale) or cfg.ac.replay_value_scale < 0:
             raise ValueError("replay_value_scale must be finite and nonnegative")
+        if cfg.train.freeze_world_model and (
+            not cfg.ac.director_goals or cfg.env.env_id != "MiniHack-Room-5x5-v0" or world_weights is None
+        ):
+            raise ValueError("Frozen world training requires pretrained Director Room 5x5 weights")
+        if cfg.ac.director_goal_standardized and (not cfg.train.freeze_world_model or cfg.ac.director_goal_progress):
+            raise ValueError("Standardized Director goals require a frozen world and native absolute cosine rewards")
         if cfg.ac.director_goal_progress and (not cfg.ac.director_goals or cfg.env.env_id != "MiniHack-Room-5x5-v0"):
             raise ValueError("Signed goal progress requires Director in MiniHack Room 5x5")
         if cfg.ac.director_goals and not cfg.ac.hierarchical:
@@ -212,6 +218,9 @@ class DreamerTrainer:
             device=self.device,
             probe=self.probe,
         )
+        if cfg.train.freeze_world_model:
+            self.world.load_state_dict(world_weights, strict=True)
+            self.world.requires_grad_(False).eval()
         self.world_state = self.world.init_state(self.env.batch_size)
         self.world_state = self.world_state.to(self.device)
 
@@ -240,6 +249,7 @@ class DreamerTrainer:
                 probe=self.probe,
                 director_goals=cfg.ac.director_goals,
                 goal_progress=cfg.ac.director_goal_progress,
+                goal_standardized=cfg.ac.director_goal_standardized,
             ).to(self.device)
             self.critic = HierarchicalCritic(
                 latent=latent,
@@ -418,7 +428,7 @@ class DreamerTrainer:
         if not cfg.train.cuda or not torch.cuda.is_available():
             cfg.train.use_amp = False
             cfg.train.enable_fused_adamw_kernels = False
-        trainer = cls(cfg)
+        trainer = cls(cfg, world_weights=payload["world"] if cfg.train.freeze_world_model else None)
         try:
             trainer._restore_checkpoint(payload)
         except Exception:
@@ -441,7 +451,10 @@ class DreamerTrainer:
             raise ValueError("Checkpoint actor mode/schema does not match this trainer")
         saved_cfg = payload["config"]
         self.cfg.train.acting_context = vars(saved_cfg.train).get("acting_context", 0)
-        if self.cfg.world != saved_cfg.world or self.cfg.ac != saved_cfg.ac or self.cfg.env != saved_cfg.env:
+        if (
+            self.cfg.world != saved_cfg.world or self.cfg.ac != saved_cfg.ac or self.cfg.env != saved_cfg.env
+            or self.cfg.train.freeze_world_model != saved_cfg.train.freeze_world_model
+        ):
             raise ValueError("Checkpoint environment/model configuration does not match this trainer")
         # Validate replay dimensions before changing model/optimizer state.
         for key in ("seq_len", "obs_dim", "action_dim", "capacity"):
@@ -985,6 +998,13 @@ class DreamerTrainer:
 
     def update_world_model(self, batch: Dict[str, torch.Tensor], update_idx: int) -> WorldModelMetrics:
         self.acting_refresh_metrics = {}
+        if self.cfg.train.freeze_world_model:
+            with torch.no_grad(), autocast(device_type="cuda", dtype=torch.float16, enabled=self.cfg.train.use_amp):
+                metrics = world_model_training_step(
+                    world_model=self.world, batch=batch, kl_scale=self.cfg.world.kl_cfg.scale,
+                )
+            self.world_model_grad_norm = metrics.total_loss.new_zeros(())
+            return metrics
         previous_model_steps = self._optimizer_steps["world_model"]
         # Zero optimizer gradients
         self.model_opt.zero_grad()
