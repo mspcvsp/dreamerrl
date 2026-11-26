@@ -1,0 +1,11 @@
+{
+  "navy": "#13344C",
+  "teal": "#499FA4",
+  "mist": "#A0C3D9",
+  "orange": "#FF9636",
+  "ivory": "#F2F3EE",
+  "dark_teal": "#21686D",
+  "dark_orange": "#974304",
+  "preferred_font": "Inter",
+  "fallback_font": "DejaVu Sans"
+}

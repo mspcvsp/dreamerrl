@@ -1,0 +1,35 @@
+\usepackage{fontspec}
+\setmainfont{\PublicationFont}
+\setsansfont{\PublicationFont}
+\usefonttheme{professionalfonts}
+\setbeamercolor{normal text}{fg=PubNavy,bg=PubIvory}
+\setbeamercolor{frametitle}{fg=PubNavy,bg=PubIvory}
+\setbeamercolor{structure}{fg=PubNavy}
+\setbeamersize{text margin left=9mm,text margin right=9mm}
+\setbeamerfont{frametitle}{size*= {18pt}{21pt},series=\bfseries}
+\setbeamerfont{title}{size*={26pt}{31pt},series=\bfseries}
+\setbeamerfont{subtitle}{size*={16pt}{20pt}}
+\setbeamertemplate{navigation symbols}{}
+\setbeamertemplate{itemize item}{\large\textbullet}
+\newcommand{\PubIfDark}[2]{%
+  \ifnum\insertframenumber=1 #1\else
+    \ifnum\insertframenumber=9 #1\else
+      \ifnum\insertframenumber=15 #1\else #2\fi
+    \fi
+  \fi
+}
+\newcommand{\PubInk}{\PubIfDark{\color{PubIvory}}{\color{PubNavy}}}
+\setbeamertemplate{background canvas}{{%
+  \PubIfDark{\color{PubNavy}}{\color{PubIvory}}%
+  \vrule width\paperwidth height\paperheight depth0pt}}
+\setbeamertemplate{itemize item}{\PubInk\large\textbullet}
+\setbeamertemplate{footline}{\hfill\PubInk\scriptsize\insertframenumber\hspace{5mm}\vspace{2mm}}
+\setbeamertemplate{frametitle}{\vspace{2mm}\PubInk\usebeamerfont{frametitle}\insertframetitle\par\vspace{1mm}}
+\setbeamertemplate{title page}{%
+  \vfill\begin{flushleft}
+  {\usebeamerfont{title}\color{PubIvory}\inserttitle\par}
+  \vskip6mm{\usebeamerfont{subtitle}\color{PubMist}\insertsubtitle\par}
+  \vskip8mm{\color{PubOrange}\rule{30mm}{1.1mm}}
+  \end{flushleft}\vfill
+}
+\AtBeginDocument{\fontsize{12}{15}\selectfont}

@@ -1,0 +1,24 @@
+{
+  "linkedin": {
+    "cover": {"type": "conceptual", "source": "editorial observation–posterior–hard-state model"},
+    "architecture": {"type": "conceptual", "source": "DreamerV3 paper and project architecture"},
+    "behavior": {"type": "measured", "evidence": ["behavior", "behavior_seed_means"]},
+    "maze": {"type": "conceptual", "source": "paired MiniHack T-maze and forced stem"},
+    "bottleneck": {"type": "measured", "evidence": ["reset", "bounds", "heldout_level_pairs"]},
+    "intervention": {"type": "measured", "evidence": ["intervention"]},
+    "training_signal": {"type": "mixed", "evidence": ["reconstruction"], "source": "eight-row supervised terminal loss and two detached-context rows"},
+    "cage_evidence": {"type": "measured", "evidence": ["return_forecast", "common_support"]}
+  },
+  "presentation": {
+    "loop": {"type": "conceptual", "source": "agent and environment interaction"},
+    "imagine": {"type": "conceptual", "source": "imagination as prediction"},
+    "architecture": {"type": "conceptual", "source": "simplified DreamerV3 flow"},
+    "network": {"type": "conceptual", "source": "simulated CAGE2 context"},
+    "behavior": {"type": "measured", "evidence": ["behavior"]},
+    "maze": {"type": "conceptual", "source": "paired MiniHack T-maze and forced stem"},
+    "bottleneck": {"type": "measured", "evidence": ["reset"]},
+    "intervention": {"type": "measured", "evidence": ["intervention"]},
+    "workflow": {"type": "conceptual", "source": "dependency-free saved-results demonstration"},
+    "careers": {"type": "conceptual", "source": "educational pathways"}
+  }
+}
