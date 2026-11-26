@@ -1,4 +1,7 @@
 """Grouped probe fitting, uncertainty, and paired categorical diagnostics."""
+from dataclasses import dataclass
+import math
+
 import numpy as np
 import torch
 
@@ -15,11 +18,31 @@ def grouped_split(group_ids, seed):
     return split, groups
 
 
+def _linear_scaling(x, fit):
+    center = np.asarray(x, dtype=np.float64)[fit].mean(0)
+    shifted = np.asarray(x, dtype=np.float64) - center
+    scale = np.sqrt(np.mean(np.sum(shifted[fit] ** 2, axis=1)))
+    return center, scale if scale else 1
+
+
+@dataclass(frozen=True)
+class FrozenLinearProbe:
+    center: np.ndarray
+    scale: float
+    reference: np.ndarray
+    coefficients: np.ndarray
+
+    def predict(self, features):
+        return ((np.asarray(features, dtype=np.float64) - self.center) / self.scale - self.reference) @ self.coefficients
+
+    def to_record(self):
+        return dict(center=self.center.tolist(), scale=float(self.scale), reference=self.reference.tolist(),
+                    coefficients=self.coefficients.tolist())
+
+
 def _kernels(x, fit, nonlinear, bandwidths):
-    x = np.asarray(x, dtype=np.float64).copy()
-    x -= x[fit].mean(0)
-    scale = np.sqrt(np.mean(np.sum(x[fit] ** 2, axis=1)))
-    x /= scale if scale else 1
+    center, scale = _linear_scaling(x, fit)
+    x = (np.asarray(x, dtype=np.float64) - center) / scale
     gram = x @ x[fit].T
     if not nonlinear:
         return [(1.0, gram)]
@@ -31,12 +54,14 @@ def _kernels(x, fit, nonlinear, bandwidths):
 
 
 def binary_probe(x, targets, split, *, nonlinear=False, balanced=False,
-                 penalties=(.001, .03, 1.), bandwidths=(.5, 1., 2.)):
+                 penalties=(.001, .03, 1.), bandwidths=(.5, 1., 2.), freeze=False):
     """Fit one declared draw per row; evaluate every draw. Return fixed scores.
 
     x is (rows, draws, features). The masks must come from a group-disjoint
     split. The balanced variant weights fit and validation by class prevalence.
     """
+    if nonlinear and freeze:
+        raise ValueError("Only a linear probe can be frozen with this interface")
     x, targets = np.asarray(x), np.asarray(targets, dtype=bool)
     n, repeats, width = x.shape
     if targets.shape != (n,) or not np.all(sum(np.asarray(mask, dtype=int) for mask in split.values()) == 1):
@@ -48,7 +73,8 @@ def binary_probe(x, targets, split, *, nonlinear=False, balanced=False,
     if len(np.unique(y)) != 2 or len(np.unique(val_y)) != 2:
         raise ValueError("Fit and validation both require positive and negative labels")
     best = None
-    for bandwidth, kernel in _kernels(x.reshape(-1, width), fit, nonlinear, bandwidths):
+    flat = x.reshape(-1, width)
+    for bandwidth, kernel in _kernels(flat, fit, nonlinear, bandwidths):
         train = kernel[fit]
         if balanced:
             weights = np.where(y > 0, .5 / np.mean(y > 0), .5 / np.mean(y < 0))
@@ -62,11 +88,17 @@ def binary_probe(x, targets, split, *, nonlinear=False, balanced=False,
         for penalty in reversed(penalties):
             # Preserve the historical solver order in the unweighted convention.
             inverse = np.linalg.solve(kernel[fit] + penalty * diagonal, np.eye(len(fit)))
-            scores = (kernel @ (inverse @ y)).reshape(n, repeats)
+            dual = inverse @ y
+            scores = (kernel @ dual).reshape(n, repeats)
             correct = (scores[val] >= 0) == val_y[:, None]
             accuracy = (correct[val_y].mean() + correct[~val_y].mean()) / 2 if balanced else correct.mean()
             if best is None or accuracy > best["validation_accuracy"]:
                 best = dict(validation_accuracy=float(accuracy), penalty=penalty, bandwidth=bandwidth, scores=scores)
+                if freeze:
+                    center, scale = _linear_scaling(flat, fit)
+                    training = (flat[fit].astype(np.float64) - center) / scale
+                    reference = np.average(training, axis=0, weights=weights) if balanced else training.mean(0)
+                    best["predictor"] = FrozenLinearProbe(center, scale, reference, (training - reference).T @ dual)
     return best
 
 
@@ -122,3 +154,27 @@ def binary_metrics(scores, targets, groups, seed, draws=1000):
 
 def l2_distance(left, right):
     return torch.linalg.vector_norm((left - right).double().flatten(1), dim=-1)
+
+
+
+def exact_binomial_ci95(successes, trials):
+    """Two-sided Clopper–Pearson interval, with no SciPy dependency."""
+    if not 0 <= successes <= trials or trials < 1:
+        raise ValueError("Expected at least one trial and a valid success count")
+
+    def tail(k, p):
+        return sum(math.comb(trials, j) * p**j * (1-p)**(trials-j) for j in range(k, trials+1))
+
+    def lower(k):
+        if k == 0:
+            return 0.
+        lo, hi = 0., 1.
+        for _ in range(60):
+            mid = (lo + hi) / 2
+            if tail(k, mid) < .025:
+                lo = mid
+            else:
+                hi = mid
+        return (lo + hi) / 2
+
+    return [lower(successes), 1 - lower(trials - successes)]

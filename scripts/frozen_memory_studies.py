@@ -5,6 +5,8 @@ import importlib
 import importlib.metadata
 import json
 import os
+import resource
+import signal
 from pathlib import Path
 import subprocess
 import sys
@@ -19,8 +21,11 @@ STUDIES = {
     "tmaze": ("minihack", "tmaze_intervention", "legacy"),
     "cage2": ("cage2", "cage2_memory_pilot", "dev"),
     "history": ("cage2", "archived_history_baselines", "dev"),
+    "cage2-final": ("cage2", "history_common_support", "dev"),
 }
-SESSION = "dreamer-frozen-memory-studies"
+SESSION = os.environ.get("DIAGNOSTIC_TMUX_SESSION", "dreamer-frozen-memory-studies")
+FINAL_STUDY = "cage2-final"
+APPROVED_PLAN = "0d04596"
 
 
 def revision(path):
@@ -32,9 +37,25 @@ def configuration(study):
     return SOURCE / "environments" / folder / (module + ".json")
 
 
+def load_spec(study):
+    config = configuration(study)
+    if study == FINAL_STUDY:
+        relative = config.relative_to(SOURCE)
+        original = subprocess.check_output(["git", "-C", SOURCE, "show", f"{APPROVED_PLAN}:{relative}"])
+        if config.read_bytes() != original:
+            raise RuntimeError("Final CAGE2 study configuration differs from the approved plan")
+    return json.loads(config.read_text())
+
+
 def worker(root, run_dir, study):
     import torch
-    torch.set_num_threads(2)
+
+    spec = load_spec(study)
+    if study == FINAL_STUDY:
+        maximum = spec["maximum"]
+        resource.setrlimit(resource.RLIMIT_AS, (maximum["memory_gib"] * 2**30,) * 2)
+        signal.alarm(maximum["wall_minutes"] * 60)
+    torch.set_num_threads(spec.get("maximum", {}).get("cpu_threads", 2))
     torch.set_num_interop_threads(1)
     folder, module, _ = STUDIES[study]
     config = configuration(study)
@@ -45,7 +66,7 @@ def worker(root, run_dir, study):
         config=str(config), config_sha256=file_sha256(config), lock_sha256=file_sha256(root / "uv.lock"),
         packages={key: importlib.metadata.version(key) for key in ("torch", "numpy", "gymnasium", "matplotlib")},
         python=sys.version, log=str(run_dir.parent.parent / "console.log"), output=str(out))
-    if study == "cage2":
+    if study in ("cage2", FINAL_STUDY):
         vendor = root / "environments/cage2/vendor/cage-challenge-2"
         import CybORG
         metadata["cyborg_revision"] = revision(vendor)
@@ -72,7 +93,7 @@ def worker(root, run_dir, study):
         write_json(run_dir / STATUS, dict(request_id=request["request_id"], checkpoint_status="saved", checkpoint=str(out)))
         return True
 
-    completed = adapter.run(root, json.loads(config.read_text()), out, should_stop)
+    completed = adapter.run(root, spec, out, should_stop)
     if not completed:
         return CHECKPOINT_EXIT
     write_json(run_dir / "complete.json", dict(checkpoint=str(out / "results.json")))
@@ -89,6 +110,10 @@ def _worker_command(root, study, run_dir):
 
 def orchestrate(root, out, study):
     studies = ("tmaze", "cage2") if study == "all" else (study,)
+    is_final = study == FINAL_STUDY
+    maximum = load_spec(study)["maximum"] if is_final else {}
+    if is_final and (out / "launch_ready.json").exists():
+        raise RuntimeError("The approved final study has already launched into this directory")
     if not out.is_relative_to(root / "runs") or out == root / "runs":
         raise ValueError("Use a dedicated directory inside the main runs directory")
     if subprocess.check_output(["git", "-C", SOURCE, "status", "--porcelain"], text=True).strip():
@@ -103,14 +128,14 @@ def orchestrate(root, out, study):
         run_dir.mkdir(parents=True)
         spec = configuration(study)
         jobs.append((index, Job(run_dir, _worker_command(root, study, run_dir), spec, study,
-                                json.loads(spec.read_text())["rng_seed"])))
+                                load_spec(study).get("rng_seed", 0))))
     watchdog = [sys.executable, "-u", str(SOURCE / "environments/cage2/thermal_watchdog.py"),
                 "--supervisor-control", str(attempt), "--log", str(attempt / "thermal.jsonl"),
                 "--gpu", "0", "--warn-c", "80", "--stop-c", "87", "--sustain-seconds", "30"]
     status = 1
     try:
         result, status = supervise(attempt, jobs, watchdog, concurrency=1, readiness_timeout=60,
-                                   checkpoint_timeout=300, wall_seconds=3600)
+                                   checkpoint_timeout=300, wall_seconds=maximum.get("wall_minutes", 60)*60)
     except Exception as exc:
         result = {"jobs": [], "error": repr(exc)}
     names = {j["arm"]: j for j in result["jobs"]}
@@ -123,7 +148,10 @@ def orchestrate(root, out, study):
         report = out / name / "report.md"
         suffix = f" [Study report]({name}/report.md)." if report.is_file() else ""
         lines.append(f"- {name} worker state {row.get('state', 'unavailable')}, exit code {row.get('exit_code')}.{suffix}")
-    lines += ["", "Broad CAGE2 evaluation remains NO-GO pending the labeled replay review.", ""]
+    if is_final:
+        lines += ["", "This was the final approved study. Any replication or broader evaluation requires separate approval.", ""]
+    else:
+        lines += ["", "Broad CAGE2 evaluation remains NO-GO pending the labeled replay review.", ""]
     (out / "report.md").write_text("\n".join(lines))
     write_json(out / "completion_manifest.json", dict(state=state, exit_code=status, session=SESSION,
         supervisor_pid=os.getpid(), attempt=str(attempt), source_revision=revision(SOURCE), supervisor=result,

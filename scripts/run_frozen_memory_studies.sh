@@ -4,15 +4,18 @@ source_tree="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 git_dir="$(git -C "$source_tree" rev-parse --path-format=absolute --git-common-dir)"
 root="$(dirname "$git_dir")"
 session=dreamer-frozen-memory-studies
+target_study="${2:-all}"
+if [[ "$target_study" == "--pane" ]]; then target_study="${3:-all}"; fi
+if [[ "$target_study" == "cage2-final" ]]; then session=dreamer-cage2-final-history; fi
 out="$(realpath -m "${1:?Specify an output directory under the main runs/}")"
 case "$out" in "$root"/runs/*) ;; *) exit 2 ;; esac
 
 if [[ "${2:-}" == "--pane" ]]; then
     study="${3:-all}"
-    export DIAGNOSTIC_READY_STUDY="$study"
+    export DIAGNOSTIC_READY_STUDY="$study" DIAGNOSTIC_TMUX_SESSION="$session"
     if [[ "$study" == all ]]; then export DIAGNOSTIC_READY_STUDY=tmaze; fi
     export PYTHONPATH="$source_tree:$source_tree/environments/cage2:$root/environments/cage2/vendor/cage-challenge-2/CybORG"
-    export CUDA_VISIBLE_DEVICES="" OMP_NUM_THREADS=2 OPENBLAS_NUM_THREADS=2 MPLBACKEND=Agg
+    export CUDA_VISIBLE_DEVICES="" OMP_NUM_THREADS=2 OPENBLAS_NUM_THREADS=2 MPLBACKEND=Agg MALLOC_ARENA_MAX=2
     export UV_PROJECT_ENVIRONMENT="$root/.venv"
     command=(uv run --project "$root" --locked --offline --no-sync python -u
              "$source_tree/scripts/frozen_memory_studies.py" "$root" --out "$out" --study "$study")
