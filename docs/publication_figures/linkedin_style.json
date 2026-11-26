@@ -1,0 +1,63 @@
+{
+  "dpi": 320,
+  "presets": {
+    "standard": [
+      1600,
+      900
+    ],
+    "detailed": [
+      1600,
+      1200
+    ],
+    "cover": [
+      2000,
+      600
+    ]
+  },
+  "preview_widths": [
+    400,
+    600,
+    800
+  ],
+  "type_px": {
+    "title": 72,
+    "primary": 58,
+    "secondary": 48,
+    "number": 80
+  },
+  "thresholds": {
+    "text": 4.5,
+    "essential": 7,
+    "indicator": 3
+  },
+  "approved_pairs": {
+    "navy/mist/text": 6.963,
+    "navy/ivory/text": 11.6,
+    "navy/pale_teal/text": 10.849,
+    "navy/pale_orange/text": 10.677,
+    "ivory/navy/text": 11.6,
+    "dark_teal/ivory/text": 5.766,
+    "dark_teal/pale_teal/text": 5.393,
+    "dark_teal/pale_orange/text": 5.307,
+    "dark_orange/ivory/text": 6.034,
+    "dark_orange/pale_teal/text": 5.644,
+    "dark_orange/pale_orange/text": 5.554,
+    "navy/ivory/essential": 11.6,
+    "navy/pale_teal/essential": 10.849,
+    "navy/pale_orange/essential": 10.677,
+    "ivory/navy/essential": 11.6,
+    "navy/mist/indicator": 6.963,
+    "navy/ivory/indicator": 11.6,
+    "navy/pale_teal/indicator": 10.849,
+    "navy/pale_orange/indicator": 10.677,
+    "ivory/navy/indicator": 11.6,
+    "dark_teal/mist/indicator": 3.461,
+    "dark_teal/ivory/indicator": 5.766,
+    "dark_teal/pale_teal/indicator": 5.393,
+    "dark_teal/pale_orange/indicator": 5.307,
+    "dark_orange/mist/indicator": 3.622,
+    "dark_orange/ivory/indicator": 6.034,
+    "dark_orange/pale_teal/indicator": 5.644,
+    "dark_orange/pale_orange/indicator": 5.554
+  }
+}

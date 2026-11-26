@@ -7,5 +7,7 @@
   "dark_teal": "#21686D",
   "dark_orange": "#974304",
   "preferred_font": "Inter",
-  "fallback_font": "DejaVu Sans"
+  "fallback_font": "DejaVu Sans",
+  "pale_teal": "#E0EEEC",
+  "pale_orange": "#FFE5CC"
 }

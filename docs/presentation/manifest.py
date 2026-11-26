@@ -21,6 +21,7 @@ data = {}
 for audience in ("linkedin","presentation"):
     files = [p for p in (output/audience/"figures").glob("*")]
     files += list((output/audience).glob("*.md"))
+    files += list((output/audience).glob("preview.html"))
     files += [p for p in (output/audience).glob("scout_presentation.*") if p.suffix in (".pdf",".pptx")]
     data.update({str(p.relative_to(output)): hashlib.sha256(p.read_bytes()).hexdigest() for p in sorted(files)})
 manifest = dict(

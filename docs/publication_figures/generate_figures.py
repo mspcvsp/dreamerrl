@@ -59,14 +59,6 @@ def boxes(ax, items, ys=.40, h=.22, size=16, colors=(M,T,O)):
             arrow(ax, (x-gap+.003, ys+h/2), (x-.007, ys+h/2))
 
 
-def cover():
-    fig, ax = canvas((10, 5.35))
-    label(ax, .07, .79, "Beyond Reconstruction", 38, bold=True)
-    label(ax, .07, .65, "Memory and information bottlenecks in DreamerV3", 20)
-    boxes(ax, ("Observation", "Soft posterior", "Hard state"), .23, .24, 24)
-    return fig
-
-
 def architecture(scout=False):
     fig, ax = canvas((9.6, 3.7) if scout else (5.1, 5.1),
                      None if scout else "How Dreamer learns",
@@ -168,42 +160,6 @@ def intervention(scout=False):
     return fig
 
 
-def training_signal():
-    fig,ax=canvas((5.1,5.1),"Averages hid the critical cell")
-    r=D["reconstruction"]
-    bars(ax,[("All cells",mean(x["all_accuracy"] for x in r.values()),T),
-             ("Cue cell",mean(x["cue_accuracy"] for x in r.values()),O)],start=.70,step=.18,scale=.39,x=.39)
-    label(ax,.06,.33,"Terminal reward’s loss window",15,bold=True)
-    for j in range(10):
-        ax.add_patch(Rectangle((.07+j*.087,.22),.075,.063,facecolor=O if j in (0,9) else M if j>=2 else I,
-                               edgecolor=N,lw=.6,hatch="//" if j<2 else None))
-    label(ax,.07,.15,"Cue",11,bold=True)
-    label(ax,.85,.15,"Reward",11,bold=True,align="center")
-    label(ax,.06,.064,"Hatched rows · detached context",11)
-    return fig
-
-
-def cage_evidence():
-    fig,ax=canvas((5.1,5.4),"A small raw-history gain")
-    rows=D["return_forecast"]["representations"]
-    u=lambda x:.41+(x+.052)/.081*.47
-    ax.plot([u(0),u(0)],[.35,.79],color=N,lw=1,ls="--")
-    for i,(key,text) in enumerate((("observation","Raw input"),("posterior","Posterior"),("hz","Combined"))):
-        delta=rows[key]["paired_history_increment"]["fixed_mlp_minus_current_mlp"]
-        y=.74-i*.15
-        label(ax,.06,y,text,15,bold=True)
-        low,hi=delta["delta_r2_ci95"]
-        ax.plot([u(low),u(hi)],[y,y],color=P["dark_teal"],lw=3)
-        ax.plot(u(delta["delta_r2"]),y,marker="o",ms=7,color=N)
-    for v in (-.05,0,.02):
-        label(ax,u(v),.31,f"{v:+.02f}" if v else "0",12,align="center")
-    label(ax,.06,.235,"Change in return forecast R² · 95% interval",12)
-    c=D["common_support"]["coverage"]
-    label(ax,.06,.123,f"Separate study · {c['fit']['pairs']} fit pair, {c['validation']['pairs']} validation pairs",13,bold=True)
-    label(ax,.06,.067,"The hidden-history test stayed closed.",11)
-    return fig
-
-
 def loop():
     fig,ax=canvas((9.6,3.7))
     box(ax,.08,.39,.30,.27,"Agent",T,30)
@@ -280,8 +236,10 @@ def conductor(scout=False):
     return fig
 
 
-FIGURES = {"linkedin": dict(cover=cover,conductor=conductor,architecture=architecture,behavior=behavior,maze=maze,
-                            bottleneck=bottleneck,intervention=intervention,training_signal=training_signal,cage_evidence=cage_evidence),
+from linkedin_layouts import FIGURES as LINKEDIN_FIGURES
+
+
+FIGURES = {"linkedin": LINKEDIN_FIGURES,
            "presentation": dict(loop=loop,imagine=imagine,architecture=lambda:architecture(True),network=network,conductor=lambda:conductor(True),
                                 behavior=lambda:behavior(True),maze=lambda:maze(True),bottleneck=lambda:bottleneck(True),
                                 intervention=lambda:intervention(True),workflow=workflow,careers=careers)}
@@ -290,22 +248,29 @@ FIGURES = {"linkedin": dict(cover=cover,conductor=conductor,architecture=archite
 def main():
     parser=argparse.ArgumentParser(description=__doc__)
     parser.add_argument("output",type=Path)
+    parser.add_argument("--audience", choices=FIGURES)
     args=parser.parse_args()
     provenance = json.loads((HERE / "figure_manifest.json").read_text())
     if {a: set(g) for a, g in FIGURES.items()} != {a: set(g) for a, g in provenance.items()}:
         raise ValueError("Figure builders and provenance inventory disagree")
+    profiles = {}
     for audience, graphics in FIGURES.items():
+        if args.audience and audience != args.audience:
+            continue
         dest=args.output/audience/"figures"
         dest.mkdir(parents=True,exist_ok=True)
         for name,builder in graphics.items():
             fig=builder()
+            if audience == "linkedin":
+                profiles[name] = fig.linkedin_layout.validate()
             for suffix in ("svg","png"):
                 fig.savefig(dest/f"{name}.{suffix}",dpi=320)
             subprocess.run(["rsvg-convert", "-f", "pdf", "-o", str(dest/f"{name}.pdf"),
                             str(dest/f"{name}.svg")], check=True)
             plt.close(fig)
     (args.output/"figure_provenance.json").write_text(json.dumps(dict(
-        matplotlib=matplotlib.__version__, typography=FONT, dpi=320, figure_sources=provenance,
+        matplotlib=matplotlib.__version__, typography=FONT, dpi=320, figure_sources={k:v for k,v in provenance.items() if not args.audience or k == args.audience},
+        linkedin_output_profiles=profiles,
         source_sha256=D["source_sha256"]), indent=2)+"\n")
     print(f"Figure typography: {FONT}")
 
