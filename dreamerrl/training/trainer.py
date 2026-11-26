@@ -76,7 +76,7 @@ class DreamerTrainer:
       • ReplayBuffer: stores raw env transitions, samples (B, L, ·) sequences
     """
 
-    def __init__(self, cfg: DreamerConfig):
+    def __init__(self, cfg: DreamerConfig, *, world_weights=None):
         for name, value in (
             ("seq_len", cfg.train.seq_len),
             ("collect_steps", cfg.train.collect_steps),
@@ -90,6 +90,16 @@ class DreamerTrainer:
             raise ValueError("lambda_ must be finite and in [0, 1]")
         if not math.isfinite(cfg.ac.replay_value_scale) or cfg.ac.replay_value_scale < 0:
             raise ValueError("replay_value_scale must be finite and nonnegative")
+        if cfg.train.freeze_world_model and (
+            not cfg.ac.director_goals or cfg.env.env_id != "MiniHack-Room-5x5-v0" or world_weights is None
+        ):
+            raise ValueError("Frozen world training requires pretrained Director Room 5x5 weights")
+        if cfg.ac.director_goal_standardized and (not cfg.train.freeze_world_model or cfg.ac.director_goal_progress):
+            raise ValueError("Standardized Director goals require a frozen world and native absolute cosine rewards")
+        if cfg.ac.director_goal_progress and (not cfg.ac.director_goals or cfg.env.env_id != "MiniHack-Room-5x5-v0"):
+            raise ValueError("Signed goal progress requires Director in MiniHack Room 5x5")
+        if cfg.ac.director_goals and not cfg.ac.hierarchical:
+            raise ValueError("Director goals require the hierarchical actor")
         if cfg.ac.hierarchical:
             validate_hierarchy(cfg.ac.hierarchy_goals, cfg.ac.hierarchy_goal_dim, cfg.ac.hierarchy_interval)
             if cfg.world.imagination_horizon < 1:
@@ -208,6 +218,9 @@ class DreamerTrainer:
             device=self.device,
             probe=self.probe,
         )
+        if cfg.train.freeze_world_model:
+            self.world.load_state_dict(world_weights, strict=True)
+            self.world.requires_grad_(False).eval()
         self.world_state = self.world.init_state(self.env.batch_size)
         self.world_state = self.world_state.to(self.device)
 
@@ -234,6 +247,9 @@ class DreamerTrainer:
                 goal_dim=cfg.ac.hierarchy_goal_dim,
                 interval=cfg.ac.hierarchy_interval,
                 probe=self.probe,
+                director_goals=cfg.ac.director_goals,
+                goal_progress=cfg.ac.director_goal_progress,
+                goal_standardized=cfg.ac.director_goal_standardized,
             ).to(self.device)
             self.critic = HierarchicalCritic(
                 latent=latent,
@@ -262,8 +278,16 @@ class DreamerTrainer:
         self.model_opt = torch.optim.Adam(
             self.world.parameters(), lr=cfg.train.model_lr, fused=self.cfg.train.enable_fused_adamw_kernels
         )
+        self.goal_opt = None
+        actor_parameters = list(self.actor.parameters())
+        if isinstance(self.actor, HierarchicalActor) and self.actor.goal_autoencoder is not None:
+            goal_parameters = list(self.actor.goal_autoencoder.parameters())
+            goal_parameter_ids = {id(parameter) for parameter in goal_parameters}
+            actor_parameters = [parameter for parameter in actor_parameters if id(parameter) not in goal_parameter_ids]
+            self.goal_opt = torch.optim.Adam(goal_parameters, lr=cfg.train.actor_lr)
+        self.actor_parameters = actor_parameters
         self.actor_opt = torch.optim.Adam(
-            self.actor.parameters(), lr=cfg.train.actor_lr, fused=self.cfg.train.enable_fused_adamw_kernels
+            actor_parameters, lr=cfg.train.actor_lr, fused=self.cfg.train.enable_fused_adamw_kernels
         )
         self.critic_opt = torch.optim.Adam(
             self.critic.parameters(), lr=cfg.train.critic_lr, fused=self.cfg.train.enable_fused_adamw_kernels
@@ -319,7 +343,7 @@ class DreamerTrainer:
         path = Path(path)
         path.parent.mkdir(parents=True, exist_ok=True)
         payload = {
-            "version": 5 if self.cfg.ac.hierarchical else 4,
+            "version": 6 if self.cfg.ac.director_goals else 5 if self.cfg.ac.hierarchical else 4,
             "config": self.cfg,
             "world": self.world.state_dict(),
             "actor": self.actor.state_dict(),
@@ -345,6 +369,8 @@ class DreamerTrainer:
                 "cuda": torch.cuda.get_rng_state_all() if self.device.type == "cuda" else None,
             },
         }
+        if self.goal_opt is not None:
+            payload["goal_opt"] = self.goal_opt.state_dict()
         temporary = None
         try:
             with tempfile.NamedTemporaryFile(
@@ -391,7 +417,7 @@ class DreamerTrainer:
             )
         if payload.get("version") == 3:
             raise ValueError("MLP-RSSM checkpoint v3 is incompatible with the GRU transition; start a new run")
-        if payload.get("version") not in (4, 5):
+        if payload.get("version") not in (4, 5, 6):
             raise ValueError("Unsupported Dreamer checkpoint version")
         cfg = payload["config"]
         if log_dir is not None:
@@ -402,7 +428,7 @@ class DreamerTrainer:
         if not cfg.train.cuda or not torch.cuda.is_available():
             cfg.train.use_amp = False
             cfg.train.enable_fused_adamw_kernels = False
-        trainer = cls(cfg)
+        trainer = cls(cfg, world_weights=payload["world"] if cfg.train.freeze_world_model else None)
         try:
             trainer._restore_checkpoint(payload)
         except Exception:
@@ -418,14 +444,17 @@ class DreamerTrainer:
             )
         if payload.get("version") == 3:
             raise ValueError("MLP-RSSM checkpoint v3 is incompatible with the GRU transition; start a new run")
-        if payload.get("version") not in (4, 5):
+        if payload.get("version") not in (4, 5, 6):
             raise ValueError("Unsupported Dreamer checkpoint version")
-        expected_version = 5 if self.cfg.ac.hierarchical else 4
+        expected_version = 6 if self.cfg.ac.director_goals else 5 if self.cfg.ac.hierarchical else 4
         if payload["version"] != expected_version:
             raise ValueError("Checkpoint actor mode/schema does not match this trainer")
         saved_cfg = payload["config"]
         self.cfg.train.acting_context = vars(saved_cfg.train).get("acting_context", 0)
-        if self.cfg.world != saved_cfg.world or self.cfg.ac != saved_cfg.ac or self.cfg.env != saved_cfg.env:
+        if (
+            self.cfg.world != saved_cfg.world or self.cfg.ac != saved_cfg.ac or self.cfg.env != saved_cfg.env
+            or self.cfg.train.freeze_world_model != saved_cfg.train.freeze_world_model
+        ):
             raise ValueError("Checkpoint environment/model configuration does not match this trainer")
         # Validate replay dimensions before changing model/optimizer state.
         for key in ("seq_len", "obs_dim", "action_dim", "capacity"):
@@ -434,6 +463,8 @@ class DreamerTrainer:
         for name in ("world", "actor", "critic", "model_opt", "actor_opt", "critic_opt"):
             getattr(self, name).load_state_dict(payload[name])
         self.slow_critic.load_state_dict(payload["slow_critic"])
+        if self.goal_opt is not None:
+            self.goal_opt.load_state_dict(payload["goal_opt"])
         if self.device.type == "cpu":
             for optimizer in (self.model_opt, self.actor_opt, self.critic_opt):
                 for group in optimizer.param_groups:
@@ -967,6 +998,13 @@ class DreamerTrainer:
 
     def update_world_model(self, batch: Dict[str, torch.Tensor], update_idx: int) -> WorldModelMetrics:
         self.acting_refresh_metrics = {}
+        if self.cfg.train.freeze_world_model:
+            with torch.no_grad(), autocast(device_type="cuda", dtype=torch.float16, enabled=self.cfg.train.use_amp):
+                metrics = world_model_training_step(
+                    world_model=self.world, batch=batch, kl_scale=self.cfg.world.kl_cfg.scale,
+                )
+            self.world_model_grad_norm = metrics.total_loss.new_zeros(())
+            return metrics
         previous_model_steps = self._optimizer_steps["world_model"]
         # Zero optimizer gradients
         self.model_opt.zero_grad()
@@ -1056,7 +1094,9 @@ class DreamerTrainer:
             remaining_steps = (obs[..., -1] * self.cfg.env.max_episode_steps).round().long()
 
         if self.cfg.train.use_amp:
-            with autocast(device_type="cuda", dtype=torch.float16, enabled=self.cfg.train.use_amp):
+            # Detached imagination and the differentiable forward share this context.
+            # Avoid reusing casts created in a no-grad region during recomputation.
+            with autocast(device_type="cuda", dtype=torch.float16, cache_enabled=False):
                 actor_loss, critic_loss = actor_critic_update(
                     world_model=self.world,
                     actor=self.actor,
@@ -1101,7 +1141,7 @@ class DreamerTrainer:
             self.actor_opt.zero_grad()
             self.scaler.scale(actor_loss).backward()
             self.scaler.unscale_(self.actor_opt)
-            actor_grad_norm = torch.nn.utils.clip_grad_norm_(self.actor.parameters(), self.cfg.train.grad_clip)
+            actor_grad_norm = torch.nn.utils.clip_grad_norm_(self.actor_parameters, self.cfg.train.grad_clip)
             self.scaler.step(self.actor_opt)
             self.scaler.update()
 
@@ -1114,13 +1154,25 @@ class DreamerTrainer:
         else:
             self.actor_opt.zero_grad()
             actor_loss.backward()
-            actor_grad_norm = torch.nn.utils.clip_grad_norm_(self.actor.parameters(), self.cfg.train.grad_clip)
+            actor_grad_norm = torch.nn.utils.clip_grad_norm_(self.actor_parameters, self.cfg.train.grad_clip)
             self.actor_opt.step()
 
             self.critic_opt.zero_grad()
             critic_loss.backward()
             critic_grad_norm = torch.nn.utils.clip_grad_norm_(self.critic.parameters(), self.cfg.train.grad_clip)
             self.critic_opt.step()
+
+        if self.goal_opt is not None:
+            goal_loss = self.ac_metrics.pop("goal_autoencoder_objective")
+            self.goal_opt.zero_grad(set_to_none=True)
+            goal_loss.backward()
+            grad_norm = torch.nn.utils.clip_grad_norm_(
+                self.actor.goal_autoencoder.parameters(), self.cfg.train.grad_clip, error_if_nonfinite=True,
+            )
+            self.goal_opt.step()
+            self.ac_metrics.update(
+                goal_autoencoder_grad_norm=grad_norm, goal_optimizer_steps=grad_norm.new_tensor(1),
+            )
 
         if self.cfg.ac.hierarchical:
             self.ac_metrics.update(actor_grad_norm=actor_grad_norm, critic_grad_norm=critic_grad_norm)
