@@ -1,0 +1,128 @@
+<?xml version="1.0" encoding="utf-8" standalone="no"?>
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN"
+  "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
+<svg xmlns:xlink="http://www.w3.org/1999/xlink" width="360pt" height="202.5pt" viewBox="0 0 360 202.5" xmlns="http://www.w3.org/2000/svg" version="1.1">
+ <metadata>
+  <rdf:RDF xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:cc="http://creativecommons.org/ns#" xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">
+   <cc:Work>
+    <dc:type rdf:resource="http://purl.org/dc/dcmitype/StillImage"/>
+    <dc:date>2026-11-26T20:41:31.352588</dc:date>
+    <dc:format>image/svg+xml</dc:format>
+    <dc:creator>
+     <cc:Agent>
+      <dc:title>Matplotlib v3.10.9, https://matplotlib.org/</dc:title>
+     </cc:Agent>
+    </dc:creator>
+   </cc:Work>
+  </rdf:RDF>
+ </metadata>
+ <defs>
+  <style type="text/css">*{stroke-linejoin: round; stroke-linecap: butt}</style>
+ </defs>
+ <g id="figure_1">
+  <g id="patch_1">
+   <path d="M 0 202.5 
+L 360 202.5 
+L 360 0 
+L 0 0 
+z
+" style="fill: #f2f3ee"/>
+  </g>
+  <g id="axes_1">
+   <g id="patch_2">
+    <path d="M 165.375 52.65 
+L 286.875 52.65 
+L 286.875 66.15 
+L 165.375 66.15 
+z
+" clip-path="url(#pbbe9707438)" style="fill: #21686d"/>
+   </g>
+   <g id="patch_3">
+    <path d="M 165.375 76.725 
+L 286.875 76.725 
+L 286.875 90.225 
+L 165.375 90.225 
+z
+" clip-path="url(#pbbe9707438)" style="fill: #21686d"/>
+   </g>
+   <g id="patch_4">
+    <path d="M 165.375 100.8 
+L 226.125 100.8 
+L 226.125 114.3 
+L 165.375 114.3 
+z
+" clip-path="url(#pbbe9707438)" style="fill: #974304"/>
+   </g>
+   <g id="patch_5">
+    <path d="M 165.375 131.4 
+L 226.125 131.4 
+L 226.125 144.9 
+L 165.375 144.9 
+z
+" clip-path="url(#pbbe9707438)" style="fill: #974304"/>
+   </g>
+   <g id="line2d_1">
+    <path d="M 226.125 67.5 
+L 226.125 71.775 
+" clip-path="url(#pbbe9707438)" style="fill: none; stroke-dasharray: 8.695,3.76; stroke-dashoffset: 0; stroke: #13344c; stroke-width: 2.35"/>
+   </g>
+   <g id="line2d_2">
+    <path d="M 226.125 91.575 
+L 226.125 95.85 
+" clip-path="url(#pbbe9707438)" style="fill: none; stroke-dasharray: 8.695,3.76; stroke-dashoffset: 0; stroke: #13344c; stroke-width: 2.35"/>
+   </g>
+   <g id="line2d_3">
+    <path d="M 226.125 115.65 
+L 226.125 119.925 
+" clip-path="url(#pbbe9707438)" style="fill: none; stroke-dasharray: 8.695,3.76; stroke-dashoffset: 0; stroke: #13344c; stroke-width: 2.35"/>
+   </g>
+   <g id="line2d_4">
+    <path d="M 226.125 146.25 
+L 226.125 150.525 
+" clip-path="url(#pbbe9707438)" style="fill: none; stroke-dasharray: 8.695,3.76; stroke-dashoffset: 0; stroke: #13344c; stroke-width: 2.35"/>
+   </g>
+   <g id="text_1">
+    <text style="font-weight: 700; font-size: 16.2px; font-family: 'Inter'; fill: #13344c" transform="translate(16.875 20.771641)">Categorical sampling retained</text>
+    <text style="font-weight: 700; font-size: 16.2px; font-family: 'Inter'; fill: #13344c" transform="translate(16.875 38.568734)">negligible cue information.</text>
+   </g>
+   <g id="text_2">
+    <text style="font-weight: 700; font-size: 13.05px; font-family: 'Inter'; text-anchor: start; fill: #13344c" x="16.875" y="62.81543" transform="rotate(-0 16.875 62.81543)">Encoder</text>
+   </g>
+   <g id="text_3">
+    <text style="font-weight: 700; font-size: 18px; font-family: 'Inter'; text-anchor: end; fill: #13344c" x="342" y="64.110938" transform="rotate(-0 342 64.110938)">100%</text>
+   </g>
+   <g id="text_4">
+    <text style="font-weight: 700; font-size: 13.05px; font-family: 'Inter'; text-anchor: start; fill: #13344c" x="16.875" y="87.152449" transform="rotate(-0 16.875 87.152449)">Posterior probabilities</text>
+   </g>
+   <g id="text_5">
+    <text style="font-weight: 700; font-size: 18px; font-family: 'Inter'; text-anchor: end; fill: #13344c" x="342" y="88.185938" transform="rotate(-0 342 88.185938)">100%</text>
+   </g>
+   <g id="text_6">
+    <text style="font-weight: 700; font-size: 13.05px; font-family: 'Inter'; text-anchor: start; fill: #13344c" x="16.875" y="110.888965" transform="rotate(-0 16.875 110.888965)">Argmax states</text>
+   </g>
+   <g id="text_7">
+    <text style="font-weight: 700; font-size: 18px; font-family: 'Inter'; text-anchor: end; fill: #13344c" x="342" y="112.260937" transform="rotate(-0 342 112.260937)">50%</text>
+   </g>
+   <g id="text_8">
+    <text style="font-weight: 700; font-size: 13.05px; font-family: 'Inter'; text-anchor: start; fill: #13344c" x="16.875" y="141.62966" transform="rotate(-0 16.875 141.62966)">Sampled states</text>
+   </g>
+   <g id="text_9">
+    <text style="font-weight: 700; font-size: 18px; font-family: 'Inter'; text-anchor: end; fill: #13344c" x="342" y="142.860938" transform="rotate(-0 342 142.860938)">≈50%</text>
+   </g>
+   <g id="text_10">
+    <text style="font-weight: 500; font-size: 10.8px; font-family: 'Inter'; text-anchor: start; fill: #13344c" x="16.875" y="123.773063" transform="rotate(-0 16.875 123.773063)">Identical for opposing cues</text>
+   </g>
+   <g id="text_11">
+    <text style="font-weight: 500; font-size: 10.8px; font-family: 'Inter'; text-anchor: start; fill: #13344c" x="16.875" y="168.971906" transform="rotate(-0 16.875 168.971906)">Single-sample Bayes accuracy upper bounds: 50.07–50.18%</text>
+   </g>
+   <g id="text_12">
+    <text style="font-weight: 500; font-size: 10.8px; font-family: 'Inter'; text-anchor: start; fill: #13344c" x="16.875" y="187.935188" transform="rotate(-0 16.875 187.935188)">Linear probes · chance 50% · 3 seeds · 16 held-out pairs each</text>
+   </g>
+  </g>
+ </g>
+ <defs>
+  <clipPath id="pbbe9707438">
+   <rect x="0" y="0" width="360" height="202.5"/>
+  </clipPath>
+ </defs>
+</svg>

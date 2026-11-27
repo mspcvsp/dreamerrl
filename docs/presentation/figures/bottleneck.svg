@@ -1,0 +1,108 @@
+<?xml version="1.0" encoding="utf-8" standalone="no"?>
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN"
+  "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
+<svg xmlns:xlink="http://www.w3.org/1999/xlink" width="691.2pt" height="266.4pt" viewBox="0 0 691.2 266.4" xmlns="http://www.w3.org/2000/svg" version="1.1">
+ <metadata>
+  <rdf:RDF xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:cc="http://creativecommons.org/ns#" xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">
+   <cc:Work>
+    <dc:type rdf:resource="http://purl.org/dc/dcmitype/StillImage"/>
+    <dc:date>2026-11-26T20:28:21.021787</dc:date>
+    <dc:format>image/svg+xml</dc:format>
+    <dc:creator>
+     <cc:Agent>
+      <dc:title>Matplotlib v3.10.9, https://matplotlib.org/</dc:title>
+     </cc:Agent>
+    </dc:creator>
+   </cc:Work>
+  </rdf:RDF>
+ </metadata>
+ <defs>
+  <style type="text/css">*{stroke-linejoin: round; stroke-linecap: butt}</style>
+ </defs>
+ <g id="figure_1">
+  <g id="patch_1">
+   <path d="M 0 266.4 
+L 691.2 266.4 
+L 691.2 0 
+L 0 0 
+z
+" style="fill: #f2f3ee"/>
+  </g>
+  <g id="axes_1">
+   <g id="patch_2">
+    <path d="M 407.808 70.596 
+L 608.256 70.596 
+L 608.256 51.948 
+L 407.808 51.948 
+z
+" clip-path="url(#pcbf97a395d)" style="fill: #a0c3d9; opacity: 0.34"/>
+   </g>
+   <g id="patch_3">
+    <path d="M 407.808 70.596 
+L 608.256 70.596 
+L 608.256 51.948 
+L 407.808 51.948 
+z
+" clip-path="url(#pcbf97a395d)" style="fill: #a0c3d9; stroke: #13344c; stroke-width: 1.2; stroke-linejoin: miter"/>
+   </g>
+   <g id="patch_4">
+    <path d="M 407.808 134.532 
+L 608.256 134.532 
+L 608.256 115.884 
+L 407.808 115.884 
+z
+" clip-path="url(#pcbf97a395d)" style="fill: #a0c3d9; opacity: 0.34"/>
+   </g>
+   <g id="patch_5">
+    <path d="M 407.808 134.532 
+L 608.256 134.532 
+L 608.256 115.884 
+L 407.808 115.884 
+z
+" clip-path="url(#pcbf97a395d)" style="fill: #499fa4; stroke: #13344c; stroke-width: 1.2; stroke-linejoin: miter"/>
+   </g>
+   <g id="patch_6">
+    <path d="M 407.808 198.468 
+L 608.256 198.468 
+L 608.256 179.82 
+L 407.808 179.82 
+z
+" clip-path="url(#pcbf97a395d)" style="fill: #a0c3d9; opacity: 0.34"/>
+   </g>
+   <g id="patch_7">
+    <path d="M 407.808 198.468 
+L 508.032 198.468 
+L 508.032 179.82 
+L 407.808 179.82 
+z
+" clip-path="url(#pcbf97a395d)" style="fill: #ff9636; stroke: #13344c; stroke-width: 1.2; stroke-linejoin: miter"/>
+   </g>
+   <g id="text_1">
+    <text style="font-weight: 700; font-size: 22px; font-family: 'Inter'; text-anchor: start; fill: #13344c" x="41.472" y="67.342625" transform="rotate(-0 41.472 67.342625)">Starting picture</text>
+   </g>
+   <g id="text_2">
+    <text style="font-weight: 700; font-size: 22px; font-family: 'Inter'; text-anchor: start; fill: #13344c" x="627.6096" y="67.029812" transform="rotate(-0 627.6096 67.029812)">100%</text>
+   </g>
+   <g id="text_3">
+    <text style="font-weight: 700; font-size: 22px; font-family: 'Inter'; text-anchor: start; fill: #13344c" x="41.472" y="131.213313" transform="rotate(-0 41.472 131.213313)">Chances for each category</text>
+   </g>
+   <g id="text_4">
+    <text style="font-weight: 700; font-size: 22px; font-family: 'Inter'; text-anchor: start; fill: #13344c" x="627.6096" y="130.965812" transform="rotate(-0 627.6096 130.965812)">100%</text>
+   </g>
+   <g id="text_5">
+    <text style="font-weight: 700; font-size: 22px; font-family: 'Inter'; text-anchor: start; fill: #13344c" x="41.472" y="194.967125" transform="rotate(-0 41.472 194.967125)">One sampled summary</text>
+   </g>
+   <g id="text_6">
+    <text style="font-weight: 700; font-size: 22px; font-family: 'Inter'; text-anchor: start; fill: #13344c" x="627.6096" y="194.901813" transform="rotate(-0 627.6096 194.901813)">≈50%</text>
+   </g>
+   <g id="text_7">
+    <text style="font-size: 19px; font-family: 'Inter'; text-anchor: start; fill: #13344c" x="41.472" y="247.610406" transform="rotate(-0 41.472 247.610406)">50% is like flipping a coin between LEFT and RIGHT.</text>
+   </g>
+  </g>
+ </g>
+ <defs>
+  <clipPath id="pcbf97a395d">
+   <rect x="0" y="0" width="691.2" height="266.4"/>
+  </clipPath>
+ </defs>
+</svg>

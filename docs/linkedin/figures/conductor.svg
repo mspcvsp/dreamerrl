@@ -1,0 +1,154 @@
+<?xml version="1.0" encoding="utf-8" standalone="no"?>
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN"
+  "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
+<svg xmlns:xlink="http://www.w3.org/1999/xlink" width="360pt" height="202.5pt" viewBox="0 0 360 202.5" xmlns="http://www.w3.org/2000/svg" version="1.1">
+ <metadata>
+  <rdf:RDF xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:cc="http://creativecommons.org/ns#" xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">
+   <cc:Work>
+    <dc:type rdf:resource="http://purl.org/dc/dcmitype/StillImage"/>
+    <dc:date>2026-11-26T20:41:30.888204</dc:date>
+    <dc:format>image/svg+xml</dc:format>
+    <dc:creator>
+     <cc:Agent>
+      <dc:title>Matplotlib v3.10.9, https://matplotlib.org/</dc:title>
+     </cc:Agent>
+    </dc:creator>
+   </cc:Work>
+  </rdf:RDF>
+ </metadata>
+ <defs>
+  <style type="text/css">*{stroke-linejoin: round; stroke-linecap: butt}</style>
+ </defs>
+ <g id="figure_1">
+  <g id="patch_1">
+   <path d="M 0 202.5 
+L 360 202.5 
+L 360 0 
+L 0 0 
+z
+" style="fill: #f2f3ee"/>
+  </g>
+  <g id="axes_1">
+   <g id="patch_2">
+    <path d="M 14.625 47.925 
+L 90.225 47.925 
+L 90.225 130.05 
+L 14.625 130.05 
+z
+" clip-path="url(#pab80a80eed)" style="fill: #13344c"/>
+   </g>
+   <g id="patch_3">
+    <path d="M 99.675 47.925 
+L 175.275 47.925 
+L 175.275 130.05 
+L 99.675 130.05 
+z
+" clip-path="url(#pab80a80eed)" style="fill: #e0eeec"/>
+   </g>
+   <g id="patch_4">
+    <path d="M 93.572644 88.9875 
+Q 94.83491 88.9875 93.469796 88.9875 
+" clip-path="url(#pab80a80eed)" style="fill: none; stroke: #13344c; stroke-width: 2.35; stroke-linecap: round"/>
+    <path d="M 89.469796 86.9875 
+L 93.469796 88.9875 
+L 89.469796 90.9875 
+z
+" clip-path="url(#pab80a80eed)" style="fill: #13344c; stroke: #13344c; stroke-width: 2.35; stroke-linecap: round"/>
+   </g>
+   <g id="patch_5">
+    <path d="M 184.725 47.925 
+L 260.325 47.925 
+L 260.325 130.05 
+L 184.725 130.05 
+z
+" clip-path="url(#pab80a80eed)" style="fill: #a0c3d9"/>
+   </g>
+   <g id="patch_6">
+    <path d="M 178.622644 88.9875 
+Q 179.88491 88.9875 178.519796 88.9875 
+" clip-path="url(#pab80a80eed)" style="fill: none; stroke: #13344c; stroke-width: 2.35; stroke-linecap: round"/>
+    <path d="M 174.519796 86.9875 
+L 178.519796 88.9875 
+L 174.519796 90.9875 
+z
+" clip-path="url(#pab80a80eed)" style="fill: #13344c; stroke: #13344c; stroke-width: 2.35; stroke-linecap: round"/>
+   </g>
+   <g id="patch_7">
+    <path d="M 269.775 47.925 
+L 345.375 47.925 
+L 345.375 130.05 
+L 269.775 130.05 
+z
+" clip-path="url(#pab80a80eed)" style="fill: #ffe5cc"/>
+   </g>
+   <g id="patch_8">
+    <path d="M 263.672644 88.9875 
+Q 264.93491 88.9875 263.569796 88.9875 
+" clip-path="url(#pab80a80eed)" style="fill: none; stroke: #13344c; stroke-width: 2.35; stroke-linecap: round"/>
+    <path d="M 259.569796 86.9875 
+L 263.569796 88.9875 
+L 259.569796 90.9875 
+z
+" clip-path="url(#pab80a80eed)" style="fill: #13344c; stroke: #13344c; stroke-width: 2.35; stroke-linecap: round"/>
+   </g>
+   <g id="patch_9">
+    <path d="M 52.425 154.824884 
+Q 52.425 144.898817 52.425 137.600129 
+" clip-path="url(#pab80a80eed)" style="fill: none; stroke: #974304; stroke-width: 2.35; stroke-linecap: round"/>
+    <path d="M 50.425 141.600129 
+L 52.425 137.600129 
+L 54.425 141.600129 
+z
+" clip-path="url(#pab80a80eed)" style="fill: #974304; stroke: #974304; stroke-width: 2.35; stroke-linecap: round"/>
+   </g>
+   <g id="line2d_1">
+    <path d="M 307.575 133.2 
+L 307.575 156.825 
+L 52.425 156.825 
+" clip-path="url(#pab80a80eed)" style="fill: none; stroke: #974304; stroke-width: 2.35; stroke-linecap: round"/>
+   </g>
+   <g id="text_1">
+    <text style="font-weight: 700; font-size: 16.2px; font-family: 'Inter'; text-anchor: start; fill: #13344c" x="16.875" y="29.895188" transform="rotate(-0 16.875 29.895188)">Human-directed AI engineering</text>
+   </g>
+   <g id="text_2">
+    <text style="font-weight: 700; font-size: 13.05px; font-family: 'Inter'; fill: #f2f3ee" transform="translate(29.683336 68.366194)">Human</text>
+    <text style="font-weight: 700; font-size: 13.05px; font-family: 'Inter'; fill: #f2f3ee" transform="translate(23.939297 81.947166)">direction</text>
+   </g>
+   <g id="text_3">
+    <text style="font-weight: 500; font-size: 10.8px; font-family: 'Inter'; text-anchor: middle; fill: #f2f3ee" x="52.425" y="109.181813" transform="rotate(-0 52.425 109.181813)">Define goals</text>
+   </g>
+   <g id="text_4">
+    <text style="font-weight: 700; font-size: 13.05px; font-family: 'Inter'; fill: #13344c" transform="translate(130.771582 68.366194)">AI</text>
+    <text style="font-weight: 700; font-size: 13.05px; font-family: 'Inter'; fill: #13344c" transform="translate(104.672602 81.947166)">assistants</text>
+   </g>
+   <g id="text_5">
+    <text style="font-weight: 500; font-size: 10.8px; font-family: 'Inter'; fill: #13344c" transform="translate(112.662 97.577339)">Microsoft</text>
+    <text style="font-weight: 500; font-size: 10.8px; font-family: 'Inter'; fill: #13344c" transform="translate(119.093062 109.181602)">Copilot</text>
+    <text style="font-weight: 500; font-size: 10.8px; font-family: 'Inter'; fill: #13344c" transform="translate(100.096875 120.543286)">OpenAI Codex</text>
+   </g>
+   <g id="text_6">
+    <text style="font-weight: 700; font-size: 13.05px; font-family: 'Inter'; fill: #13344c" transform="translate(200.568375 68.366194)">Build &amp;</text>
+    <text style="font-weight: 700; font-size: 13.05px; font-family: 'Inter'; fill: #13344c" transform="translate(210.203965 81.947166)">test</text>
+   </g>
+   <g id="text_7">
+    <text style="font-weight: 500; font-size: 10.8px; font-family: 'Inter'; fill: #13344c" transform="translate(192.421687 103.356225)">Debug · run</text>
+    <text style="font-weight: 500; font-size: 10.8px; font-family: 'Inter'; fill: #13344c" transform="translate(201.724031 114.722212)">Analyze</text>
+   </g>
+   <g id="text_8">
+    <text style="font-weight: 700; font-size: 13.05px; font-family: 'Inter'; text-anchor: middle; fill: #13344c" x="307.575" y="75.15668" transform="rotate(-0 307.575 75.15668)">Evidence</text>
+   </g>
+   <g id="text_9">
+    <text style="font-weight: 500; font-size: 10.8px; font-family: 'Inter'; fill: #13344c" transform="translate(288.640406 103.4406)">Results</text>
+    <text style="font-weight: 500; font-size: 10.8px; font-family: 'Inter'; fill: #13344c" transform="translate(293.256562 114.680025)">Tools</text>
+   </g>
+   <g id="text_10">
+    <text style="font-weight: 700; font-size: 13.05px; font-family: 'Inter'; text-anchor: middle; fill: #13344c" x="180" y="182.751961" transform="rotate(-0 180 182.751961)">Review → Verify → Refine or approve</text>
+   </g>
+  </g>
+ </g>
+ <defs>
+  <clipPath id="pab80a80eed">
+   <rect x="0" y="0" width="360" height="202.5"/>
+  </clipPath>
+ </defs>
+</svg>

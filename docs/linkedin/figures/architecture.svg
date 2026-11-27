@@ -1,0 +1,135 @@
+<?xml version="1.0" encoding="utf-8" standalone="no"?>
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN"
+  "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
+<svg xmlns:xlink="http://www.w3.org/1999/xlink" width="360pt" height="202.5pt" viewBox="0 0 360 202.5" xmlns="http://www.w3.org/2000/svg" version="1.1">
+ <metadata>
+  <rdf:RDF xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:cc="http://creativecommons.org/ns#" xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">
+   <cc:Work>
+    <dc:type rdf:resource="http://purl.org/dc/dcmitype/StillImage"/>
+    <dc:date>2026-11-26T20:41:31.007270</dc:date>
+    <dc:format>image/svg+xml</dc:format>
+    <dc:creator>
+     <cc:Agent>
+      <dc:title>Matplotlib v3.10.9, https://matplotlib.org/</dc:title>
+     </cc:Agent>
+    </dc:creator>
+   </cc:Work>
+  </rdf:RDF>
+ </metadata>
+ <defs>
+  <style type="text/css">*{stroke-linejoin: round; stroke-linecap: butt}</style>
+ </defs>
+ <g id="figure_1">
+  <g id="patch_1">
+   <path d="M 0 202.5 
+L 360 202.5 
+L 360 0 
+L 0 0 
+z
+" style="fill: #f2f3ee"/>
+  </g>
+  <g id="axes_1">
+   <g id="patch_2">
+    <path d="M 16.875 56.025 
+L 89.6625 56.025 
+L 89.6625 137.25 
+L 16.875 137.25 
+z
+" clip-path="url(#pc7c4140b4b)" style="fill: #a0c3d9"/>
+   </g>
+   <g id="patch_3">
+    <path d="M 101.3625 56.025 
+L 174.15 56.025 
+L 174.15 137.25 
+L 101.3625 137.25 
+z
+" clip-path="url(#pc7c4140b4b)" style="fill: #e0eeec"/>
+   </g>
+   <g id="patch_4">
+    <path d="M 93.01344 96.6375 
+Q 95.399907 96.6375 95.158994 96.6375 
+" clip-path="url(#pc7c4140b4b)" style="fill: none; stroke: #13344c; stroke-width: 2.35; stroke-linecap: round"/>
+    <path d="M 91.158994 94.6375 
+L 95.158994 96.6375 
+L 91.158994 98.6375 
+z
+" clip-path="url(#pc7c4140b4b)" style="fill: #13344c; stroke: #13344c; stroke-width: 2.35; stroke-linecap: round"/>
+   </g>
+   <g id="patch_5">
+    <path d="M 185.85 56.025 
+L 258.6375 56.025 
+L 258.6375 137.25 
+L 185.85 137.25 
+z
+" clip-path="url(#pc7c4140b4b)" style="fill: #a0c3d9"/>
+   </g>
+   <g id="patch_6">
+    <path d="M 177.50094 96.6375 
+Q 179.887407 96.6375 179.646494 96.6375 
+" clip-path="url(#pc7c4140b4b)" style="fill: none; stroke: #13344c; stroke-width: 2.35; stroke-linecap: round"/>
+    <path d="M 175.646494 94.6375 
+L 179.646494 96.6375 
+L 175.646494 98.6375 
+z
+" clip-path="url(#pc7c4140b4b)" style="fill: #13344c; stroke: #13344c; stroke-width: 2.35; stroke-linecap: round"/>
+   </g>
+   <g id="patch_7">
+    <path d="M 270.3375 56.025 
+L 343.125 56.025 
+L 343.125 137.25 
+L 270.3375 137.25 
+z
+" clip-path="url(#pc7c4140b4b)" style="fill: #e0eeec"/>
+   </g>
+   <g id="patch_8">
+    <path d="M 261.98844 96.6375 
+Q 264.374907 96.6375 264.133994 96.6375 
+" clip-path="url(#pc7c4140b4b)" style="fill: none; stroke: #13344c; stroke-width: 2.35; stroke-linecap: round"/>
+    <path d="M 260.133994 94.6375 
+L 264.133994 96.6375 
+L 260.133994 98.6375 
+z
+" clip-path="url(#pc7c4140b4b)" style="fill: #13344c; stroke: #13344c; stroke-width: 2.35; stroke-linecap: round"/>
+   </g>
+   <g id="text_1">
+    <text style="font-weight: 700; font-size: 16.2px; font-family: 'Inter'; text-anchor: start; fill: #13344c" x="16.875" y="29.664844" transform="rotate(-0 16.875 29.664844)">How Dreamer learns</text>
+   </g>
+   <g id="text_2">
+    <text style="font-weight: 700; font-size: 13.05px; font-family: 'Inter'; text-anchor: middle; fill: #13344c" x="53.26875" y="82.99568" transform="rotate(-0 53.26875 82.99568)">Observe</text>
+   </g>
+   <g id="text_3">
+    <text style="font-weight: 500; font-size: 10.8px; font-family: 'Inter'; fill: #13344c" transform="translate(26.124469 110.719181)">Inputs and</text>
+    <text style="font-weight: 500; font-size: 10.8px; font-family: 'Inter'; fill: #13344c" transform="translate(21.878719 122.323444)">past actions</text>
+   </g>
+   <g id="text_4">
+    <text style="font-weight: 700; font-size: 13.05px; font-family: 'Inter'; text-anchor: middle; fill: #13344c" x="137.75625" y="82.99568" transform="rotate(-0 137.75625 82.99568)">Encode</text>
+   </g>
+   <g id="text_5">
+    <text style="font-weight: 500; font-size: 10.8px; font-family: 'Inter'; fill: #13344c" transform="translate(112.285969 110.9016)">Recurrent</text>
+    <text style="font-weight: 500; font-size: 10.8px; font-family: 'Inter'; fill: #13344c" transform="translate(107.566875 122.141025)">model state</text>
+   </g>
+   <g id="text_6">
+    <text style="font-weight: 700; font-size: 13.05px; font-family: 'Inter'; text-anchor: middle; fill: #13344c" x="222.24375" y="83.181234" transform="rotate(-0 222.24375 83.181234)">Imagine</text>
+   </g>
+   <g id="text_7">
+    <text style="font-weight: 500; font-size: 10.8px; font-family: 'Inter'; fill: #13344c" transform="translate(189.04725 111.039131)">Predict likely</text>
+    <text style="font-weight: 500; font-size: 10.8px; font-family: 'Inter'; fill: #13344c" transform="translate(196.641 122.320744)">outcomes</text>
+   </g>
+   <g id="text_8">
+    <text style="font-weight: 700; font-size: 13.05px; font-family: 'Inter'; text-anchor: middle; fill: #13344c" x="306.73125" y="82.99568" transform="rotate(-0 306.73125 82.99568)">Practice</text>
+   </g>
+   <g id="text_9">
+    <text style="font-weight: 500; font-size: 10.8px; font-family: 'Inter'; fill: #13344c" transform="translate(278.631844 110.9016)">Train actor</text>
+    <text style="font-weight: 500; font-size: 10.8px; font-family: 'Inter'; fill: #13344c" transform="translate(282.757781 122.141025)">and critic</text>
+   </g>
+   <g id="text_10">
+    <text style="font-weight: 500; font-size: 10.8px; font-family: 'Inter'; text-anchor: start; fill: #13344c" x="16.875" y="172.410188" transform="rotate(-0 16.875 172.410188)">Conceptual architecture · DreamerV3</text>
+   </g>
+  </g>
+ </g>
+ <defs>
+  <clipPath id="pc7c4140b4b">
+   <rect x="0" y="0" width="360" height="202.5"/>
+  </clipPath>
+ </defs>
+</svg>

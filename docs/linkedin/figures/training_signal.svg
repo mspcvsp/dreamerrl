@@ -1,0 +1,224 @@
+<?xml version="1.0" encoding="utf-8" standalone="no"?>
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN"
+  "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
+<svg xmlns:xlink="http://www.w3.org/1999/xlink" width="360pt" height="202.5pt" viewBox="0 0 360 202.5" xmlns="http://www.w3.org/2000/svg" version="1.1">
+ <metadata>
+  <rdf:RDF xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:cc="http://creativecommons.org/ns#" xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">
+   <cc:Work>
+    <dc:type rdf:resource="http://purl.org/dc/dcmitype/StillImage"/>
+    <dc:date>2026-11-26T20:41:31.573566</dc:date>
+    <dc:format>image/svg+xml</dc:format>
+    <dc:creator>
+     <cc:Agent>
+      <dc:title>Matplotlib v3.10.9, https://matplotlib.org/</dc:title>
+     </cc:Agent>
+    </dc:creator>
+   </cc:Work>
+  </rdf:RDF>
+ </metadata>
+ <defs>
+  <style type="text/css">*{stroke-linejoin: round; stroke-linecap: butt}</style>
+ </defs>
+ <g id="figure_1">
+  <g id="patch_1">
+   <path d="M 0 202.5 
+L 360 202.5 
+L 360 0 
+L 0 0 
+z
+" style="fill: #f2f3ee"/>
+  </g>
+  <g id="axes_1">
+   <g id="patch_2">
+    <path d="M 159.075 47.25 
+L 279.490179 47.25 
+L 279.490179 60.75 
+L 159.075 60.75 
+z
+" clip-path="url(#pba386a75c2)" style="fill: #21686d"/>
+   </g>
+   <g id="patch_3">
+    <path d="M 159.075 77.85 
+L 219.825 77.85 
+L 219.825 91.35 
+L 159.075 91.35 
+z
+" clip-path="url(#pba386a75c2)" style="fill: #974304"/>
+   </g>
+   <g id="patch_4">
+    <path d="M 16.875 129.6 
+L 46.575 129.6 
+L 46.575 145.8 
+L 16.875 145.8 
+z
+" clip-path="url(#pba386a75c2)" style="fill: url(#h713a690eb1); stroke: #13344c; stroke-width: 1.2; stroke-linejoin: miter"/>
+   </g>
+   <g id="patch_5">
+    <path d="M 50.4 129.6 
+L 80.1 129.6 
+L 80.1 145.8 
+L 50.4 145.8 
+z
+" clip-path="url(#pba386a75c2)" style="fill: url(#hc6236e697c); stroke: #13344c; stroke-width: 1.2; stroke-linejoin: miter"/>
+   </g>
+   <g id="patch_6">
+    <path d="M 83.925 129.6 
+L 113.625 129.6 
+L 113.625 145.8 
+L 83.925 145.8 
+z
+" clip-path="url(#pba386a75c2)" style="fill: #a0c3d9; stroke: #13344c; stroke-width: 1.2; stroke-linejoin: miter"/>
+   </g>
+   <g id="patch_7">
+    <path d="M 117.45 129.6 
+L 147.15 129.6 
+L 147.15 145.8 
+L 117.45 145.8 
+z
+" clip-path="url(#pba386a75c2)" style="fill: #a0c3d9; stroke: #13344c; stroke-width: 1.2; stroke-linejoin: miter"/>
+   </g>
+   <g id="patch_8">
+    <path d="M 150.975 129.6 
+L 180.675 129.6 
+L 180.675 145.8 
+L 150.975 145.8 
+z
+" clip-path="url(#pba386a75c2)" style="fill: #a0c3d9; stroke: #13344c; stroke-width: 1.2; stroke-linejoin: miter"/>
+   </g>
+   <g id="patch_9">
+    <path d="M 184.5 129.6 
+L 214.2 129.6 
+L 214.2 145.8 
+L 184.5 145.8 
+z
+" clip-path="url(#pba386a75c2)" style="fill: #a0c3d9; stroke: #13344c; stroke-width: 1.2; stroke-linejoin: miter"/>
+   </g>
+   <g id="patch_10">
+    <path d="M 218.025 129.6 
+L 247.725 129.6 
+L 247.725 145.8 
+L 218.025 145.8 
+z
+" clip-path="url(#pba386a75c2)" style="fill: #a0c3d9; stroke: #13344c; stroke-width: 1.2; stroke-linejoin: miter"/>
+   </g>
+   <g id="patch_11">
+    <path d="M 251.55 129.6 
+L 281.25 129.6 
+L 281.25 145.8 
+L 251.55 145.8 
+z
+" clip-path="url(#pba386a75c2)" style="fill: #a0c3d9; stroke: #13344c; stroke-width: 1.2; stroke-linejoin: miter"/>
+   </g>
+   <g id="patch_12">
+    <path d="M 285.075 129.6 
+L 314.775 129.6 
+L 314.775 145.8 
+L 285.075 145.8 
+z
+" clip-path="url(#pba386a75c2)" style="fill: #a0c3d9; stroke: #13344c; stroke-width: 1.2; stroke-linejoin: miter"/>
+   </g>
+   <g id="patch_13">
+    <path d="M 318.6 129.6 
+L 348.3 129.6 
+L 348.3 145.8 
+L 318.6 145.8 
+z
+" clip-path="url(#pba386a75c2)" style="fill: #ffe5cc; stroke: #13344c; stroke-width: 1.2; stroke-linejoin: miter"/>
+   </g>
+   <g id="text_1">
+    <text style="font-weight: 700; font-size: 16.2px; font-family: 'Inter'; text-anchor: start; fill: #13344c" x="16.875" y="29.895188" transform="rotate(-0 16.875 29.895188)">Averages hid the critical cell</text>
+   </g>
+   <g id="text_2">
+    <text style="font-weight: 700; font-size: 13.05px; font-family: 'Inter'; text-anchor: start; fill: #13344c" x="16.875" y="57.41543" transform="rotate(-0 16.875 57.41543)">All cells</text>
+   </g>
+   <g id="text_3">
+    <text style="font-weight: 700; font-size: 18px; font-family: 'Inter'; text-anchor: end; fill: #13344c" x="342" y="58.710938" transform="rotate(-0 342 58.710938)">99.1%</text>
+   </g>
+   <g id="text_4">
+    <text style="font-weight: 700; font-size: 13.05px; font-family: 'Inter'; text-anchor: start; fill: #13344c" x="16.875" y="88.01543" transform="rotate(-0 16.875 88.01543)">Cue cell</text>
+   </g>
+   <g id="text_5">
+    <text style="font-weight: 700; font-size: 18px; font-family: 'Inter'; text-anchor: end; fill: #13344c" x="342" y="89.310938" transform="rotate(-0 342 89.310938)">50%</text>
+   </g>
+   <g id="text_6">
+    <text style="font-weight: 700; font-size: 13.05px; font-family: 'Inter'; text-anchor: start; fill: #13344c" x="16.875" y="120.64043" transform="rotate(-0 16.875 120.64043)">Terminal reward’s loss window</text>
+   </g>
+   <g id="text_7">
+    <text style="font-weight: 500; font-size: 10.8px; font-family: 'Inter'; text-anchor: start; fill: #13344c" x="16.875" y="160.326562" transform="rotate(-0 16.875 160.326562)">Cue</text>
+   </g>
+   <g id="text_8">
+    <text style="font-weight: 500; font-size: 10.8px; font-family: 'Inter'; text-anchor: end; fill: #13344c" x="340.875" y="160.326562" transform="rotate(-0 340.875 160.326562)">Reward</text>
+   </g>
+   <g id="text_9">
+    <text style="font-weight: 500; font-size: 10.8px; font-family: 'Inter'; text-anchor: start; fill: #13344c" x="16.875" y="184.626563" transform="rotate(-0 16.875 184.626563)">Hatched rows · detached context</text>
+   </g>
+  </g>
+ </g>
+ <defs>
+  <clipPath id="pba386a75c2">
+   <rect x="0" y="0" width="360" height="202.5"/>
+  </clipPath>
+ </defs>
+ <defs>
+  <pattern id="h713a690eb1" patternUnits="userSpaceOnUse" x="0" y="0" width="72" height="72">
+   <rect x="0" y="0" width="73" height="73" fill="#ffe5cc"/>
+   <path d="M -36 36 
+L 36 -36 
+M -30 42 
+L 42 -30 
+M -24 48 
+L 48 -24 
+M -18 54 
+L 54 -18 
+M -12 60 
+L 60 -12 
+M -6 66 
+L 66 -6 
+M 0 72 
+L 72 0 
+M 6 78 
+L 78 6 
+M 12 84 
+L 84 12 
+M 18 90 
+L 90 18 
+M 24 96 
+L 96 24 
+M 30 102 
+L 102 30 
+M 36 108 
+L 108 36 
+" style="fill: #13344c; stroke: #13344c; stroke-width: 1.0; stroke-linecap: butt; stroke-linejoin: miter"/>
+  </pattern>
+  <pattern id="hc6236e697c" patternUnits="userSpaceOnUse" x="0" y="0" width="72" height="72">
+   <rect x="0" y="0" width="73" height="73" fill="#f2f3ee"/>
+   <path d="M -36 36 
+L 36 -36 
+M -30 42 
+L 42 -30 
+M -24 48 
+L 48 -24 
+M -18 54 
+L 54 -18 
+M -12 60 
+L 60 -12 
+M -6 66 
+L 66 -6 
+M 0 72 
+L 72 0 
+M 6 78 
+L 78 6 
+M 12 84 
+L 84 12 
+M 18 90 
+L 90 18 
+M 24 96 
+L 96 24 
+M 30 102 
+L 102 30 
+M 36 108 
+L 108 36 
+" style="fill: #13344c; stroke: #13344c; stroke-width: 1.0; stroke-linecap: butt; stroke-linejoin: miter"/>
+  </pattern>
+ </defs>
+</svg>

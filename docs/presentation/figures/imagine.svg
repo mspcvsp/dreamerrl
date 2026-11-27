@@ -1,0 +1,110 @@
+<?xml version="1.0" encoding="utf-8" standalone="no"?>
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN"
+  "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
+<svg xmlns:xlink="http://www.w3.org/1999/xlink" width="691.2pt" height="266.4pt" viewBox="0 0 691.2 266.4" xmlns="http://www.w3.org/2000/svg" version="1.1">
+ <metadata>
+  <rdf:RDF xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:cc="http://creativecommons.org/ns#" xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">
+   <cc:Work>
+    <dc:type rdf:resource="http://purl.org/dc/dcmitype/StillImage"/>
+    <dc:date>2026-11-26T20:28:20.147113</dc:date>
+    <dc:format>image/svg+xml</dc:format>
+    <dc:creator>
+     <cc:Agent>
+      <dc:title>Matplotlib v3.10.9, https://matplotlib.org/</dc:title>
+     </cc:Agent>
+    </dc:creator>
+   </cc:Work>
+  </rdf:RDF>
+ </metadata>
+ <defs>
+  <style type="text/css">*{stroke-linejoin: round; stroke-linecap: butt}</style>
+ </defs>
+ <g id="figure_1">
+  <g id="patch_1">
+   <path d="M 0 266.4 
+L 691.2 266.4 
+L 691.2 0 
+L 0 0 
+z
+" style="fill: #f2f3ee"/>
+  </g>
+  <g id="axes_1">
+   <g id="patch_2">
+    <path d="M 58.752 167.0328 
+L 224.64 167.0328 
+Q 239.8464 167.0328 239.8464 161.172 
+L 239.8464 105.228 
+Q 239.8464 99.3672 224.64 99.3672 
+L 58.752 99.3672 
+Q 43.5456 99.3672 43.5456 105.228 
+L 43.5456 161.172 
+Q 43.5456 167.0328 58.752 167.0328 
+z
+" clip-path="url(#p127f607707)" style="fill: #a0c3d9"/>
+   </g>
+   <g id="patch_3">
+    <path d="M 459.648 100.4328 
+L 632.448 100.4328 
+Q 647.6544 100.4328 647.6544 94.572 
+L 647.6544 49.284 
+Q 647.6544 43.4232 632.448 43.4232 
+L 459.648 43.4232 
+Q 444.4416 43.4232 444.4416 49.284 
+L 444.4416 94.572 
+Q 444.4416 100.4328 459.648 100.4328 
+z
+" clip-path="url(#p127f607707)" style="fill: #499fa4"/>
+   </g>
+   <g id="patch_4">
+    <path d="M 459.648 217.6488 
+L 632.448 217.6488 
+Q 647.6544 217.6488 647.6544 211.788 
+L 647.6544 166.5 
+Q 647.6544 160.6392 632.448 160.6392 
+L 459.648 160.6392 
+Q 444.4416 160.6392 444.4416 166.5 
+L 444.4416 211.788 
+Q 444.4416 217.6488 459.648 217.6488 
+z
+" clip-path="url(#p127f607707)" style="fill: #a0c3d9"/>
+   </g>
+   <g id="patch_5">
+    <path d="M 243.849973 127.359004 
+Q 342.141175 101.232751 438.055243 75.738351 
+" clip-path="url(#p127f607707)" style="fill: none; stroke: #13344c; stroke-width: 2.2; stroke-linecap: round"/>
+    <path d="M 431.047983 74.289798 
+L 438.055243 75.738351 
+L 432.692045 80.475027 
+z
+" clip-path="url(#p127f607707)" style="fill: #13344c; stroke: #13344c; stroke-width: 2.2; stroke-linecap: round"/>
+   </g>
+   <g id="patch_6">
+    <path d="M 243.868324 141.632193 
+Q 342.141353 163.835402 438.01518 185.49655 
+" clip-path="url(#p127f607707)" style="fill: none; stroke: #13344c; stroke-width: 2.2; stroke-linecap: round"/>
+    <path d="M 432.477742 180.964798 
+L 438.01518 185.49655 
+L 431.067316 187.20745 
+z
+" clip-path="url(#p127f607707)" style="fill: #13344c; stroke: #13344c; stroke-width: 2.2; stroke-linecap: round"/>
+   </g>
+   <g id="text_1">
+    <text style="font-weight: 700; font-size: 24px; font-family: 'Inter'; text-anchor: middle; fill: #13344c" x="141.696" y="139.434375" transform="rotate(-0 141.696 139.434375)">Where you are</text>
+   </g>
+   <g id="text_2">
+    <text style="font-weight: 700; font-size: 22px; font-family: 'Inter'; text-anchor: middle; fill: #13344c" x="546.048" y="77.685813" transform="rotate(-0 546.048 77.685813)">If I turn left…</text>
+   </g>
+   <g id="text_3">
+    <text style="font-weight: 700; font-size: 22px; font-family: 'Inter'; text-anchor: middle; fill: #13344c" x="546.048" y="195.214625" transform="rotate(-0 546.048 195.214625)">If I turn right…</text>
+   </g>
+   <g id="text_4">
+    <text style="font-weight: 700; font-size: 20px; font-family: 'Inter'; text-anchor: middle; fill: #13344c" x="338.688" y="138.434375" transform="rotate(-0 338.688 138.434375)">Predict</text>
+   </g>
+  </g>
+ </g>
+ <defs>
+  <clipPath id="p127f607707">
+   <rect x="0" y="0" width="691.2" height="266.4"/>
+  </clipPath>
+ </defs>
+</svg>
