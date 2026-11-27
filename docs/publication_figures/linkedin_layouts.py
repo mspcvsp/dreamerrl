@@ -331,6 +331,43 @@ def training_signal():
     return g.fig
 
 
+def memory_horizon():
+    g = Layout("Memory Beyond the Training Window")
+    left, right = 75, 1525
+    step, width = 146, 136
+    burn_in_records = 2
+    supervised_start = left + burn_in_records * step
+    boundary = supervised_start - (step - width) / 2
+    cue = left + width / 2
+    reward = right - width / 2
+
+    g.text(800, 205, "Task dependency horizon", "primary", align="center", size=48)
+    g.line([cue, cue, reward, reward], [275, 251, 251, 275], lw=1.4)
+    g.text(left, 319, "Initial cue")
+    g.text(right, 319, "Terminal reward", align="right")
+    for record in range(10):
+        detached = record < burn_in_records
+        bg = "pale_orange" if record in (0, 9) else "ivory" if detached else "mist"
+        edge = g.color("navy", bg, "indicator")
+        g.ax.add_patch(Rectangle((left + record * step, 361), width, 61,
+                                 facecolor=P[bg], edgecolor=edge, lw=1.2,
+                                 hatch="//" if detached else None))
+
+    g.line([boundary, boundary], [353, 643], dashed=True, lw=.95)
+    g.text((left + boundary) / 2, 484, "Detached\nburn-in context", align="center", size=35)
+    g.line([supervised_start, supervised_start, right, right], [435, 461, 461, 435], lw=1.4)
+    g.text((supervised_start + right) / 2, 507, "Supervised training horizon",
+           "primary", align="center", size=48)
+
+    g.text((boundary + reward) / 2, 596, "Reward-loss gradient", "primary", align="center", size=48)
+    g.arrow((reward, 643), (boundary, 643), "dark_orange", lw=1.6, head=12, shrink=0)
+
+    g.text(800, 742, "Desired memory horizon (design objective)", "primary", align="center", size=48)
+    g.arrow((cue, 788), (reward, 788), "dark_teal", lw=1.6, head=12, shrink=0)
+    g.text(800, 849, "Recurrent memory can outlast the supervised window.", align="center", size=40)
+    return g.fig
+
+
 def cage_evidence():
     g=Layout("A small raw-history gain","detailed")
     data=D["return_forecast"]["representations"]
@@ -354,4 +391,4 @@ def cage_evidence():
 
 FIGURES=dict(cover=cover, conductor=conductor, architecture=architecture, behavior=behavior,
              maze=maze, bottleneck=bottleneck, intervention=intervention, training_signal=training_signal,
-             cage_evidence=cage_evidence)
+             memory_horizon=memory_horizon, cage_evidence=cage_evidence)

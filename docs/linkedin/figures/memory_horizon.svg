@@ -1,0 +1,247 @@
+<?xml version="1.0" encoding="utf-8" standalone="no"?>
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN"
+  "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
+<svg xmlns:xlink="http://www.w3.org/1999/xlink" width="360pt" height="202.5pt" viewBox="0 0 360 202.5" xmlns="http://www.w3.org/2000/svg" version="1.1">
+ <metadata>
+  <rdf:RDF xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:cc="http://creativecommons.org/ns#" xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">
+   <cc:Work>
+    <dc:type rdf:resource="http://purl.org/dc/dcmitype/StillImage"/>
+    <dc:format>image/svg+xml</dc:format>
+    <dc:creator>
+     <cc:Agent>
+      <dc:title>Matplotlib v3.10.9, https://matplotlib.org/</dc:title>
+     </cc:Agent>
+    </dc:creator>
+   </cc:Work>
+  </rdf:RDF>
+ </metadata>
+ <defs>
+  <style type="text/css">*{stroke-linejoin: round; stroke-linecap: butt}</style>
+ </defs>
+ <g id="figure_1">
+  <g id="patch_1">
+   <path d="M 0 202.5
+L 360 202.5
+L 360 0
+L 0 0
+z
+" style="fill: #f2f3ee"/>
+  </g>
+  <g id="axes_1">
+   <g id="patch_2">
+    <path d="M 16.875 81.225
+L 47.475 81.225
+L 47.475 94.95
+L 16.875 94.95
+z
+" clip-path="url(#pd0df229816)" style="fill: url(#h4dd7d97d85); stroke: #13344c; stroke-width: 1.2; stroke-linejoin: miter"/>
+   </g>
+   <g id="patch_3">
+    <path d="M 49.725 81.225
+L 80.325 81.225
+L 80.325 94.95
+L 49.725 94.95
+z
+" clip-path="url(#pd0df229816)" style="fill: url(#h42ef4e64b7); stroke: #13344c; stroke-width: 1.2; stroke-linejoin: miter"/>
+   </g>
+   <g id="patch_4">
+    <path d="M 82.575 81.225
+L 113.175 81.225
+L 113.175 94.95
+L 82.575 94.95
+z
+" clip-path="url(#pd0df229816)" style="fill: #a0c3d9; stroke: #13344c; stroke-width: 1.2; stroke-linejoin: miter"/>
+   </g>
+   <g id="patch_5">
+    <path d="M 115.425 81.225
+L 146.025 81.225
+L 146.025 94.95
+L 115.425 94.95
+z
+" clip-path="url(#pd0df229816)" style="fill: #a0c3d9; stroke: #13344c; stroke-width: 1.2; stroke-linejoin: miter"/>
+   </g>
+   <g id="patch_6">
+    <path d="M 148.275 81.225
+L 178.875 81.225
+L 178.875 94.95
+L 148.275 94.95
+z
+" clip-path="url(#pd0df229816)" style="fill: #a0c3d9; stroke: #13344c; stroke-width: 1.2; stroke-linejoin: miter"/>
+   </g>
+   <g id="patch_7">
+    <path d="M 181.125 81.225
+L 211.725 81.225
+L 211.725 94.95
+L 181.125 94.95
+z
+" clip-path="url(#pd0df229816)" style="fill: #a0c3d9; stroke: #13344c; stroke-width: 1.2; stroke-linejoin: miter"/>
+   </g>
+   <g id="patch_8">
+    <path d="M 213.975 81.225
+L 244.575 81.225
+L 244.575 94.95
+L 213.975 94.95
+z
+" clip-path="url(#pd0df229816)" style="fill: #a0c3d9; stroke: #13344c; stroke-width: 1.2; stroke-linejoin: miter"/>
+   </g>
+   <g id="patch_9">
+    <path d="M 246.825 81.225
+L 277.425 81.225
+L 277.425 94.95
+L 246.825 94.95
+z
+" clip-path="url(#pd0df229816)" style="fill: #a0c3d9; stroke: #13344c; stroke-width: 1.2; stroke-linejoin: miter"/>
+   </g>
+   <g id="patch_10">
+    <path d="M 279.675 81.225
+L 310.275 81.225
+L 310.275 94.95
+L 279.675 94.95
+z
+" clip-path="url(#pd0df229816)" style="fill: #a0c3d9; stroke: #13344c; stroke-width: 1.2; stroke-linejoin: miter"/>
+   </g>
+   <g id="patch_11">
+    <path d="M 312.525 81.225
+L 343.125 81.225
+L 343.125 94.95
+L 312.525 94.95
+z
+" clip-path="url(#pd0df229816)" style="fill: #ffe5cc; stroke: #13344c; stroke-width: 1.2; stroke-linejoin: miter"/>
+   </g>
+   <g id="patch_12">
+    <path d="M 327.825 144.675
+Q 204.6375 144.675 83.238854 144.675
+" clip-path="url(#pd0df229816)" style="fill: none; stroke: #974304; stroke-width: 1.6; stroke-linecap: round"/>
+    <path d="M 88.038854 147.075
+L 83.238854 144.675
+L 88.038854 142.275
+z
+" clip-path="url(#pd0df229816)" style="fill: #974304; stroke: #974304; stroke-width: 1.6; stroke-linecap: round"/>
+   </g>
+   <g id="patch_13">
+    <path d="M 32.175 177.3
+Q 180 177.3 326.036146 177.3
+" clip-path="url(#pd0df229816)" style="fill: none; stroke: #21686d; stroke-width: 1.6; stroke-linecap: round"/>
+    <path d="M 321.236146 174.9
+L 326.036146 177.3
+L 321.236146 179.7
+z
+" clip-path="url(#pd0df229816)" style="fill: #21686d; stroke: #21686d; stroke-width: 1.6; stroke-linecap: round"/>
+   </g>
+   <g id="line2d_1">
+    <path d="M 32.175 61.875
+L 32.175 56.475
+L 327.825 56.475
+L 327.825 61.875
+" clip-path="url(#pd0df229816)" style="fill: none; stroke: #13344c; stroke-width: 1.4; stroke-linecap: round"/>
+   </g>
+   <g id="line2d_2">
+    <path d="M 81.45 79.425
+L 81.45 144.675
+" clip-path="url(#pd0df229816)" style="fill: none; stroke-dasharray: 3.515,1.52; stroke-dashoffset: 0; stroke: #13344c; stroke-width: 0.95"/>
+   </g>
+   <g id="line2d_3">
+    <path d="M 82.575 97.875
+L 82.575 103.725
+L 343.125 103.725
+L 343.125 97.875
+" clip-path="url(#pd0df229816)" style="fill: none; stroke: #13344c; stroke-width: 1.4; stroke-linecap: round"/>
+   </g>
+   <g id="text_1">
+    <text style="font-weight: 700; font-size: 16.2px; font-family: 'Inter'; text-anchor: start; fill: #13344c" x="16.875" y="29.895188" transform="rotate(-0 16.875 29.895188)">Memory Beyond the Training Window</text>
+   </g>
+   <g id="text_2">
+    <text style="font-weight: 700; font-size: 10.8px; font-family: 'Inter'; text-anchor: middle; fill: #13344c" x="180" y="49.147312" transform="rotate(-0 180 49.147312)">Task dependency horizon</text>
+   </g>
+   <g id="text_3">
+    <text style="font-weight: 500; font-size: 10.8px; font-family: 'Inter'; text-anchor: start; fill: #13344c" x="16.875" y="74.601562" transform="rotate(-0 16.875 74.601562)">Initial cue</text>
+   </g>
+   <g id="text_4">
+    <text style="font-weight: 500; font-size: 10.8px; font-family: 'Inter'; text-anchor: end; fill: #13344c" x="343.125" y="74.601562" transform="rotate(-0 343.125 74.601562)">Terminal reward</text>
+   </g>
+   <g id="text_5">
+    <text style="font-weight: 500; font-size: 7.875px; font-family: 'Inter'; fill: #13344c" transform="translate(31.044463 106.863328)">Detached</text>
+    <text style="font-weight: 500; font-size: 7.875px; font-family: 'Inter'; fill: #13344c" transform="translate(20.031152 115.058742)">burn-in context</text>
+   </g>
+   <g id="text_6">
+    <text style="font-weight: 700; font-size: 10.8px; font-family: 'Inter'; text-anchor: middle; fill: #13344c" x="212.85" y="117.055125" transform="rotate(-0 212.85 117.055125)">Supervised training horizon</text>
+   </g>
+   <g id="text_7">
+    <text style="font-weight: 700; font-size: 10.8px; font-family: 'Inter'; text-anchor: middle; fill: #13344c" x="204.6375" y="137.080125" transform="rotate(-0 204.6375 137.080125)">Reward-loss gradient</text>
+   </g>
+   <g id="text_8">
+    <text style="font-weight: 700; font-size: 10.8px; font-family: 'Inter'; text-anchor: middle; fill: #13344c" x="180" y="169.95375" transform="rotate(-0 180 169.95375)">Desired memory horizon (design objective)</text>
+   </g>
+   <g id="text_9">
+    <text style="font-weight: 500; font-size: 9px; font-family: 'Inter'; text-anchor: middle; fill: #13344c" x="180" y="193.495078" transform="rotate(-0 180 193.495078)">Recurrent memory can outlast the supervised window.</text>
+   </g>
+  </g>
+ </g>
+ <defs>
+  <clipPath id="pd0df229816">
+   <rect x="0" y="0" width="360" height="202.5"/>
+  </clipPath>
+ </defs>
+ <defs>
+  <pattern id="h4dd7d97d85" patternUnits="userSpaceOnUse" x="0" y="0" width="72" height="72">
+   <rect x="0" y="0" width="73" height="73" fill="#ffe5cc"/>
+   <path d="M -36 36
+L 36 -36
+M -30 42
+L 42 -30
+M -24 48
+L 48 -24
+M -18 54
+L 54 -18
+M -12 60
+L 60 -12
+M -6 66
+L 66 -6
+M 0 72
+L 72 0
+M 6 78
+L 78 6
+M 12 84
+L 84 12
+M 18 90
+L 90 18
+M 24 96
+L 96 24
+M 30 102
+L 102 30
+M 36 108
+L 108 36
+" style="fill: #13344c; stroke: #13344c; stroke-width: 1.0; stroke-linecap: butt; stroke-linejoin: miter"/>
+  </pattern>
+  <pattern id="h42ef4e64b7" patternUnits="userSpaceOnUse" x="0" y="0" width="72" height="72">
+   <rect x="0" y="0" width="73" height="73" fill="#f2f3ee"/>
+   <path d="M -36 36
+L 36 -36
+M -30 42
+L 42 -30
+M -24 48
+L 48 -24
+M -18 54
+L 54 -18
+M -12 60
+L 60 -12
+M -6 66
+L 66 -6
+M 0 72
+L 72 0
+M 6 78
+L 78 6
+M 12 84
+L 84 12
+M 18 90
+L 90 18
+M 24 96
+L 96 24
+M 30 102
+L 102 30
+M 36 108
+L 108 36
+" style="fill: #13344c; stroke: #13344c; stroke-width: 1.0; stroke-linecap: butt; stroke-linejoin: miter"/>
+  </pattern>
+ </defs>
+</svg>

@@ -49,6 +49,10 @@
       ],
       "source": "eight-row supervised terminal loss and two detached-context rows"
     },
+    "memory_horizon": {
+      "type": "conceptual",
+      "source": "T-maze terminal-reward window with two detached context records and eight supervised records. The desired memory horizon is a design objective."
+    },
     "cage_evidence": {
       "type": "measured",
       "evidence": [
