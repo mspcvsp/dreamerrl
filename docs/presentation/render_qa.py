@@ -76,16 +76,17 @@ def main():
     editable(root/"presentation/scout_presentation.pptx",len(titles))
     checks["editable_slide_headings"]=len(titles)
     graphics=sorted((root/"linkedin/figures").glob("*.png"))
-    for width in (400,800):
-        resized=qa/f"linkedin-{width}"
-        resized.mkdir(exist_ok=True)
-        for path in graphics:
-            with Image.open(path) as image:
-                height=round(image.height*width/image.width)
-                image.resize((width,height),Image.Resampling.LANCZOS).save(resized/path.name)
-        montage(sorted(resized.glob("*.png")),qa/f"linkedin-{width}-contact",2 if width==400 else 1,(width,width+25))
+    if graphics:
+        for width in (400,800):
+            resized=qa/f"linkedin-{width}"
+            resized.mkdir(exist_ok=True)
+            for path in graphics:
+                with Image.open(path) as image:
+                    height=round(image.height*width/image.width)
+                    image.resize((width,height),Image.Resampling.LANCZOS).save(resized/path.name)
+            montage(sorted(resized.glob("*.png")),qa/f"linkedin-{width}-contact",2 if width==400 else 1,(width,width+25))
+        checks["linkedin_review_widths_px"]=[400,800]
     checks["linkedin_figures"]=len(graphics)
-    checks["linkedin_review_widths_px"]=[400,800]
     (qa/"automated_checks.json").write_text(json.dumps(checks,indent=2)+"\n")
 
 

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Usage: bash docs/presentation/build.sh /absolute/path/to/new-output
+# Usage: bash docs/presentation/build.sh /absolute/path/to/new-output [--scout-only]
 set -euo pipefail
 source_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 root="$(cd "$source_dir/../.." && pwd)"
@@ -26,12 +26,19 @@ fi
 out="$(realpath -m "${1:?Supply --check or an output directory under runs/}")"
 case "$out" in "$repo"/runs/*|"$root"/runs/*) ;; *) echo "Use a publication directory under runs/" >&2; exit 2 ;; esac
 [[ ! -e "$out/build_manifest.json" ]] || { echo "Choose a fresh publication output" >&2; exit 2; }
-mkdir -p "$out"/{linkedin,presentation,qa}
+case "${2:-}" in
+    "") figure_args=() ;;
+    --scout-only) figure_args=(--audience presentation) ;;
+    *) echo "Unknown flag: $2" >&2; exit 2 ;;
+esac
+mkdir -p "$out"/{presentation,qa}
 export MPLCONFIGDIR="$out/qa/matplotlib"
 printf '%s\n' "$font_record" > "$out/font_resolution.json"
 font="$(python3 -c 'import json,sys; print(json.load(sys.stdin)["family"])' <<< "$font_record")"
-uv run --project "$uv_project" --locked --no-sync python "$root/docs/publication_figures/generate_figures.py" "$out"
-python3 "$root/docs/linkedin/prepare_article.py" "$root/docs/linkedin/article.md" "$out/linkedin/article.md"
+uv run --project "$uv_project" --locked --no-sync python "$root/docs/publication_figures/generate_figures.py" "$out" "${figure_args[@]}"
+if [[ ${#figure_args[@]} -eq 0 ]]; then
+    python3 "$root/docs/linkedin/prepare_article.py" "$root/docs/linkedin/article.md" "$out/linkedin/article.md"
+fi
 cp "$source_dir/"{slides.md,presenter_guide.md} "$out/presentation/"
 work="$(mktemp -d /tmp/dreamer-publication.XXXXXX)"
 trap 'rm -rf -- "$work"' EXIT

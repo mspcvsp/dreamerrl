@@ -64,8 +64,8 @@ def architecture(scout=False):
                      None if scout else "How Dreamer learns",
                      None if scout else "Conceptual architecture · DreamerV3")
     if scout:
-        boxes(ax, ("Observe\nthe world", "Build\na model", "Practice\nchoices"), .38, .27, 26, (M,T,M))
-        label(ax,.5,.19,"Real experience updates the model.",22,align="center")
+        boxes(ax, ("Take in what\nyou sense", "Keep track of\nearlier events", "Predict what\nhappens next"), .39, .31, 22, (M,T,M))
+        label(ax,.5,.18,"What happened helps the model improve.",22,align="center")
     else:
         for y, txt, color in ((.68,"Observation + past action",M),(.49,"Encoder + recurrent state",T),
                               (.30,"Imagine likely outcomes",M),(.11,"Train actor and critic",I)):
@@ -80,7 +80,7 @@ def behavior(scout=False):
                      None if scout else "Dots · training seeds    |    Tick · mean")
     cohorts = D["behavior"]
     if scout:
-        for x,heading in ((.13,"Opponent"),(.52,"Flat"),(.79,"Two levels")):
+        for x,heading in ((.17,"Opponent"),(.52,"One level"),(.79,"Two levels")):
             label(ax,x,.88,heading,23,align="center",bold=True)
         for i,(opponent,data) in enumerate(cohorts.items()):
             row=.68-i*.22
@@ -118,28 +118,32 @@ def maze(scout=False):
     ax.plot(.50,.22,marker="D",ms=17,color=O,mec=N,mew=1)
     label(ax,.20,.80,"LEFT",19,align="center",bold=True)
     label(ax,.80,.80,"RIGHT",19,align="center",bold=True)
-    label(ax,.55,.22,"Clue at start",21 if scout else 16,bold=True)
-    label(ax,.54,.42,"Same eight moves",20 if scout else 14)
+    label(ax,.55,.22,"Clue visible at start" if scout else "Clue at start",21 if scout else 16,bold=True)
+    label(ax,.54,.42,"Clue hidden for eight steps" if scout else "Same eight moves",20 if scout else 14)
     return fig
 
 
-def bars(ax, entries, *, start=.72, step=.17, scale=.40, x=.47, size=17):
+def bars(ax, entries, *, start=.72, step=.17, scale=.40, x=.47, size=17, approximate=()):
     for i,(name,val,color) in enumerate(entries):
         y=start-i*step
         label(ax,.06,y,name,size,bold=True)
         ax.add_patch(Rectangle((x,y-.035),scale,.07,facecolor=M,alpha=.34))
-        ax.add_patch(Rectangle((x,y-.035),scale*val,.07,facecolor=color))
-        label(ax,x+scale+.028,y,f"{100*val:.1f}%" if val not in (0,.5,1) else f"{100*val:g}%",size,bold=True)
+        ax.add_patch(Rectangle((x,y-.035),scale*val,.07,facecolor=color, edgecolor=N, linewidth=1.2))
+        value = f"{100*val:.1f}%" if val not in (0, .5, 1) else f"{100*val:g}%"
+        label(ax,x+scale+.028,y,("≈" if name in approximate else "") + value,size,bold=True)
 
 
 def bottleneck(scout=False):
     fig, ax = canvas((9.6,3.7) if scout else (5.1,5.05), None if scout else "The hard state lost the cue")
     reset=D["reset"]
     if scout:
-        entries=[("Clue in the picture",mean(reset["raw"]),M),("Clue in the model's probabilities",mean(reset["probabilities"]),T),
-                 ("Clue after one hard choice",mean(reset["sample"]),O)]
-        bars(ax,entries,start=.78,step=.23,scale=.29,x=.58,size=22)
-        label(ax,.06,.09,"50% is chance for two equally likely clues.",18)
+        sampled = "One sampled summary"
+        entries = [("Starting picture", mean(reset["raw"]), M),
+                   ("Chances for each category", mean(reset["probabilities"]), T),
+                   (sampled, mean(reset["sample"]), O)]
+        bars(ax, entries, start=.77, step=.24, scale=.29, x=.59, size=22,
+             approximate=(sampled,))
+        label(ax,.06,.09,"50% is like flipping a coin between LEFT and RIGHT.",19)
     else:
         entries=[("Encoder",mean(reset["encoder"]),T),("Soft posterior",mean(reset["probabilities"]),T),
                  ("Argmax",mean(reset["z"]),O),("One sample",mean(reset["sample"]),O)]
@@ -154,47 +158,48 @@ def intervention(scout=False):
     fig,ax=canvas((9.6,3.7) if scout else (5.1,4.65),None if scout else "Retained clue, same choices")
     factual=[row["factual"] for row in D["intervention"].values()]
     a,b=mean(x["junction_h_accuracy"] for x in factual),mean(x["decision_accuracy"] for x in factual)
-    bars(ax,[("Read the clue",a,T),("Choose correctly",b,O)],start=.69 if scout else .65,
+    entries = [("Read the clue", a, T), ("Choose correctly", b, O)]
+    bars(ax,entries,start=.69 if scout else .65,
          step=.28 if scout else .25,scale=.37 if scout else .34,x=.48 if scout else .44,size=22 if scout else 16)
-    label(ax,.06,.13,"Selected model states · chance 50%",18 if scout else 12)
+    label(ax,.06,.13,"Special starting states  •  Chance is 50%" if scout else "Selected model states · chance 50%",18 if scout else 12)
     return fig
 
 
 def loop():
     fig,ax=canvas((9.6,3.7))
-    box(ax,.08,.39,.30,.27,"Agent",T,30)
-    box(ax,.62,.39,.30,.27,"Environment",M,30)
+    box(ax,.08,.39,.30,.27,"Learner",T,28)
+    box(ax,.62,.39,.30,.27,"Practice world",M,26)
     arrow(ax,(.38,.57),(.61,.57)); arrow(ax,(.62,.45),(.39,.45))
-    label(ax,.5,.73,"Action",23,align="center")
-    label(ax,.5,.25,"Observation + reward",22,align="center")
+    label(ax,.5,.73,"Try a move",23,align="center")
+    label(ax,.5,.25,"What you sense + feedback",22,align="center")
     return fig
 
 
 def imagine():
     fig,ax=canvas((9.6,3.7))
-    box(ax,.07,.38,.27,.24,"What I see",M,25)
-    box(ax,.65,.63,.28,.20,"Choice A",T,25)
-    box(ax,.65,.19,.28,.20,"Choice B",M,25)
+    box(ax,.07,.38,.27,.24,"Where you are",M,24)
+    box(ax,.65,.63,.28,.20,"If I turn left…",T,22)
+    box(ax,.65,.19,.28,.20,"If I turn right…",M,22)
     arrow(ax,(.35,.52),(.64,.72)); arrow(ax,(.35,.47),(.64,.30))
-    label(ax,.48,.50,"Imagine",20,bold=True,align="center")
+    label(ax,.49,.50,"Predict",20,bold=True,align="center")
     return fig
 
 
 def network():
     fig,ax=canvas((9.6,3.7))
-    box(ax,.08,.36,.26,.27,"Blue defender",T,25)
-    box(ax,.69,.64,.25,.20,"Workstations",M,23)
-    box(ax,.69,.19,.25,.20,"Service",M,23)
+    box(ax,.08,.36,.26,.27,"Defender",T,25)
+    box(ax,.69,.64,.25,.20,"Computers",M,23)
+    box(ax,.69,.19,.25,.20,"Shared service",M,21)
     for y in (.73,.29):
         arrow(ax,(.35,.49),(.68,y))
-    label(ax,.49,.83,"Simulator",22,align="center",bold=True)
+    label(ax,.49,.83,"Practice network",22,align="center",bold=True)
     return fig
 
 
 def workflow():
     fig,ax=canvas((9.6,3.7))
-    boxes(ax,("Read on\nGitHub","View a\nresult","Check the\nevidence"),.39,.26,21,(M,T,M))
-    label(ax,.5,.19,"Use the saved results to ask a new question.",20,align="center")
+    boxes(ax,("Ask one\nquestion","Make a\nprediction","Check saved\nresults"),.39,.26,22,(M,T,M))
+    label(ax,.5,.19,"What result would surprise you?",20,align="center")
     return fig
 
 
@@ -211,9 +216,9 @@ def conductor(scout=False):
     if scout:
         boxes(ax, ("Ask a clear\nquestion", "Get AI help\nwith one piece", "Test what\nhappened"),
               .47,.25,24,(M,T,O))
-        label(ax,.5,.855,"Microsoft Copilot + OpenAI Codex",19,align="center")
-        ax.plot([.81,.81,.18],[.44,.31,.31],color=O,lw=2.2)
-        arrow(ax,(.18,.31),(.18,.44),O)
+        label(ax,.5,.855,"Microsoft Copilot  •  ChatGPT  •  OpenAI Codex",19,align="center")
+        ax.plot([.81,.81,.18],[.44,.31,.31],color=N,lw=2.2)
+        arrow(ax,(.18,.31),(.18,.44))
         label(ax,.5,.16,"Use the evidence to revise your instructions.",20,align="center",bold=True)
     else:
         rows = (

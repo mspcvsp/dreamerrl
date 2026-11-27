@@ -42,6 +42,8 @@ UV_PROJECT_ENVIRONMENT="$PUBLICATION_ENVIRONMENT" uv run --project "$PUBLICATION
   python docs/presentation/render_qa.py "$PUBLICATION_UV_PROJECT/runs/publication_example"
 ```
 
+Add `--scout-only` after the output path to build and check just the Scout deliverables and their figures.
+
 The preflight checks executables, Beamer, Python imports and font resolution. It prints font families, styles, filenames and hashes without generating slides or figures. The [current host verification](font_verification.json) records the Inter regular and bold files resolved by Fontconfig and Matplotlib at verification time. Future builds write their own `font_resolution.json` and embed the record in their build manifest. Font binaries stay local. The prior release manifest remains the original build record.
 
 In a linked worktree, use the main checkout’s absolute path for `PUBLICATION_UV_PROJECT` and for the output under `runs/`. Keep publication and experiment directories distinct.

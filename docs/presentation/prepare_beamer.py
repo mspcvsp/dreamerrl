@@ -13,7 +13,7 @@ def dark(found):
     global counter
     counter += 1
     body = found.group()
-    if counter in (7, 15):
+    if counter in (12, 15):
         body = re.sub(r"(^\\begin\{frame\}\{[^}]*\})", r"\1\n\\color{PubIvory}", body, count=1)
     if counter == 15:
         body, links = re.subn(r"(\\href\{[^{}]+\})\{([^{}]+)\}", r"\1{\\textcolor{PubMist}{\2}}", body)
