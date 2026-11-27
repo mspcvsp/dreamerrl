@@ -149,28 +149,31 @@ def maze():
     return g.fig
 
 
-def bars(g, rows, ys):
-    x,w=707,540
+def bars(g, rows, ys, *, approximate=(), x=707):
+    w=540
     for (name,v,fg),y in zip(rows,ys,strict=True):
         g.text(75,y,name,"primary")
         g.box(x,y-30,w*v,60,fg)
         g.color(fg,"ivory","indicator")
         value=f"{100*v:.1f}%" if v not in (.5,1.) else f"{100*v:.0f}%"
-        g.text(1520,y,value,"number",align="right")
+        g.text(1520,y,("≈" if name in approximate else "")+value,"number",align="right")
     if all(v in (.5,1.) for _,v,_ in rows):
         for y in ys:
             g.line([x+w/2,x+w/2],[y+36,y+55],dashed=True)
 
 
 def bottleneck():
-    g=Layout("The hard state lost the cue")
+    g=Layout(None)
+    g.text(75,112,"Categorical sampling retained\nnegligible cue information.","title")
     reset=D["reset"]
     bars(g,[(label,mean(reset[key]),color) for key,label,color in (
-        ("encoder","Encoder","dark_teal"),("probabilities","Soft posterior","dark_teal"),
-        ("z","Argmax","dark_orange"),("sample","One sample","dark_orange"))],[242,359,476,593])
+        ("encoder","Encoder","dark_teal"),("probabilities","Posterior probabilities","dark_teal"),
+        ("z","Argmax states","dark_orange"),("sample","Sampled states","dark_orange"))],
+        [264,371,478,614],approximate=("Sampled states",),x=735)
+    g.text(75,537,"Identical for opposing cues")
     low,high=min(D["bounds"].values()),max(D["bounds"].values())
-    g.text(75,731,f"Single-draw Bayes upper bounds: {100*low:.2f}–{100*high:.2f}%","primary")
-    g.text(75,816,"Chance 50% · 3 seeds · 16 held-out level pairs per seed")
+    g.text(75,738,f"Single-sample Bayes accuracy upper bounds: {100*low:.2f}–{100*high:.2f}%")
+    g.text(75,822,"Linear probes · chance 50% · 3 seeds · 16 held-out pairs each")
     return g.fig
 
 
