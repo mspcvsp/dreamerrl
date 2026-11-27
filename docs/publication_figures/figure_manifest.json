@@ -1,8 +1,17 @@
 {
   "linkedin": {
     "cover": {
-      "type": "conceptual",
-      "source": "editorial observation\u2013posterior\u2013hard-state model"
+      "type": "mixed",
+      "source": "DreamerRL observation-conditioned path through WorldModel, RSSMCore, Posterior, Actor, and ValueHead",
+      "evidence": ["reset", "bounds"],
+      "junction_linear_probe": {
+        "source": "runs/minihack_tmaze_representation_diagnostics_20261126/diagnostic_results.json",
+        "json_path": "final_aggregate",
+        "seed_means": {
+          "sample/h/8/linear": [0.5, 0.5, 0.5],
+          "sample/hz/8/linear": [0.5, 0.5, 0.5]
+        }
+      }
     },
     "architecture": {
       "type": "conceptual",

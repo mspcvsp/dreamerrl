@@ -4,7 +4,7 @@ Build a fresh LinkedIn-only output with `bash docs/linkedin/build_figures.sh /ab
 
 | Preset | PNG dimensions | Figures |
 |---|---:|---|
-| Cover | 2000 × 600 (10:3) | Beyond Reconstruction |
+| Cover | 1600 × 900 (16:9) | Beyond Reconstruction |
 | Standard | 1600 × 900 (16:9) | Conductor, architecture, maze, bottleneck, intervention, training signal |
 | Detailed | 1600 × 1200 (4:3) | CAGE2 opponent results and archived forecasting/common support. Extra height separates groups and interval details. |
 
@@ -27,4 +27,13 @@ Chromium proof captures used 400, 600 and 800 CSS px content columns. The mobile
 | Dark teal indicator on ivory | 5.766:1 |
 | Dark orange indicator on ivory | 6.034:1 |
 
-The browser proofs and per-image geometry are under the release output’s `qa/`. Figure titles, value annotations and margins were reviewed at each target width. Rounded chart labels favor quick reading, with full-precision values and intervals retained in the existing evidence snapshot. The very wide cover uses a shorter subtitle and flow labels at mobile scale. Display cropping and compression on LinkedIn remain platform-dependent.
+The browser proofs and per-image geometry are under the release output’s `qa/`. Figure titles, value annotations and margins were reviewed at each target width. Rounded chart labels favor quick reading, with full-precision values and intervals retained in the existing evidence snapshot. Display cropping and compression on LinkedIn remain platform-dependent.
+
+
+## Information-flow cover
+
+The cover traces the observation-conditioned path in DreamerRL. `WorldModel.observe_step` encodes the observation. `WorldModel.filter_step` and `RSSMCore.forward` compute the deterministic state using the previous states and action. `Posterior.forward` uses the deterministic state and encoded observation, then draws a factored one-hot sample from the mixed probabilities. `Actor.forward` and `ValueHead.forward` both consume the deterministic and categorical states. The selected actor action and those two states feed the next recurrent update. The diagram summarizes dependencies for one observed step and its recurrence.
+
+The reset panel reads the tracked evidence snapshot. Junction bars use the sampled-state diagnostic at step 8 in the archived three-seed baseline, with the archive hash from the tracked evidence and the seed values in the figure register. Equal seed results share a bar. The single-sample Bayes upper bounds apply to the paired T-maze diagnostic and are displayed separately from the held-out probe results. The citation is for the published DreamerV3 architecture.
+
+The 1600 × 900 PNG and editable SVG were reviewed at native size and at 400, 600, and 800 pixels. The mobile preview preserves the title, panel distinction, and result pattern. Detailed notation and the citation are best read at full size.

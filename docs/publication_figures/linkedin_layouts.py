@@ -38,9 +38,9 @@ class Layout:
         self.pairs[key] = recorded
         return P[fg]
 
-    def text(self, x, y, content, role="secondary", *, bg="ivory", fg="navy", align="left"):
+    def text(self, x, y, content, role="secondary", *, bg="ivory", fg="navy", align="left", size=None):
         artist = self.ax.text(x, y, content, ha=align, va="center", linespacing=1.15,
-                              fontsize=STYLE["type_px"][role]*72/DPI,
+                              fontsize=(size if size is not None else STYLE["type_px"][role])*72/DPI,
                               color=self.color(fg,bg,"essential" if role!="secondary" and bg!="mist" else "text"),
                               weight="bold" if role!="secondary" else "medium")
         self.labels.append(artist)
@@ -48,13 +48,13 @@ class Layout:
     def box(self, x, y, w, h, bg):
         self.ax.add_patch(Rectangle((x,y),w,h,facecolor=P[bg],edgecolor="none"))
 
-    def line(self, xs, ys, fg="navy", *, dashed=False, bg="ivory"):
-        self.ax.plot(xs,ys,color=self.color(fg,bg,"indicator"),lw=2.35,
+    def line(self, xs, ys, fg="navy", *, dashed=False, bg="ivory", lw=2.35):
+        self.ax.plot(xs,ys,color=self.color(fg,bg,"indicator"),lw=lw,
                      linestyle="--" if dashed else "-",solid_capstyle="round")
 
-    def arrow(self, a, b, fg="navy"):
-        self.ax.add_patch(FancyArrowPatch(a,b,arrowstyle="-|>",mutation_scale=10,
-                                        lw=2.35,color=self.color(fg,"ivory","indicator")))
+    def arrow(self, a, b, fg="navy", *, lw=2.35, head=10, shrink=2):
+        self.ax.add_patch(FancyArrowPatch(a,b,arrowstyle="-|>",mutation_scale=head,
+                                        lw=lw,shrinkA=shrink,shrinkB=shrink,color=self.color(fg,"ivory","indicator")))
 
     def validate(self):
         self.fig.canvas.draw()
@@ -88,12 +88,131 @@ def cards(g, entries, y=270, h=300, margin=75, gap=52):
 
 
 def cover():
-    g=Layout(None,"cover")
-    g.text(90,143,"Beyond Reconstruction","title")
-    g.text(90,248,"Memory and information bottlenecks in DreamerV3")
-    cards(g,[("Observation",None,"mist"),("Soft posterior",None,"pale_teal"),
-             ("Hard state",None,"pale_orange")],330,186,90,62)
+    g = Layout(None, "cover")
+    g.text(72, 93, "Beyond Reconstruction", "title", size=65)
+    g.text(74, 153, "Tracing Information Flow in DreamerV3", size=37)
+    g.line([72, 1528], [188, 188], lw=1.0)
+    g.line([815, 815], [219, 790], "dark_teal", lw=.55)
+    cover_architecture(g)
+    cover_cue_results(g)
+    g.line([72, 1528], [812, 812], lw=.75)
+    g.text(72, 845, "Hafner et al. (2025). “Mastering diverse control tasks through world models.” Nature, 640, 647–653.",
+           size=22)
+    g.text(1528, 845, "DOI: 10.1038/s41586-025-08744-2", align="right", size=22)
     return g.fig
+
+
+def cover_architecture(g):
+    g.text(72, 220, "DreamerV3 implementation", "primary", size=35)
+
+    # Both conceptual environments feed the same observation path.
+    g.box(72, 250, 318, 102, "mist")
+    g.box(458, 250, 330, 102, "pale_teal")
+    g.text(181, 278, "Simulated cyber defense", bg="mist", size=17)
+    g.text(181, 316, "TTCP CAGE Challenge #2", bg="mist", size=16)
+    for x, y in ((107, 276), (107, 327), (145, 302)):
+        g.line([x+8, 153], [y+5, 307], bg="mist", lw=.7)
+    for x, y in ((92, 267), (92, 316), (146, 291)):
+        g.box(x, y, 26, 18, "navy")
+        g.box(x+4, y+4, 18, 10, "ivory")
+
+    g.text(577, 272, "One-clue T-maze", "primary", bg="pale_teal", size=22)
+    g.text(577, 304, "Left or right at junction", bg="pale_teal", size=17)
+    g.text(577, 333, "Cue visible only at start", bg="pale_teal", size=17)
+    g.line([481, 553], [274, 274], "dark_teal", bg="pale_teal", lw=1.0)
+    g.line([517, 517], [283, 324], "dark_teal", dashed=True, bg="pale_teal", lw=1.0)
+    g.ax.plot(517, 334, "D", ms=3.7, color=g.color("dark_orange", "pale_teal", "indicator"))
+
+    def node(x, y, w, heading, detail=None):
+        g.box(x, y, w, 62, "pale_teal")
+        g.text(x+w/2, y+(19 if detail else 31), heading, "primary",
+               align="center", bg="pale_teal", size=27)
+        if detail:
+            g.text(x+w/2, y+46, detail, align="center", bg="pale_teal", size=19)
+
+    def route(points):
+        if len(points) > 2:
+            g.line(*zip(*points[:-1]), fg="dark_teal", lw=.8)
+        g.arrow(points[-2], points[-1], "dark_teal", lw=.8, head=5, shrink=.5)
+
+    g.line([231, 231, 623, 623], [352, 368, 368, 352], "dark_teal", lw=.8)
+    route([(231, 368), (231, 414)])
+    g.text(248, 389, "Observation xₜ", size=21)
+    node(72, 414, 318, "Encoder")
+    node(458, 414, 330, "Previous step", "hₜ₋₁, zₜ₋₁, aₜ₋₁")
+    route([(231, 476), (231, 513)])
+    g.text(249, 496, "Features eₜ", size=20)
+    route([(623, 476), (623, 513)])
+    node(72, 513, 318, "Posterior")
+    node(458, 513, 318, "GRU", "Deterministic state hₜ")
+    route([(458, 544), (390, 544)])
+    g.text(424, 526, "hₜ", align="center", size=20)
+    route([(231, 575), (231, 623)])
+    g.text(249, 600, "Probabilities", size=20)
+    node(72, 623, 318, "Categorical Sampling", "Discrete latent representation")
+    node(458, 623, 318, "Actor + Critic", "Policy and value")
+    route([(390, 654), (458, 654)])
+    g.text(424, 636, "zₜ", align="center", size=20)
+    route([(776, 544), (800, 544), (800, 654), (776, 654)])
+
+    # Branch each current state to the next update. Only the selected action
+    # comes from the policy. The critic receives the same states to predict value.
+    route([(424, 654), (424, 712), (231, 712), (231, 742)])
+    route([(800, 654), (800, 712), (747, 712), (747, 742)])
+    route([(623, 685), (623, 742)])
+    g.text(610, 706, "Actor’s action aₜ", align="right", size=20)
+    g.box(72, 742, 716, 51, "pale_teal")
+    g.text(430, 767, "Next state  hₜ₊₁ = RSSMCore(hₜ, zₜ, aₜ)", "primary",
+           align="center", bg="pale_teal", size=25)
+
+
+def cover_cue_results(g):
+    g.text(840, 220, "T-maze cue recovery", "primary", size=35)
+    g.box(840, 248, 688, 86, "pale_orange")
+    g.box(840, 248, 8, 86, "orange")
+    g.text(864, 291, "Categorical Compression Obscured\nthe Original T-Maze Cue",
+           "primary", bg="pale_orange", size=29)
+    g.text(840, 371, "Held-out linear probe accuracy · 3 final checkpoints", size=24)
+
+    register = json.loads((HERE / "figure_manifest.json").read_text())
+    junction = register["linkedin"]["cover"]["junction_linear_probe"]["seed_means"]
+    reset = D["reset"]
+    # Group only when the displayed stages have exactly the same seed results.
+    if not reset["raw"] == reset["encoder"] == reset["probabilities"]:
+        raise ValueError("The reset stages need separate bars")
+    if junction["sample/h/8/linear"] != junction["sample/hz/8/linear"]:
+        raise ValueError("The junction stages need separate bars")
+    bars = [
+        (992, "Observation, encoder,\nposterior probabilities", mean(reset["raw"]), "dark_teal", ""),
+        (1155, "Argmax\nstate", mean(reset["z"]), "dark_orange", ""),
+        (1273, "Sampled\nstate", mean(reset["sample"]), "dark_orange", "≈"),
+        (1440, "Recurrent h\nand combined h+z", mean(junction["sample/h/8/linear"]), "dark_teal", "≈"),
+    ]
+    base, height = 640, 200
+    for x, name, value, color, prefix in bars:
+        length = height * value
+        g.color(color, "ivory", "indicator")
+        g.box(x-29, base-length, 58, length, color)
+        g.text(x, base-length-21, f"{prefix}{value:.0%}", "number", align="center", size=29)
+        g.text(x, 675, name, align="center", size=19)
+
+    g.line([906, 1519], [base, base], lw=.7)
+    g.line([906, 1519], [base-height/2]*2, dashed=True, lw=.65)
+    g.line([906, 906], [base-height, base], lw=.7)
+    for pct in (0, 50, 100):
+        y = base-height*pct/100
+        g.line([899, 906], [y, y], lw=.7)
+        g.text(892, y, f"{pct}%", align="right", size=20)
+    g.text(892, 563, "Chance", align="right", size=16)
+    g.line([1344, 1344], [413, 724], "dark_teal", dashed=True, lw=.55)
+    g.text(1102, 724, "Reset", "primary", align="center", size=26)
+    g.text(1440, 724, "Junction", "primary", align="center", size=26)
+
+    lo, hi = min(D["bounds"].values()), max(D["bounds"].values())
+    g.box(840, 748, 688, 45, "pale_orange")
+    g.text(852, 771, "Single-sample Bayes accuracy upper bounds", bg="pale_orange", size=21)
+    g.text(1516, 771, f"{lo:.2%}–{hi:.2%}", "primary", bg="pale_orange",
+           align="right", size=25)
 
 
 def conductor():
