@@ -297,11 +297,14 @@ def bottleneck():
 
 
 def intervention():
-    g=Layout("Retained clue, same choices")
-    factual=[row["factual"] for row in D["intervention"].values()]
-    bars(g,[("Read the clue",mean(x["junction_h_accuracy"] for x in factual),"dark_teal"),
-            ("Choose correctly",mean(x["decision_accuracy"] for x in factual),"dark_orange")],[325,535])
-    g.text(75,744,"Factual reset-state injection · chance 50%")
+    g = Layout(None)
+    g.text(75, 127, "Information Retained,\nDecisions Unchanged", "title")
+    factual = [row["factual"] for row in D["intervention"].values()]
+    bars(g, [
+        ("Cue recovery\nby probe", mean(x["junction_h_accuracy"] for x in factual), "dark_teal"),
+        ("Agent decision\naccuracy", mean(x["decision_accuracy"] for x in factual), "dark_orange"),
+    ], [325, 535])
+    g.text(75, 744, "Original cue assignment · Chance accuracy: 50%")
     return g.fig
 
 
