@@ -304,7 +304,7 @@ def intervention():
         ("Cue recovery\nby probe", mean(x["junction_h_accuracy"] for x in factual), "dark_teal"),
         ("Agent decision\naccuracy", mean(x["decision_accuracy"] for x in factual), "dark_orange"),
     ], [325, 535])
-    g.text(75, 744, "Original cue assignment · Chance accuracy: 50%")
+    g.text(75, 744, "Categorical state intervention at reset · Chance baseline: 50%")
     return g.fig
 
 
