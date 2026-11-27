@@ -306,3 +306,20 @@ def test_stair_diagnostics_preserve_sampled_actions_and_native_outcomes(world_mo
     assert opportunity is not None
     assert opportunity["step"] == 1
     assert opportunity["chosen_action"] == traces[0][0][0]
+
+
+@pytest.mark.parametrize("terminal", [False, True])
+def test_director_evaluation_censors_goal_and_resets_each_episode(world_model, tmp_path, monkeypatch, terminal):
+    from dreamerrl.models.hierarchical_actor import HierarchicalActor
+
+    env = RewardSentinel(terminal)
+    monkeypatch.setattr("dreamerrl.eval.minihack_eval.gym.make", lambda *args, **kwargs: env)
+    actor = HierarchicalActor(latent=world_model.latent, net=world_model.net_cfg, interval=3, director_goals=True)
+    cfg = minihack_config(0, tmp_path)
+    diagnostics = []
+    assert evaluate_minihack(cfg, world_model, actor, [51, 52], goal_diagnostics=diagnostics) == [5, 5]
+    assert [row["seed"] for row in diagnostics] == [51, 52]
+    for row in diagnostics:
+        assert row["steps"] == 2
+        assert row["terminated"] is terminal and row["truncated"] is not terminal
+        assert -1 <= row["max_similarity"] <= 1

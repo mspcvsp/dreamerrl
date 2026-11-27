@@ -1,0 +1,18 @@
+{
+  "reference_tag": "dreamerv3-director-room5x5-v1.1",
+  "source_manifest": "runs/director_room5x5_20261125T222409Z/comparison/execution_manifest.json",
+  "source_manifest_sha256": "7b07d039d44d31ea7ddb917457f2cf753fefded55210b3cd48c5d93d3aec831d",
+  "checkpoint": "runs/director_room5x5_20261125T222409Z/comparison/job_003/results/director_seed19/latest.pt",
+  "checkpoint_sha256": "497115a718e1b9becc401b64f2ffea5182d5e658b0bd7dc5f5020d78ee7a86f2",
+  "dataset": "runs/director_goal_audit_20261125T234817Z/visited_states.npz",
+  "dataset_sha256": "7a81be2f719d26b2e98abf0d140282d5cd7eec1905a699e8e5a969d236d77660",
+  "dataset_record": "runs/director_goal_audit_20261125T234817Z/provenance.json",
+  "dataset_record_sha256": "9d5870320a676726cf71904db48b5c36c250f493e0ce4656c9db30896d16787a",
+  "checkpoint_update": 2216,
+  "expected_levels": 40,
+  "split_seed": 839250,
+  "initialization_seeds": [19, 23, 29, 31, 37],
+  "optimizer_steps": 250,
+  "learning_rate": 0.003,
+  "ridge_alphas": [0.001, 0.01, 0.1, 1.0]
+}

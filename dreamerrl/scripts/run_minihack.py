@@ -17,7 +17,10 @@ from dreamerrl.training.trainer import DreamerTrainer
 from dreamerrl.utils.types import make_default_config
 
 
-def main(*, default_env="MiniHack-Room-5x5-v0", default_episode_steps=200):
+def main(
+    *, default_env="MiniHack-Room-5x5-v0", default_episode_steps=200,
+    on_update=None, argv=None, frozen_world=None, goal_normalizer=None,
+):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--env", default=default_env)
     parser.add_argument(
@@ -58,6 +61,8 @@ def main(*, default_env="MiniHack-Room-5x5-v0", default_episode_steps=200):
     parser.add_argument(
         "--local-glyph-branch", action="store_true", help="Opt into a player-centered 3x3 glyph encoder branch"
     )
+    parser.add_argument("--actor-mode", choices=["flat", "hierarchical", "director"])
+    parser.add_argument("--director-goal-progress", action="store_true", default=None)
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--updates", type=int, default=None, help="Total desired updates, including resumed updates")
     device = parser.add_mutually_exclusive_group()
@@ -106,7 +111,7 @@ def main(*, default_env="MiniHack-Room-5x5-v0", default_episode_steps=200):
         "--random-exploration-steps", type=int, help="Initial random environment transitions; default 1000"
     )
     parser.add_argument("--warmup-updates", type=int, default=500)
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
     for name in [
         "checkpoint_every",
         "num_envs",
@@ -198,6 +203,9 @@ def main(*, default_env="MiniHack-Room-5x5-v0", default_episode_steps=200):
                 args.random_exploration_steps if args.random_exploration_steps is not None else 1000
             )
             cfg.train.freeze_actor_critic_steps = 0
+            cfg.ac.hierarchical = args.actor_mode in ("hierarchical", "director")
+            cfg.ac.director_goals = args.actor_mode == "director"
+            cfg.ac.director_goal_progress = bool(args.director_goal_progress)
             if args.discount is not None:
                 cfg.ac.discount = args.discount
             if args.lambda_return is not None:
@@ -229,7 +237,22 @@ def main(*, default_env="MiniHack-Room-5x5-v0", default_episode_steps=200):
                     parser.error("--local-glyph-branch requires --glyph-model spatial")
                 cfg.world.glyph_local_branch = True
                 cfg.world.glyph_player_ids = tuple(glyph_scoring_schema()[1])
-            trainer = DreamerTrainer(cfg)
+            if frozen_world is not None:
+                if cfg.world != frozen_world["config"].world or cfg.env.env_id != frozen_world["config"].env.env_id:
+                    parser.error("Source world configuration differs from the resolved MiniHack configuration")
+                cfg.train.freeze_world_model = True
+                cfg.ac.director_goal_standardized = goal_normalizer is not None
+            trainer = DreamerTrainer(cfg, world_weights=frozen_world["world"] if frozen_world is not None else None)
+            if goal_normalizer is not None:
+                trainer.actor.goal_autoencoder.set_normalization(*goal_normalizer)
+        if args.resume and args.director_goal_progress and not trainer.cfg.ac.director_goal_progress:
+            parser.error("--director-goal-progress must match the checkpoint")
+        if args.resume and args.actor_mode is not None:
+            saved_mode = (
+                "director" if trainer.cfg.ac.director_goals else "hierarchical" if trainer.cfg.ac.hierarchical else "flat"
+            )
+            if args.actor_mode != saved_mode:
+                parser.error("--actor-mode must match the checkpoint")
         if args.resume and args.local_glyph_branch and not getattr(trainer.cfg.world, "glyph_local_branch", False):
             parser.error("--local-glyph-branch differs from the checkpoint; use a fresh run")
         if args.resume and args.action_cost is not None and args.action_cost != trainer.cfg.train.action_cost:
@@ -284,11 +307,16 @@ def main(*, default_env="MiniHack-Room-5x5-v0", default_episode_steps=200):
                 monitor.initialize()
                 if trainer.completed_updates == 0 and not (run_dir / "initial.pt").exists():
                     trainer.save_checkpoint(run_dir / "initial.pt")
+                def update(record):
+                    if on_update is not None:
+                        on_update(run_dir, trainer)
+                    return monitor.on_update(record)
+
                 trainer.train(
                     target,
                     checkpoint_path=checkpoint,
                     checkpoint_every=args.checkpoint_every,
-                    on_update=monitor.on_update,
+                    on_update=update,
                 )
                 monitor.finish()
             except InterruptedError:

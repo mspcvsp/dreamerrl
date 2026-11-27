@@ -122,6 +122,9 @@ class ActorCriticConfig:
     hierarchy_goals: int = 8
     hierarchy_goal_dim: int = 16
     hierarchy_interval: int = 4
+    director_goals: bool = False
+    director_goal_progress: bool = False
+    director_goal_standardized: bool = False
 
     actor_hidden: int = 256
     critic_hidden: int = 256
@@ -152,6 +155,7 @@ class TrainingConfig:
     """
 
     # Replay buffer + sequence sampling.
+    freeze_world_model: bool = False
     replay_capacity: int = 200_000
     seq_len: int = 16
     burn_in: int = 16  # Preceding replay steps used only to reconstruct recurrent state.
