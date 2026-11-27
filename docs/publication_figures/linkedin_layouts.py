@@ -268,8 +268,7 @@ def maze():
     return g.fig
 
 
-def bars(g, rows, ys, *, approximate=(), x=707):
-    w=540
+def bars(g, rows, ys, *, approximate=(), x=707, w=540):
     for (name,v,fg),y in zip(rows,ys,strict=True):
         g.text(75,y,name,"primary")
         g.box(x,y-30,w*v,60,fg)
@@ -309,19 +308,26 @@ def intervention():
 
 
 def training_signal():
-    g=Layout("Averages hid the critical cell")
-    data=D["reconstruction"].values()
-    bars(g,[("All cells",mean(x["all_accuracy"] for x in data),"dark_teal"),
-            ("Cue cell",mean(x["cue_accuracy"] for x in data),"dark_orange")],[240,376])
-    g.text(75,521,"Terminal reward’s loss window","primary")
+    g = Layout(None)
+    g.text(75, 86, "High Reconstruction Accuracy Masked Cue Loss", "title", size=57)
+    data = D["reconstruction"].values()
+    bars(g, [
+        ("Overall reconstruction\naccuracy", mean(x["all_accuracy"] for x in data), "dark_teal"),
+        ("Cue-cell reconstruction\naccuracy", mean(x["cue_accuracy"] for x in data), "dark_orange"),
+    ], [225, 355], x=805, w=430)
+
+    g.line([75, 1515], [440, 440], lw=.8)
+    g.text(75, 500, "Supervised Training Window", "primary")
+    g.text(75, 585, "Initial cue")
+    g.text(1515, 585, "Terminal reward", align="right")
     for i in range(10):
-        bg="pale_orange" if i in (0,9) else "mist" if i>=2 else "ivory"
-        color=g.color("navy",bg,"indicator")
-        g.ax.add_patch(Rectangle((75+149*i,576),132,72,facecolor=P[bg],edgecolor=color,
-                                 lw=1.2,hatch="//" if i<2 else None))
-    g.text(75,700,"Cue")
-    g.text(1515,700,"Reward",align="right")
-    g.text(75,808,"Hatched rows · detached context")
+        bg = "pale_orange" if i in (0, 9) else "mist" if i >= 2 else "ivory"
+        color = g.color("navy", bg, "indicator")
+        g.ax.add_patch(Rectangle((75 + 145*i, 625), 135, 62, facecolor=P[bg],
+                                 edgecolor=color, lw=1.2, hatch="//" if i < 2 else None))
+    g.line([365, 365, 1515, 1515], [702, 728, 728, 702], lw=1.4)
+    g.text(75, 810, "Hatched: context only")
+    g.text(1515, 810, "Solid: supervised training", align="right")
     return g.fig
 
 

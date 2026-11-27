@@ -6,7 +6,6 @@
   <rdf:RDF xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:cc="http://creativecommons.org/ns#" xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">
    <cc:Work>
     <dc:type rdf:resource="http://purl.org/dc/dcmitype/StillImage"/>
-    <dc:date>2026-11-26T20:41:31.573566</dc:date>
     <dc:format>image/svg+xml</dc:format>
     <dc:creator>
      <cc:Agent>
@@ -21,203 +20,220 @@
  </defs>
  <g id="figure_1">
   <g id="patch_1">
-   <path d="M 0 202.5 
-L 360 202.5 
-L 360 0 
-L 0 0 
+   <path d="M 0 202.5
+L 360 202.5
+L 360 0
+L 0 0
 z
 " style="fill: #f2f3ee"/>
   </g>
   <g id="axes_1">
    <g id="patch_2">
-    <path d="M 159.075 47.25 
-L 279.490179 47.25 
-L 279.490179 60.75 
-L 159.075 60.75 
+    <path d="M 181.125 43.875
+L 277.011161 43.875
+L 277.011161 57.375
+L 181.125 57.375
 z
-" clip-path="url(#pba386a75c2)" style="fill: #21686d"/>
+" clip-path="url(#pffaaad6db3)" style="fill: #21686d"/>
    </g>
    <g id="patch_3">
-    <path d="M 159.075 77.85 
-L 219.825 77.85 
-L 219.825 91.35 
-L 159.075 91.35 
+    <path d="M 181.125 73.125
+L 229.5 73.125
+L 229.5 86.625
+L 181.125 86.625
 z
-" clip-path="url(#pba386a75c2)" style="fill: #974304"/>
+" clip-path="url(#pffaaad6db3)" style="fill: #974304"/>
    </g>
    <g id="patch_4">
-    <path d="M 16.875 129.6 
-L 46.575 129.6 
-L 46.575 145.8 
-L 16.875 145.8 
+    <path d="M 16.875 140.625
+L 47.25 140.625
+L 47.25 154.575
+L 16.875 154.575
 z
-" clip-path="url(#pba386a75c2)" style="fill: url(#h713a690eb1); stroke: #13344c; stroke-width: 1.2; stroke-linejoin: miter"/>
+" clip-path="url(#pffaaad6db3)" style="fill: url(#h11bea32c28); stroke: #13344c; stroke-width: 1.2; stroke-linejoin: miter"/>
    </g>
    <g id="patch_5">
-    <path d="M 50.4 129.6 
-L 80.1 129.6 
-L 80.1 145.8 
-L 50.4 145.8 
+    <path d="M 49.5 140.625
+L 79.875 140.625
+L 79.875 154.575
+L 49.5 154.575
 z
-" clip-path="url(#pba386a75c2)" style="fill: url(#hc6236e697c); stroke: #13344c; stroke-width: 1.2; stroke-linejoin: miter"/>
+" clip-path="url(#pffaaad6db3)" style="fill: url(#h69542ce388); stroke: #13344c; stroke-width: 1.2; stroke-linejoin: miter"/>
    </g>
    <g id="patch_6">
-    <path d="M 83.925 129.6 
-L 113.625 129.6 
-L 113.625 145.8 
-L 83.925 145.8 
+    <path d="M 82.125 140.625
+L 112.5 140.625
+L 112.5 154.575
+L 82.125 154.575
 z
-" clip-path="url(#pba386a75c2)" style="fill: #a0c3d9; stroke: #13344c; stroke-width: 1.2; stroke-linejoin: miter"/>
+" clip-path="url(#pffaaad6db3)" style="fill: #a0c3d9; stroke: #13344c; stroke-width: 1.2; stroke-linejoin: miter"/>
    </g>
    <g id="patch_7">
-    <path d="M 117.45 129.6 
-L 147.15 129.6 
-L 147.15 145.8 
-L 117.45 145.8 
+    <path d="M 114.75 140.625
+L 145.125 140.625
+L 145.125 154.575
+L 114.75 154.575
 z
-" clip-path="url(#pba386a75c2)" style="fill: #a0c3d9; stroke: #13344c; stroke-width: 1.2; stroke-linejoin: miter"/>
+" clip-path="url(#pffaaad6db3)" style="fill: #a0c3d9; stroke: #13344c; stroke-width: 1.2; stroke-linejoin: miter"/>
    </g>
    <g id="patch_8">
-    <path d="M 150.975 129.6 
-L 180.675 129.6 
-L 180.675 145.8 
-L 150.975 145.8 
+    <path d="M 147.375 140.625
+L 177.75 140.625
+L 177.75 154.575
+L 147.375 154.575
 z
-" clip-path="url(#pba386a75c2)" style="fill: #a0c3d9; stroke: #13344c; stroke-width: 1.2; stroke-linejoin: miter"/>
+" clip-path="url(#pffaaad6db3)" style="fill: #a0c3d9; stroke: #13344c; stroke-width: 1.2; stroke-linejoin: miter"/>
    </g>
    <g id="patch_9">
-    <path d="M 184.5 129.6 
-L 214.2 129.6 
-L 214.2 145.8 
-L 184.5 145.8 
+    <path d="M 180 140.625
+L 210.375 140.625
+L 210.375 154.575
+L 180 154.575
 z
-" clip-path="url(#pba386a75c2)" style="fill: #a0c3d9; stroke: #13344c; stroke-width: 1.2; stroke-linejoin: miter"/>
+" clip-path="url(#pffaaad6db3)" style="fill: #a0c3d9; stroke: #13344c; stroke-width: 1.2; stroke-linejoin: miter"/>
    </g>
    <g id="patch_10">
-    <path d="M 218.025 129.6 
-L 247.725 129.6 
-L 247.725 145.8 
-L 218.025 145.8 
+    <path d="M 212.625 140.625
+L 243 140.625
+L 243 154.575
+L 212.625 154.575
 z
-" clip-path="url(#pba386a75c2)" style="fill: #a0c3d9; stroke: #13344c; stroke-width: 1.2; stroke-linejoin: miter"/>
+" clip-path="url(#pffaaad6db3)" style="fill: #a0c3d9; stroke: #13344c; stroke-width: 1.2; stroke-linejoin: miter"/>
    </g>
    <g id="patch_11">
-    <path d="M 251.55 129.6 
-L 281.25 129.6 
-L 281.25 145.8 
-L 251.55 145.8 
+    <path d="M 245.25 140.625
+L 275.625 140.625
+L 275.625 154.575
+L 245.25 154.575
 z
-" clip-path="url(#pba386a75c2)" style="fill: #a0c3d9; stroke: #13344c; stroke-width: 1.2; stroke-linejoin: miter"/>
+" clip-path="url(#pffaaad6db3)" style="fill: #a0c3d9; stroke: #13344c; stroke-width: 1.2; stroke-linejoin: miter"/>
    </g>
    <g id="patch_12">
-    <path d="M 285.075 129.6 
-L 314.775 129.6 
-L 314.775 145.8 
-L 285.075 145.8 
+    <path d="M 277.875 140.625
+L 308.25 140.625
+L 308.25 154.575
+L 277.875 154.575
 z
-" clip-path="url(#pba386a75c2)" style="fill: #a0c3d9; stroke: #13344c; stroke-width: 1.2; stroke-linejoin: miter"/>
+" clip-path="url(#pffaaad6db3)" style="fill: #a0c3d9; stroke: #13344c; stroke-width: 1.2; stroke-linejoin: miter"/>
    </g>
    <g id="patch_13">
-    <path d="M 318.6 129.6 
-L 348.3 129.6 
-L 348.3 145.8 
-L 318.6 145.8 
+    <path d="M 310.5 140.625
+L 340.875 140.625
+L 340.875 154.575
+L 310.5 154.575
 z
-" clip-path="url(#pba386a75c2)" style="fill: #ffe5cc; stroke: #13344c; stroke-width: 1.2; stroke-linejoin: miter"/>
+" clip-path="url(#pffaaad6db3)" style="fill: #ffe5cc; stroke: #13344c; stroke-width: 1.2; stroke-linejoin: miter"/>
+   </g>
+   <g id="line2d_1">
+    <path d="M 16.875 99
+L 340.875 99
+" clip-path="url(#pffaaad6db3)" style="fill: none; stroke: #13344c; stroke-width: 0.8; stroke-linecap: round"/>
+   </g>
+   <g id="line2d_2">
+    <path d="M 82.125 157.95
+L 82.125 163.8
+L 340.875 163.8
+L 340.875 157.95
+" clip-path="url(#pffaaad6db3)" style="fill: none; stroke: #13344c; stroke-width: 1.4; stroke-linecap: round"/>
    </g>
    <g id="text_1">
-    <text style="font-weight: 700; font-size: 16.2px; font-family: 'Inter'; text-anchor: start; fill: #13344c" x="16.875" y="29.895188" transform="rotate(-0 16.875 29.895188)">Averages hid the critical cell</text>
+    <text style="font-weight: 700; font-size: 12.825px; font-family: 'Inter'; text-anchor: start; fill: #13344c" x="16.875" y="22.888898" transform="rotate(-0 16.875 22.888898)">High Reconstruction Accuracy Masked Cue Loss</text>
    </g>
    <g id="text_2">
-    <text style="font-weight: 700; font-size: 13.05px; font-family: 'Inter'; text-anchor: start; fill: #13344c" x="16.875" y="57.41543" transform="rotate(-0 16.875 57.41543)">All cells</text>
+    <text style="font-weight: 700; font-size: 13.05px; font-family: 'Inter'; fill: #13344c" transform="translate(16.875 47.224455)">Overall reconstruction</text>
+    <text style="font-weight: 700; font-size: 13.05px; font-family: 'Inter'; fill: #13344c" transform="translate(16.875 60.805427)">accuracy</text>
    </g>
    <g id="text_3">
-    <text style="font-weight: 700; font-size: 18px; font-family: 'Inter'; text-anchor: end; fill: #13344c" x="342" y="58.710938" transform="rotate(-0 342 58.710938)">99.1%</text>
+    <text style="font-weight: 700; font-size: 18px; font-family: 'Inter'; text-anchor: end; fill: #13344c" x="342" y="55.335938" transform="rotate(-0 342 55.335938)">99.1%</text>
    </g>
    <g id="text_4">
-    <text style="font-weight: 700; font-size: 13.05px; font-family: 'Inter'; text-anchor: start; fill: #13344c" x="16.875" y="88.01543" transform="rotate(-0 16.875 88.01543)">Cue cell</text>
+    <text style="font-weight: 700; font-size: 13.05px; font-family: 'Inter'; fill: #13344c" transform="translate(16.875 76.474455)">Cue-cell reconstruction</text>
+    <text style="font-weight: 700; font-size: 13.05px; font-family: 'Inter'; fill: #13344c" transform="translate(16.875 90.055427)">accuracy</text>
    </g>
    <g id="text_5">
-    <text style="font-weight: 700; font-size: 18px; font-family: 'Inter'; text-anchor: end; fill: #13344c" x="342" y="89.310938" transform="rotate(-0 342 89.310938)">50%</text>
+    <text style="font-weight: 700; font-size: 18px; font-family: 'Inter'; text-anchor: end; fill: #13344c" x="342" y="84.585938" transform="rotate(-0 342 84.585938)">50%</text>
    </g>
    <g id="text_6">
-    <text style="font-weight: 700; font-size: 13.05px; font-family: 'Inter'; text-anchor: start; fill: #13344c" x="16.875" y="120.64043" transform="rotate(-0 16.875 120.64043)">Terminal reward’s loss window</text>
+    <text style="font-weight: 700; font-size: 13.05px; font-family: 'Inter'; text-anchor: start; fill: #13344c" x="16.875" y="116.100984" transform="rotate(-0 16.875 116.100984)">Supervised Training Window</text>
    </g>
    <g id="text_7">
-    <text style="font-weight: 500; font-size: 10.8px; font-family: 'Inter'; text-anchor: start; fill: #13344c" x="16.875" y="160.326562" transform="rotate(-0 16.875 160.326562)">Cue</text>
+    <text style="font-weight: 500; font-size: 10.8px; font-family: 'Inter'; text-anchor: start; fill: #13344c" x="16.875" y="134.451562" transform="rotate(-0 16.875 134.451562)">Initial cue</text>
    </g>
    <g id="text_8">
-    <text style="font-weight: 500; font-size: 10.8px; font-family: 'Inter'; text-anchor: end; fill: #13344c" x="340.875" y="160.326562" transform="rotate(-0 340.875 160.326562)">Reward</text>
+    <text style="font-weight: 500; font-size: 10.8px; font-family: 'Inter'; text-anchor: end; fill: #13344c" x="340.875" y="134.451562" transform="rotate(-0 340.875 134.451562)">Terminal reward</text>
    </g>
    <g id="text_9">
-    <text style="font-weight: 500; font-size: 10.8px; font-family: 'Inter'; text-anchor: start; fill: #13344c" x="16.875" y="184.626563" transform="rotate(-0 16.875 184.626563)">Hatched rows · detached context</text>
+    <text style="font-weight: 500; font-size: 10.8px; font-family: 'Inter'; text-anchor: start; fill: #13344c" x="16.875" y="185.055469" transform="rotate(-0 16.875 185.055469)">Hatched: context only</text>
+   </g>
+   <g id="text_10">
+    <text style="font-weight: 500; font-size: 10.8px; font-family: 'Inter'; text-anchor: end; fill: #13344c" x="340.875" y="185.171906" transform="rotate(-0 340.875 185.171906)">Solid: supervised training</text>
    </g>
   </g>
  </g>
  <defs>
-  <clipPath id="pba386a75c2">
+  <clipPath id="pffaaad6db3">
    <rect x="0" y="0" width="360" height="202.5"/>
   </clipPath>
  </defs>
  <defs>
-  <pattern id="h713a690eb1" patternUnits="userSpaceOnUse" x="0" y="0" width="72" height="72">
+  <pattern id="h11bea32c28" patternUnits="userSpaceOnUse" x="0" y="0" width="72" height="72">
    <rect x="0" y="0" width="73" height="73" fill="#ffe5cc"/>
-   <path d="M -36 36 
-L 36 -36 
-M -30 42 
-L 42 -30 
-M -24 48 
-L 48 -24 
-M -18 54 
-L 54 -18 
-M -12 60 
-L 60 -12 
-M -6 66 
-L 66 -6 
-M 0 72 
-L 72 0 
-M 6 78 
-L 78 6 
-M 12 84 
-L 84 12 
-M 18 90 
-L 90 18 
-M 24 96 
-L 96 24 
-M 30 102 
-L 102 30 
-M 36 108 
-L 108 36 
+   <path d="M -36 36
+L 36 -36
+M -30 42
+L 42 -30
+M -24 48
+L 48 -24
+M -18 54
+L 54 -18
+M -12 60
+L 60 -12
+M -6 66
+L 66 -6
+M 0 72
+L 72 0
+M 6 78
+L 78 6
+M 12 84
+L 84 12
+M 18 90
+L 90 18
+M 24 96
+L 96 24
+M 30 102
+L 102 30
+M 36 108
+L 108 36
 " style="fill: #13344c; stroke: #13344c; stroke-width: 1.0; stroke-linecap: butt; stroke-linejoin: miter"/>
   </pattern>
-  <pattern id="hc6236e697c" patternUnits="userSpaceOnUse" x="0" y="0" width="72" height="72">
+  <pattern id="h69542ce388" patternUnits="userSpaceOnUse" x="0" y="0" width="72" height="72">
    <rect x="0" y="0" width="73" height="73" fill="#f2f3ee"/>
-   <path d="M -36 36 
-L 36 -36 
-M -30 42 
-L 42 -30 
-M -24 48 
-L 48 -24 
-M -18 54 
-L 54 -18 
-M -12 60 
-L 60 -12 
-M -6 66 
-L 66 -6 
-M 0 72 
-L 72 0 
-M 6 78 
-L 78 6 
-M 12 84 
-L 84 12 
-M 18 90 
-L 90 18 
-M 24 96 
-L 96 24 
-M 30 102 
-L 102 30 
-M 36 108 
-L 108 36 
+   <path d="M -36 36
+L 36 -36
+M -30 42
+L 42 -30
+M -24 48
+L 48 -24
+M -18 54
+L 54 -18
+M -12 60
+L 60 -12
+M -6 66
+L 66 -6
+M 0 72
+L 72 0
+M 6 78
+L 78 6
+M 12 84
+L 84 12
+M 18 90
+L 90 18
+M 24 96
+L 96 24
+M 30 102
+L 102 30
+M 36 108
+L 108 36
 " style="fill: #13344c; stroke: #13344c; stroke-width: 1.0; stroke-linecap: butt; stroke-linejoin: miter"/>
   </pattern>
  </defs>
