@@ -369,23 +369,46 @@ def memory_horizon():
 
 
 def cage_evidence():
-    g=Layout("A small raw-history gain","detailed")
-    data=D["return_forecast"]["representations"]
-    x=lambda v:690+(v+.052)/.081*790
-    g.line([x(0),x(0)],[228,698],dashed=True)
-    for i,(key,name) in enumerate((("observation","Raw observations"),("posterior","Posterior"),("hz","Combined"))):
-        row=data[key]["paired_history_increment"]["fixed_mlp_minus_current_mlp"]
-        y=318+i*160
-        g.text(75,y,name,"primary")
-        g.line([x(n) for n in row["delta_r2_ci95"]],[y,y],"dark_teal")
-        g.ax.plot(x(row["delta_r2"]),y,"o",color=g.color("navy","ivory","indicator"),markersize=8)
-    for v in (-.05,0,.02):
-        g.text(x(v),762,f"{v:+.02f}" if v else "0",align="center")
-    g.text(75,853,"Change in test R² · 95% interval · 72 test episodes")
-    g.box(75,930,1450,185,"pale_orange")
-    c=D["common_support"]["coverage"]
-    g.text(108,985,"Separate hidden-history study","primary",bg="pale_orange")
-    g.text(108,1060,f"{c['fit']['pairs']} fit pair, {c['validation']['pairs']} validation pairs · test stayed closed",bg="pale_orange")
+    g = Layout(None, "detailed")
+    g.text(75, 138, "Observation History Modestly\nImproved Return Forecasting", "title")
+    forecast = D["return_forecast"]
+    axis_min, axis_max = -.052, .029
+    plot_left, plot_right = 690, 1480
+
+    def x(value):
+        return plot_left + (value - axis_min) / (axis_max - axis_min) * (plot_right - plot_left)
+
+    g.text(x(0), 263, "No improvement", align="center", size=43)
+    g.line([x(0), x(0)], [302, 654], dashed=True, lw=1.2)
+    for (key, name), y in zip((
+        ("observation", "Raw observation\nhistory"),
+        ("posterior", "Posterior probability\nhistory"),
+        ("hz", "Combined RSSM\nstate history"),
+    ), (350, 475, 600), strict=True):
+        row = forecast["representations"][key]["paired_history_increment"]["fixed_mlp_minus_current_mlp"]
+        g.text(75, y, name, "primary", size=51)
+        low, high = row["delta_r2_ci95"]
+        g.line([x(low), x(high)], [y, y], "dark_teal", lw=1.8)
+        for endpoint in (low, high):
+            g.line([x(endpoint), x(endpoint)], [y - 9, y + 9], "dark_teal", lw=1.4)
+        g.ax.plot(x(row["delta_r2"]), y, "o", color=g.color("navy", "ivory", "indicator"), markersize=8)
+
+    g.line([plot_left, plot_right], [654, 654], lw=.85)
+    for value in (-.05, -.025, 0, .025):
+        g.line([x(value), x(value)], [654, 667], lw=.85)
+        label = f"{value:+.3f}".rstrip("0").replace("-", "−") if value else "0"
+        g.text(x(value), 700, label, align="center", size=40)
+
+    g.text(75, 760, "Change in test R²: five-frame history vs. current state", "primary", size=44)
+    g.text(75, 814, f"95% confidence intervals · {forecast['episode_counts']['test']} held-out test episodes", size=43)
+    g.text(75, 865, "Posterior and RSSM effects were inconclusive: both intervals include zero.", size=39)
+
+    g.box(75, 927, 1450, 231, "pale_orange")
+    coverage = D["common_support"]["coverage"]
+    g.text(106, 976, "Separate Hidden-Session History Study", "primary", bg="pale_orange", size=48)
+    g.text(106, 1050, f"{coverage['fit']['pairs']} matched training pair, {coverage['validation']['pairs']} validation pairs · "
+           "Insufficient matched examples to proceed", bg="pale_orange", size=34)
+    g.text(106, 1111, "No probes were trained. Reserved test episodes were untouched.", bg="pale_orange", size=39)
     return g.fig
 
 
